@@ -38,7 +38,7 @@ One simulation step is one day. A month is 30 days and a year is 360, and histor
 | 86 | myth | `src/sim/myth/` | Races and mixed peoples, ley lines and mana, arcane schools, the gods, the Fading |
 | 100 | stats | `src/sim/stats.js` | Yearly records, border snapshots every ten years, entity ledgers, the Hall of Records, the catastrophe catalogue |
 
-In the browser, each animation frame calls `sim.advance(dt, budget)`, which runs as many days as the speed asks for within a time budget, and then `renderer.render(t)`. Panels refresh at most four times a second. Leaps and run-until call `sim.step()` in slices of about 50 ms and draw a frame between slices.
+In the browser, each animation frame calls `sim.advance(dt, budget)`, which runs as many days as the speed asks for within a time budget, and then `renderer.render(t)`. At Max speed a still map is drawn every other frame (about 15 times a second) and the frames in between go to the simulation; while the view moves or the viewer works on the map, every frame is drawn. Panels refresh at most four times a second. Leaps and run-until call `sim.step()` in slices of about 50 ms and draw a frame between slices.
 
 ## World state
 

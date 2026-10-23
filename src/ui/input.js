@@ -44,6 +44,7 @@ const FOLLOW_POINT_MS = 200;  // a followed mover is re-centred this often
 const FOLLOW_FRAME_MS = 2000; // a followed region is re-framed this often (when it changed)
 const DIVE_ZOOM = 28;         // a double-click on a town dives at least this close
 const TAB_TOWNS = 12, TAB_ARMIES = 4;   // Tab walks this many of the largest towns and armies in view, then leaves the map
+const BUSY_MS = 250;          // the pointer moving over the map keeps it busy() this long after (main.js draws every frame then)
 
 const TONE = { boon: 'peace', bane: 'hate', neutral: 'trade' };
 const PICK_WORD = { civ: 'a nation’s lands', settlement: 'a settlement', tile: 'a spot on the map' };
@@ -57,6 +58,7 @@ export function mountInput(app, canvas) {
   let stroke = null;          // { tool, pos, lastApply, applied }
   let toolWait = 0;           // timer while a touch with a tool might still become a pinch
   let hoverPos = null, hoverDirty = false, hoverAt = 0;
+  let touchedAt = -1e9;       // the last pointer move, press or wheel over the map (busy())
   const held = new Set();
   const msgAt = new Map();
   const hoverCard = document.getElementById('hover-card');
@@ -87,6 +89,7 @@ export function mountInput(app, canvas) {
     if (!app.world) return;
     canvas.focus({ preventScroll: true });
     try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic events */ }
+    touchedAt = performance.now();
     const p = local(e);
     pointers.set(e.pointerId, p);
     hideHoverCard();
@@ -149,7 +152,7 @@ export function mountInput(app, canvas) {
 
   canvas.addEventListener('pointermove', (e) => {
     const p = local(e);
-    hoverPos = p; hoverDirty = true;
+    hoverPos = p; hoverDirty = true; touchedAt = performance.now();
     if (!pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, p);
     if (mode === 'pinch') { movePinch(); return; }
@@ -218,6 +221,7 @@ export function mountInput(app, canvas) {
   canvas.addEventListener('wheel', (e) => {
     if (!app.world) return;
     e.preventDefault();
+    touchedAt = performance.now();
     const p = local(e);
     // with a brush in hand, Shift+wheel sizes it and Alt+wheel sets its strength
     if ((e.shiftKey || e.altKey) && !e.ctrlKey && app.tool !== 'inspect' && wheelAdjust(e, p)) return;
@@ -850,5 +854,7 @@ export function mountInput(app, canvas) {
     },
     /** Let go of a pair tool's source (Esc does the same). */
     cancelPair,
+    /** Is the viewer at work on the map: a press, drag, pinch or stroke, held pan keys, the pointer moving over it lately? */
+    busy(nowT = performance.now()) { return mode !== null || held.size > 0 || nowT - touchedAt < BUSY_MS; },
   };
 }
