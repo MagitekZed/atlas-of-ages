@@ -579,11 +579,14 @@ class Renderer {
     const vb2 = this.viewBounds(2);
     // at Max speed every row is a season behind every frame: the seasonal sweep, the territory
     // wash and the borders catch up at a gentler rate there, leaving the frame to the sim
-    // (edits and style switches still repaint at once)
+    // (edits and style switches still repaint at once). main.js draws a still map only every
+    // other frame at Max: a draw that stands for more than one ~30 fps frame runs the sweep
+    // twice, so the raster falls no further behind
     const hurried = this.fx.dps > 600;
     this._hurried = hurried;
     if (!this.terrain.built) { this.terrain.buildAll(); this.terrain.built = true; }
-    else this.terrain.update(hurried ? Math.min(1, this.terrainBudgetMs) : this.terrainBudgetMs, [vb2.y0, vb2.y1]);
+    else if (hurried) for (let k = dt > 0.045 ? 2 : 1; k > 0; k--) this.terrain.update(Math.min(1, this.terrainBudgetMs), [vb2.y0, vb2.y1]);
+    else this.terrain.update(this.terrainBudgetMs, [vb2.y0, vb2.y1]);
     this.stats.terrainMs = perf() - tT;
     this._syncVectors(!this.vec.coast);
     const spec = this._territorySpec();
