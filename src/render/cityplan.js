@@ -1759,6 +1759,7 @@ export function drawCityPlans(r, ctx, z, worldT) {
   // the footprints on screen ([cx, cy, radius] CSS px) that minor lettering keeps off
   r._planRects = r._planRects || [];
   r._planRects.length = 0;
+  r._plansPending = 0;   // towns in view left with no picture at all this frame (renderer.detailPending)
   if (z < 14 || r.snapshot) return;
   if (!r._plans) r._plans = new PlanCache();
   const pc = r._plans;
@@ -1806,7 +1807,10 @@ export function drawCityPlans(r, ctx, z, worldT) {
         // not built yet: show the nearest picture of this town at another level, if any
         pic = last;
         shown = lastE?.pk;
-        if (!pic) continue;
+        if (!pic) { r._plansPending++; continue; }
+        // it is on screen, so in use: the cache must not evict it while this town's build waits
+        // (the town would blink out until built, and main.js would draw every frame meanwhile)
+        pc.pics.delete(shown); pc.pics.set(shown, pic);
       } else {
         const s0 = perf();
         const plan = pc.geometry(r, s, key);

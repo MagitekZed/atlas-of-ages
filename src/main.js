@@ -470,8 +470,9 @@ window.addEventListener('unhandledrejection', (e) => {
 
 let lastT = performance.now(), lastTick = 0, renderFails = 0, lastFFDraw = 0, lastDraw = 0;
 const meter = { days: 0, t: 0 };
-// Running means of render and UI cost; at Max speed the sim gets what remains of a ~30 fps frame.
-let renderMs = 12, otherMs = 2;
+// Running means of render and UI cost (and of an undrawn frame's upkeep, renderer.skipFrame);
+// at Max speed the sim gets what remains of a ~30 fps frame.
+let renderMs = 12, otherMs = 2, skipMs = 0.3;
 app.perf = { renderMs: 0, otherMs: 0, budget: 0 };
 let input = null;
 // a new pace is measured afresh: the last second's figure belongs to the old speed
@@ -486,14 +487,16 @@ const drawnView = { x: NaN, y: NaN, zoom: NaN, w: 0, h: 0 };
 /**
  * Must this frame be drawn, even at Max speed? Yes while the view moves (a pan, zoom, flight or
  * Director cut, a resize, a follow), while the viewer is at work on the map (input.busy: a drag,
- * a pinch, held keys, a stroke, the pointer moving over it) and while a tool's brush, preview or
- * highlights show (they animate). The stand-in renderer is cheap: it always draws.
+ * a pinch, held keys, a stroke, the pointer moving over it), while a tool's brush, preview or
+ * highlights show (they animate) and while close-zoom detail is still filling in after a move
+ * (renderer.detailPending: it builds a chunk or two per draw). The stand-in renderer is cheap:
+ * it always draws.
  */
 function smoothFrame(t) {
   const r = app.renderer, c = r?.camera;
   if (!c || app.renderInfo.fallback || app.follow || c.animating) return true;
   if (c.x !== drawnView.x || c.y !== drawnView.y || c.zoom !== drawnView.zoom || c.viewW !== drawnView.w || c.viewH !== drawnView.h) return true;
-  return Boolean(r.brush || r.toolPreview || r.highlights?.length || input?.busy(t));
+  return Boolean(r.detailPending || r.brush || r.toolPreview || r.highlights?.length || input?.busy(t));
 }
 
 function frame(t) {
@@ -506,14 +509,22 @@ function frame(t) {
   const drawNow = app.fastForwarding ? t - lastFFDraw >= 240 : !max || t - lastDraw >= MAX_DRAW_GAP || smoothFrame(t);
   if (app.running && app.sim) {
     // a frame that will not be drawn gives the sim the render's share too
-    const budget = max ? Math.max(6, Math.min(24, 27 - (drawNow ? renderMs : 0) - otherMs)) : 12;
+    const budget = max ? Math.max(6, Math.min(24, 27 - (drawNow ? renderMs : skipMs) - otherMs)) : 12;
     app.perf.budget = budget;
     try { meter.days += app.sim.advance(dt, budget); } catch (e) { app.reportError('sim.advance', e); }
   }
   if (app.running) meter.t += dt;   // a leap or the Genesis screen is not part of the pace
   if (meter.t >= 1) { app.measured.dps = app.speed > 0 ? meter.days / meter.t : 0; meter.days = 0; meter.t = 0; }
   try { input?.frame(dt); } catch (e) { app.reportError('input.frame', e); }
-  if (drawNow && app.renderer && app.world && appEl.dataset.mode === 'world') {
+  const onMap = Boolean(app.renderer && app.world && appEl.dataset.mode === 'world');
+  if (!drawNow && max && onMap && typeof app.renderer.skipFrame === 'function') {
+    // an undrawn frame still takes in the effects its days queued, as a drawn one would: by the
+    // next draw, two frames of Max speed have passed and most of them would read as stale
+    const s0 = performance.now();
+    try { app.renderer.skipFrame(t); } catch (e) { app.reportError('renderer.skipFrame', e); }
+    skipMs = skipMs * 0.9 + (performance.now() - s0) * 0.1;
+  }
+  if (drawNow && onMap) {
     if (app.fastForwarding) lastFFDraw = t;
     lastDraw = t;
     const r0 = performance.now();

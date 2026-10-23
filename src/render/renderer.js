@@ -99,6 +99,7 @@ class Renderer {
     this.now = perf(); this._lastNow = null;
     this.terrainBudgetMs = 3;
     this.stats = { fps: 0, frameMs: 0, terrainMs: 0, frames: 0, glyphs: 0, labels: 0 };
+    this.detailPending = false;
     this.reducedMotion = false;
     this.bg = P.MAP_BG;
     try {
@@ -554,9 +555,24 @@ class Renderer {
   // ---------------------------------------------------------------------------
   // Frame
 
+  /**
+   * A frame main.js leaves undrawn (a still map at Max speed): take in the effects its days
+   * queued, as a drawn frame does, so fx.ingest judges their age on the day this frame ends
+   * and they start now (sound cues and recentFx with them); the next draw animates them.
+   */
+  skipFrame(nowMs) {
+    if (!this.world || !this.terrain) return;
+    const now = Number.isFinite(nowMs) ? nowMs : perf();
+    this.fx.ingest(this.world, now, this);
+    this.fx.expire(now);
+  }
+
   render(nowMs) {
     const tStart = perf();
     let now = Number.isFinite(nowMs) ? nowMs : tStart;
+    // close-zoom detail still filling in (an empty LOD chunk, a town plan not yet built):
+    // main.js then draws every frame at Max speed too, so it fills in at the usual pace
+    this.detailPending = false;
     const dt = this._lastNow == null ? 1 / 60 : clamp((now - this._lastNow) / 1000, 0, 0.1);
     this._lastNow = now;
     this.now = now;
@@ -659,6 +675,7 @@ class Renderer {
       const tl = perf();
       this.lod.update(this, { family: `${prof.detail}:${this.terrain.style}`, zd: z * dpr, now, dps: this.fx.dps, maxSpeed: this.fx.dps > 600 });
       this.lod.draw(ctx, this, smoothstep(8, 11, z), shx, shy, now);
+      if (this.lod.stats.empty || this.lod.stats.fadingIn) this.detailPending = true;
       this.stats.lodMs = perf() - tl;
       this.stats.lodBuilds = this.lod.stats.builds;
       worldT();
@@ -685,6 +702,7 @@ class Renderer {
     if (!this.snapshot && (prof.settle ?? 1) > 0.5) {
       drawRuins(this, ctx, z);
       drawCityPlans(this, ctx, z);
+      if (this._plansPending) this.detailPending = true;
     } else { if (this._planAlpha) this._planAlpha.clear(); if (this._planRects) this._planRects.length = 0; }
     mark('plans');
     // --- trade routes

@@ -107,7 +107,7 @@ export class LodCache {
     this.k = 0; this.family = null;
     this.vis = null;             // { k, n, cx0, cy0, cx1, cy1 } this frame
     this.sprites = LOD_P.map(() => new SpriteCache(420));
-    this.stats = { k: 0, visible: 0, builds: 0, buildMs: 0, blits: 0, fallback: 0, chunks: 0, mb: 0, queue: 0, signMs: 0, lastBuildMs: 0 };
+    this.stats = { k: 0, visible: 0, builds: 0, buildMs: 0, blits: 0, fallback: 0, chunks: 0, mb: 0, queue: 0, empty: 0, fadingIn: 0, signMs: 0, lastBuildMs: 0 };
     this._signAt = new Map();    // key → last sign time
     this._ownerEra = new Int8Array(0); this._eraKey = '';
     this._errs = new Set();
@@ -302,7 +302,8 @@ export class LodCache {
     queue.sort((a, b) => (b.empty - a.empty) || a.d - b.d);
     // build within the budget (at least one when a visible chunk is still empty)
     const maxBuilds = maxSpeed ? 1 : 2;
-    let built = 0;
+    let built = 0, empty = 0;
+    for (const q of queue) if (q.empty) empty++;
     const tb = perf();
     for (const q of queue) {
       if (built >= maxBuilds) break;
@@ -313,6 +314,7 @@ export class LodCache {
       this._build(q.c, r, season, now);
       this.stats.lastBuildMs = perf() - s0;
       built++;
+      if (q.empty) empty--;
     }
     // idle: prefetch the ring around the view
     if (!queue.length && perf() - t0 < this.budgetMs * 0.5) {
@@ -335,6 +337,7 @@ export class LodCache {
     if (built) { this.stats.builds += built; this.stats.buildMs = perf() - tb; } else this.stats.buildMs = 0;
     this.stats.frameBuilds = built;
     this.stats.queue = Math.max(0, queue.length - built);
+    this.stats.empty = empty;   // visible chunks still without a picture after this frame's builds
     this._evict();
     this.stats.k = k; this.stats.visible = (cx1 - cx0 + 1) * (cy1 - cy0 + 1);
     this.stats.chunks = this.map.size; this.stats.mb = this._held() / 1048576;
@@ -376,6 +379,7 @@ export class LodCache {
    */
   draw(ctx, r, alpha = 1, shx = 0, shy = 0, now = perf()) {
     const v = this.vis;
+    this.stats.fadingIn = 0;
     if (!v || alpha <= 0.01) return;
     const cam = r.camera, z = cam.zoom, dpr = r.dpr;
     const ox = r.viewW / 2 + shx, oy = r.viewH / 2 + shy;
@@ -385,7 +389,7 @@ export class LodCache {
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'medium';
     const n = v.n, k = v.k;
-    let blits = 0, fb = 0;
+    let blits = 0, fb = 0, fadingIn = 0;
     const S = CHUNK_PX;
     for (let cy = v.cy0; cy <= v.cy1; cy++) {
       const dy0 = Y(cy * n), dy1 = Y(cy * n + n);
@@ -400,6 +404,7 @@ export class LodCache {
             ctx.globalAlpha = alpha * (1 - fade);
             ctx.drawImage(c.old, 0, 0, S, S, dx0, dy0, dw, dh); blits++;
           } else if (this._fallback(ctx, k, cx, cy, dx0, dy0, dw, dh, alpha * (c ? 1 - fade : 1))) fb++;
+          if (c && !c.old) fadingIn++;   // a first picture, fading in over the fallback
         }
         if (c) {
           if (fade >= 1 && c.old) { this._release(c.old); c.old = null; }
@@ -409,7 +414,7 @@ export class LodCache {
       }
     }
     ctx.globalAlpha = 1;
-    this.stats.blits = blits; this.stats.fallback = fb;
+    this.stats.blits = blits; this.stats.fallback = fb; this.stats.fadingIn = fadingIn;
   }
 
   _fallback(ctx, k, cx, cy, dx0, dy0, dw, dh, a) {

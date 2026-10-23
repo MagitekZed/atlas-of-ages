@@ -315,10 +315,16 @@ export class FxSystem {
     if (fx.type === 'rewind') this.flash = Math.max(this.flash, 0.12), this.flashColor = [236, 214, 170];
   }
 
-  update(dt, now) {
+  /** Drop the effects and off-screen pointers whose time is up (update does this; renderer.skipFrame too). */
+  expire(now) {
     const keep = [];
     for (const fx of this.list) if (now - fx.t0 < fx.dur) keep.push(fx);
     this.list = keep;
+    if (this.pointers.length) this.pointers = this.pointers.filter((p) => p.until > now);
+  }
+
+  update(dt, now) {
+    this.expire(now);
     this.particles.update(dt);
     this.shake *= Math.exp(-dt * 6);
     if (this.shake < 0.2) this.shake = 0;
@@ -326,7 +332,6 @@ export class FxSystem {
     if (this.flash < 0.01) { this.flash = 0; this.flashColor = [255, 250, 236]; }
     this.vignette.a *= Math.exp(-dt * 1.8);
     if (this.vignette.a < 0.005) this.vignette.a = 0;
-    if (this.pointers.length) this.pointers = this.pointers.filter((p) => p.until > now);
   }
 
   shakeOffset(now) {
