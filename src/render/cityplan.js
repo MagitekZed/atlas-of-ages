@@ -1691,6 +1691,9 @@ const PLAN_BYTES_CAP = (() => {
   try { return (globalThis.matchMedia?.('(pointer: coarse)').matches && Math.min(globalThis.screen?.width || 1e4, globalThis.screen?.height || 1e4) < 900 ? 16 : 40) * 1024 * 1024; } catch (e) { return 40 * 1024 * 1024; }
 })();
 
+/** How long a town in view may show an outdated picture before its rebuild is first in line (ms). */
+const PLAN_WAIT_MS = 1000;
+
 /** The plan's geometry, cached by a coarse key (monthly noise never rebuilds it). */
 function geometryKey(r, s) {
   const w = r.world;
@@ -1708,8 +1711,16 @@ function geometryKey(r, s) {
 }
 
 export class PlanCache {
-  constructor() { this.geo = new Map(); this.pics = new Map(); this.bytes = 0; this.buildMs = 0; this.builds = 0; }
+  // maxPics: how many pictures it keeps (drawCityPlans raises it to hold every town in view).
+  // frame / used: drawCityPlans stamps the pictures it shows; liveEvicted is the last frame that
+  // had to evict one of them (the view does not fit: the cache thrashes)
+  constructor() { this.geo = new Map(); this.pics = new Map(); this.bytes = 0; this.buildMs = 0; this.builds = 0; this.maxPics = 64; this.frame = 0; this.liveEvicted = -1; }
   clear() { this.geo.clear(); this.pics.clear(); this.bytes = 0; }
+  _evictOldest() {
+    const [k0, v0] = this.pics.entries().next().value;
+    this.pics.delete(k0); this.bytes -= v0.bytes;
+    if (v0.used === this.frame) this.liveEvicted = this.frame;
+  }
   geometry(r, s, key, opts) {
     let e = this.geo.get(s.id);
     if (e && e.key === key) return e.plan;
@@ -1733,11 +1744,8 @@ export class PlanCache {
     e = { canvas: c, ext, bytes: S * S * 4 };
     this.pics.set(pk, e);
     this.bytes += e.bytes;
-    while (this.bytes > PLAN_BYTES_CAP && this.pics.size > 4) {
-      const [k0, v0] = this.pics.entries().next().value;
-      this.pics.delete(k0); this.bytes -= v0.bytes;
-    }
-    while (this.pics.size > 64) { const [k0, v0] = this.pics.entries().next().value; this.pics.delete(k0); this.bytes -= v0.bytes; }
+    while (this.bytes > PLAN_BYTES_CAP && this.pics.size > 4) this._evictOldest();
+    while (this.pics.size > this.maxPics) this._evictOldest();
     return e;
   }
 }
@@ -1771,15 +1779,19 @@ export function drawCityPlans(r, ctx, z, worldT) {
   const river = st === 'natural' ? [66, 112, 146] : st === 'muted' || st === 'resources' || st === 'devastation' || st === 'pollution' ? [112, 148, 170] : [70, 96, 122];
   const t0 = perf();
   // town pictures share the frame's build budget (2 builds, 3 ms) with the detail chunks; a town
-  // with nothing at all to show still gets one build
+  // with nothing at all to show still gets one build. The claims come next: the two towns that
+  // have shown an outdated picture longest, once past PLAN_WAIT_MS. While no town is left with
+  // nothing to show, the first claim gets one build too, and the second may follow it within the
+  // time. The other towns that have a picture to show meanwhile leave the claims their slots
   const lodBuilt = r.lod ? r.lod.stats.frameBuilds | 0 : 0;
   const lodMs = lodBuilt ? r.lod.stats.buildMs || 0 : 0;
-  let built = 0;
-  const canBuild = (fallback) => {
+  let built = 0, claims = 0, empties = 0;   // claims: those not yet reached this frame
+  const canBuild = (fallback, claim) => {
     const spent = lodMs + perf() - t0;
     if (built >= 2) return false;
-    if (!fallback) return built === 0 || spent < 3;
-    return lodBuilt + built < 2 && spent < 3;
+    if (!fallback || (claim === 1 && !empties)) return built === 0 || spent < 3;
+    if (claim === 2 && !empties) return claims < 2 && spent < 3;
+    return lodBuilt + built + (claim ? 0 : claims) < 2 && spent < 3;
   };
   const vis = [];
   for (const t of fp.list) {
@@ -1791,38 +1803,60 @@ export function drawCityPlans(r, ctx, z, worldT) {
   // nearest the view centre first
   const cx = r.camera.x - 0.5, cy = r.camera.y - 0.5;
   vis.sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy));
-  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
-  const hits = [];
+  // what each town can show: its picture for this key or, while that waits to be built, the
+  // picture it showed last (at another level, or for an older key). Every one of them is marked
+  // used before anything is built, so a build evicts only pictures that no town shows (a town
+  // whose picture went would blink out until rebuilt)
+  const fr = ++pc.frame;
+  const rows = [], late = [];
   for (const t of vis) {
     const s = w.settlements[t.id];
     if (!s || !s.alive) continue;
     const key = geometryKey(r, s);
     const pk = `${key}|${k}|${detail}|${river.join(',')}`;
-    let pic = pc.pics.get(pk), shown = pk;
+    const pic = pc.pics.get(pk) || null;
+    const lastE = pic ? null : r._planLast?.get(s.id) || null;
+    const last = lastE ? pc.pics.get(lastE.pk) || null : null;
+    const use = pic || last;
+    if (use) { const uk = pic ? pk : lastE.pk; pc.pics.delete(uk); pc.pics.set(uk, use); use.used = fr; }
+    const row = { t, s, key, pk, pic, lastE, last, claim: 0 };
+    if (!use) empties++;
+    else if (last && lastE.since && t0 - lastE.since >= PLAN_WAIT_MS) late.push(row);
+    rows.push(row);
+  }
+  if (late.length) {
+    late.sort((a, b) => a.lastE.since - b.lastE.since);
+    for (let i = 0; i < late.length && i < 2; i++) late[i].claim = i + 1, claims++;
+  }
+  // room for every town in view (and a little more), so the towns do not evict one another
+  pc.maxPics = Math.min(256, Math.max(64, rows.length + 16));
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
+  const hits = [];
+  for (const row of rows) {
+    const { t, s, key, pk, lastE, last } = row;
+    let pic = row.pic, shown = pk;
     if (!pic) {
-      // the picture this town showed last, while the byte-capped cache still holds it
-      const lastE = r._planLast?.get(s.id) || null;
-      const last = lastE ? pc.pics.get(lastE.pk) || null : null;
-      if (!canBuild(last)) {
-        // not built yet: show the nearest picture of this town at another level, if any
+      const claim = row.claim;
+      if (!canBuild(last, claim)) {
+        // not built yet: show the picture this town showed last, if the cache still holds it
         pic = last;
         shown = lastE?.pk;
         if (!pic) { r._plansPending++; continue; }
-        // it is on screen, so in use: the cache must not evict it while this town's build waits
-        // (the town would blink out until built, and main.js would draw every frame meanwhile)
-        pc.pics.delete(shown); pc.pics.set(shown, pic);
       } else {
         const s0 = perf();
         const plan = pc.geometry(r, s, key);
         pic = pc.picture(r, plan, key, k, detail, river);
-        pic.plan = plan;
+        pic.plan = plan; pic.used = fr;
         pc.buildMs = perf() - s0; pc.builds++; pc.maxBuildMs = Math.max(pc.maxBuildMs || 0, pc.buildMs);
         built++;
       }
-    } else pc.pics.delete(pk), pc.pics.set(pk, pic);
+      if (claim) claims--;
+    }
     // only the key and the plan are remembered, never the canvas: pictures live in the cache
-    // alone, within its byte cap (planSmoke and the wonders need just the plan)
-    (r._planLast ||= new Map()).set(s.id, { pk: shown, plan: pic.plan || null });
+    // alone, within its byte cap (planSmoke and the wonders need just the plan). since: when the
+    // town began to show a picture other than its current one (0 while it shows that)
+    const since = shown === pk ? 0 : lastE.since || t0;
+    (r._planLast ||= new Map()).set(s.id, { pk: shown, plan: pic.plan || null, since });
     if (r._planLast.size > 300) r._planLast.delete(r._planLast.keys().next().value);
     const a = planAlpha(t.r * z);
     r._planAlpha.set(s.id, a);
@@ -1837,6 +1871,10 @@ export function drawCityPlans(r, ctx, z, worldT) {
     }
   }
   ctx.globalAlpha = 1;
+  // a build had to evict a picture shown this frame: the view does not fit in the cache (its byte
+  // cap, or more towns than maxPics allows), so it never fills in completely and main.js must not
+  // keep drawing every frame for it (renderer.detailPending)
+  if (pc.liveEvicted === fr) r._plansPending = 0;
   // landmark hits (screen space)
   for (const [s, plan] of hits) {
     for (const lm of plan.landmarks) {
