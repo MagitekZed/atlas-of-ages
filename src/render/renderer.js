@@ -568,7 +568,7 @@ class Renderer {
     const now = Number.isFinite(nowMs) ? nowMs : perf();
     this._skipped++;
     const onFx = this.onFx, held = this._fxHeld;
-    if (typeof onFx === 'function') this.onFx = (fx, info) => { held.push([fx, info]); };
+    if (typeof onFx === 'function') this.onFx = (fx, info) => { held.push([fx, info, now]); };
     try { this.fx.ingest(this.world, now, this); } finally { this.onFx = onFx; }
     this.fx.expire(now);
   }
@@ -598,8 +598,11 @@ class Renderer {
     cam.update(now, dt * 1000);
     this.fx.reducedMotion = this.reducedMotion;
     if (this._fxHeld.length) {
-      for (const [fx, info] of this._fxHeld.splice(0)) {
-        if (typeof this.onFx === 'function') { try { this.onFx(fx, info); } catch (e) { console.error('[renderer.onFx]', e); } }
+      // held cues belong to the frame just skipped; ones older than that (the map was left, say
+      // for Genesis, before this draw) are dropped rather than voiced for effects long gone
+      for (const [fx, info, at] of this._fxHeld.splice(0)) {
+        if (now - at > 250 || typeof this.onFx !== 'function') continue;
+        try { this.onFx(fx, info); } catch (e) { console.error('[renderer.onFx]', e); }
       }
     }
     this.fx.ingest(w, now, this);

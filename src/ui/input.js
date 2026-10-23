@@ -762,8 +762,12 @@ export function mountInput(app, canvas) {
     held.delete(lower);
   });
   window.addEventListener('blur', () => { held.clear(); spaceDown = false; setCursor(); });
-  // a key or a click anywhere (M, Esc, Tab, a panel toggle) shows its change in the next frame (busy)
-  for (const ty of ['keydown', 'click']) window.addEventListener(ty, () => { touchedAt = performance.now(); }, true);
+  // a key or a click anywhere (M, Esc, Tab, a panel toggle) shows its change in the next frame (busy);
+  // typing into a field (Find, a name) changes nothing on the map, so it leaves the throttle alone
+  for (const ty of ['keydown', 'click']) window.addEventListener(ty, (e) => {
+    if (ty === 'keydown' && typingField(e.target)) return;
+    touchedAt = performance.now();
+  }, true);
 
   function zoomCenter(f) {
     const r = canvas.getBoundingClientRect();
