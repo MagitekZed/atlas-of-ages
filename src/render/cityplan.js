@@ -1711,9 +1711,10 @@ function geometryKey(r, s) {
 }
 
 export class PlanCache {
-  // maxPics: how many pictures it keeps (drawCityPlans raises it to hold every town in view).
-  // frame / used: drawCityPlans stamps the pictures it shows; liveEvicted is the last frame that
-  // had to evict one of them (the view does not fit: the cache thrashes)
+  // maxPics: how many pictures it keeps (drawCityPlans raises it to hold every town and ruin in
+  // view). frame / used: drawCityPlans stamps the pictures shown, the ruins' among them;
+  // liveEvicted is the last frame that had to evict one of them (the view does not fit: the
+  // cache thrashes)
   constructor() { this.geo = new Map(); this.pics = new Map(); this.bytes = 0; this.buildMs = 0; this.builds = 0; this.maxPics = 64; this.frame = 0; this.liveEvicted = -1; }
   clear() { this.geo.clear(); this.pics.clear(); this.bytes = 0; }
   _evictOldest() {
@@ -1762,6 +1763,10 @@ export const planAlpha = (rpx) => smoothstep(7, 13, rpx);
  */
 export function drawCityPlans(r, ctx, z, worldT) {
   const w = r.world;
+  // the pictures of the ruins in view, from drawRuinPlans earlier in this render (taken either way,
+  // so a render without ruins does not inherit the last one's)
+  const ruinPks = r._ruinPlanPks || null;
+  r._ruinPlanPks = null;
   r._planAlpha = r._planAlpha || new Map();
   r._planAlpha.clear();
   // the footprints on screen ([cx, cy, radius] CSS px) that minor lettering keeps off
@@ -1806,8 +1811,13 @@ export function drawCityPlans(r, ctx, z, worldT) {
   // what each town can show: its picture for this key or, while that waits to be built, the
   // picture it showed last (at another level, or for an older key). Every one of them is marked
   // used before anything is built, so a build evicts only pictures that no town shows (a town
-  // whose picture went would blink out until rebuilt)
+  // whose picture went would blink out until rebuilt). The ruins' pictures are marked first: a
+  // build evicts one only after every picture that nothing shows, and before any town's
   const fr = ++pc.frame;
+  if (ruinPks) for (const rk of ruinPks) {
+    const e = pc.pics.get(rk);
+    if (e) { pc.pics.delete(rk); pc.pics.set(rk, e); e.used = fr; }
+  }
   const rows = [], late = [];
   for (const t of vis) {
     const s = w.settlements[t.id];
@@ -1828,8 +1838,8 @@ export function drawCityPlans(r, ctx, z, worldT) {
     late.sort((a, b) => a.lastE.since - b.lastE.since);
     for (let i = 0; i < late.length && i < 2; i++) late[i].claim = i + 1, claims++;
   }
-  // room for every town in view (and a little more), so the towns do not evict one another
-  pc.maxPics = Math.min(256, Math.max(64, rows.length + 16));
+  // room for every town and ruin in view (and a little more), so they do not evict one another
+  pc.maxPics = Math.min(256, Math.max(64, rows.length + (ruinPks ? ruinPks.length : 0) + 16));
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
   const hits = [];
   for (const row of rows) {
@@ -1902,6 +1912,9 @@ export function drawRuinPlans(r, ctx, z, ruins) {
   const river = st === 'natural' ? [66, 112, 146] : [112, 148, 170];
   r._ruinPlanAlpha = r._ruinPlanAlpha || new Map();
   r._ruinPlanR = r._ruinPlanR || new Map();
+  // the picture of every ruin that would be drawn, built yet or not: drawCityPlans, which comes
+  // next in the render, marks them used and makes room for them in the cache
+  const want = r._ruinPlanPks = [];
   let built = 0;
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
   for (const rn of ruins) {
@@ -1920,6 +1933,7 @@ export function drawRuinPlans(r, ctx, z, ruins) {
     const age = Math.floor(Math.max(0, (w.time.day - (rn.fell ?? 0)) / 360) / 50);
     const key = `ruin|${rn.id}|${qpop(rn.peak)}|${age}|${Math.round(R * 50)}|${w.versions.water}`;
     const pk = `${key}|${k}|${detail}|${river.join(',')}`;
+    want.push(pk);
     let pic = pc.pics.get(pk);
     if (!pic) {
       if (built >= 1) continue;
