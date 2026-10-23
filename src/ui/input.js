@@ -44,7 +44,7 @@ const FOLLOW_POINT_MS = 200;  // a followed mover is re-centred this often
 const FOLLOW_FRAME_MS = 2000; // a followed region is re-framed this often (when it changed)
 const DIVE_ZOOM = 28;         // a double-click on a town dives at least this close
 const TAB_TOWNS = 12, TAB_ARMIES = 4;   // Tab walks this many of the largest towns and armies in view, then leaves the map
-const BUSY_MS = 250;          // the pointer moving over the map keeps it busy() this long after (main.js draws every frame then)
+const BUSY_MS = 250;          // the pointer moving over the map, a key or a click keeps it busy() this long after (main.js draws every frame then)
 
 const TONE = { boon: 'peace', bane: 'hate', neutral: 'trade' };
 const PICK_WORD = { civ: 'a nation’s lands', settlement: 'a settlement', tile: 'a spot on the map' };
@@ -762,6 +762,8 @@ export function mountInput(app, canvas) {
     held.delete(lower);
   });
   window.addEventListener('blur', () => { held.clear(); spaceDown = false; setCursor(); });
+  // a key or a click anywhere (M, Esc, Tab, a panel toggle) shows its change in the next frame (busy)
+  for (const ty of ['keydown', 'click']) window.addEventListener(ty, () => { touchedAt = performance.now(); }, true);
 
   function zoomCenter(f) {
     const r = canvas.getBoundingClientRect();
@@ -854,7 +856,7 @@ export function mountInput(app, canvas) {
     },
     /** Let go of a pair tool's source (Esc does the same). */
     cancelPair,
-    /** Is the viewer at work on the map: a press, drag, pinch or stroke, held pan keys, the pointer moving over it lately? */
+    /** Is the viewer at work: a press, drag, pinch or stroke, held pan keys, the pointer over the map, a key or click lately? */
     busy(nowT = performance.now()) { return mode !== null || held.size > 0 || nowT - touchedAt < BUSY_MS; },
   };
 }

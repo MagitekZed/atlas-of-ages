@@ -100,6 +100,7 @@ class Renderer {
     this.terrainBudgetMs = 3;
     this.stats = { fps: 0, frameMs: 0, terrainMs: 0, frames: 0, glyphs: 0, labels: 0 };
     this.detailPending = false;
+    this._skipped = 0;       // frames main.js left undrawn since the last draw (skipFrame)
     this.reducedMotion = false;
     this.bg = P.MAP_BG;
     try {
@@ -128,6 +129,7 @@ class Renderer {
     const prev = this.world;
     this.world = world || null;
     this.fx.clear();
+    this._fxHeld = [];       // effects started in undrawn frames, announced to onFx at the next draw
     this._routeCache.clear();
     this._settleKey = null; this._settleList = null; this._ruins = null;
     this._fp = null; this._fpKey = null; this._planLast = null; this._styles = null; this._realmPaths = null;
@@ -373,7 +375,7 @@ class Renderer {
   // ---------------------------------------------------------------------------
   // Cache synchronisation
 
-  _syncVectors(force = false) {
+  _syncVectors(force = false, span = 1) {
     const w = this.world, v = w.versions, vec = this.vec;
     // coastline ink follows the land field (elevation edits move it; redrawn at most four
     // times a second while a brush is at work); water-lining and rivers follow the water
@@ -408,7 +410,7 @@ class Renderer {
       const t0 = perf();
       for (;;) {
         if (job.it.next().done) { this._bjob = null; break; }
-        if (!sync && perf() - t0 >= 2.5) break;
+        if (!sync && perf() - t0 >= 2.5 * span) break;
       }
       job.work += perf() - t0;
       if (!this._bjob) this.stats.bordersMs = job.work;
@@ -558,12 +560,16 @@ class Renderer {
   /**
    * A frame main.js leaves undrawn (a still map at Max speed): take in the effects its days
    * queued, as a drawn frame does, so fx.ingest judges their age on the day this frame ends
-   * and they start now (sound cues and recentFx with them); the next draw animates them.
+   * and they start now (recentFx with them); the next draw animates them. Their onFx calls
+   * (the sound cues) wait for that draw, so a cue does not run ahead of what it belongs to.
    */
   skipFrame(nowMs) {
     if (!this.world || !this.terrain) return;
     const now = Number.isFinite(nowMs) ? nowMs : perf();
-    this.fx.ingest(this.world, now, this);
+    this._skipped++;
+    const onFx = this.onFx, held = this._fxHeld;
+    if (typeof onFx === 'function') this.onFx = (fx, info) => { held.push([fx, info]); };
+    try { this.fx.ingest(this.world, now, this); } finally { this.onFx = onFx; }
     this.fx.expire(now);
   }
 
@@ -573,6 +579,10 @@ class Renderer {
     // close-zoom detail still filling in (an empty LOD chunk, a town plan not yet built):
     // main.js then draws every frame at Max speed too, so it fills in at the usual pace
     this.detailPending = false;
+    // a draw that stands for several frames (main.js leaves a still map undrawn every other
+    // frame at Max speed) runs that many frames' slices of the time-sliced jobs below
+    const span = Math.min(3, 1 + this._skipped);
+    this._skipped = 0;
     const dt = this._lastNow == null ? 1 / 60 : clamp((now - this._lastNow) / 1000, 0, 0.1);
     this._lastNow = now;
     this.now = now;
@@ -587,6 +597,11 @@ class Renderer {
     const cam = this.camera;
     cam.update(now, dt * 1000);
     this.fx.reducedMotion = this.reducedMotion;
+    if (this._fxHeld.length) {
+      for (const [fx, info] of this._fxHeld.splice(0)) {
+        if (typeof this.onFx === 'function') { try { this.onFx(fx, info); } catch (e) { console.error('[renderer.onFx]', e); } }
+      }
+    }
     this.fx.ingest(w, now, this);
     this.fx.update(dt, now);
 
@@ -595,19 +610,17 @@ class Renderer {
     const vb2 = this.viewBounds(2);
     // at Max speed every row is a season behind every frame: the seasonal sweep, the territory
     // wash and the borders catch up at a gentler rate there, leaving the frame to the sim
-    // (edits and style switches still repaint at once). main.js draws a still map only every
-    // other frame at Max: a draw that stands for more than one ~30 fps frame runs the sweep
-    // twice, so the raster falls no further behind
+    // (edits and style switches still repaint at once). Each runs `span` frames' slices (the
+    // sweep as `span` calls: each call's upkeep comes out of its own budget)
     const hurried = this.fx.dps > 600;
     this._hurried = hurried;
     if (!this.terrain.built) { this.terrain.buildAll(); this.terrain.built = true; }
-    else if (hurried) for (let k = dt > 0.045 ? 2 : 1; k > 0; k--) this.terrain.update(Math.min(1, this.terrainBudgetMs), [vb2.y0, vb2.y1]);
-    else this.terrain.update(this.terrainBudgetMs, [vb2.y0, vb2.y1]);
+    else for (let k = span; k > 0; k--) this.terrain.update(hurried ? Math.min(1, this.terrainBudgetMs) : this.terrainBudgetMs, [vb2.y0, vb2.y1]);
     this.stats.terrainMs = perf() - tT;
-    this._syncVectors(!this.vec.coast);
+    this._syncVectors(!this.vec.coast, span);
     const spec = this._territorySpec();
     const forceTerr = spec && this.territory.key && this.territory.key.split('|')[0] !== spec.key.split('|')[0];
-    if (spec) this.territory.update(spec, forceTerr || this.territory.empty, hurried ? 1000 : 350, hurried ? 2 : 3);
+    if (spec) this.territory.update(spec, forceTerr || this.territory.empty, hurried ? 1000 : 350, (hurried ? 2 : 3) * span);
     this.stats.cachesMs = perf() - tT;
 
     const prof = this.profile;
