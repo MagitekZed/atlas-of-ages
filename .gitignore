@@ -1,0 +1,8 @@
+# Build output (the Pages workflow builds the game from source)
+dist/
+Atlas of Ages.html
+
+# Local tooling
+node_modules/
+.claude/settings.local.json
+.DS_Store

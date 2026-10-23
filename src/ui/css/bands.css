@@ -1,0 +1,57 @@
+/* Roaming powers — WP2: the band record in the Inspector (bands, hordes, pirates, beasts,
+ * dragons and the restless dead). Tokens from styles.css only; nothing here redefines them.
+ * Linked from index.html and inlined by tools/build-standalone.mjs. */
+
+.band-view { display: flex; flex-direction: column; gap: 12px; }
+
+/* kind and state chips, tinted by family */
+.band-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.band-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border: 1px solid var(--rule); border-radius: 999px;
+  font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .06em;
+  color: var(--ink-2); background: var(--slate-2);
+}
+.band-chip .glyph { flex: none; }
+.band-chips.is-outlaw .band-chip.is-kind { color: var(--danger); border-color: var(--danger); }
+.band-chips.is-host .band-chip.is-kind { color: var(--warn); border-color: var(--warn); }
+.band-chips.is-beast .band-chip.is-kind { color: var(--info); border-color: var(--info); }
+.band-chips.is-spirit .band-chip.is-kind { color: var(--verdigris); border-color: var(--verdigris); }
+.band-chips.is-dragon .band-chip.is-kind { color: var(--danger); border-color: var(--danger); background: var(--slate-3); }
+.band-chip.is-gold { color: var(--brass-hi); border-color: var(--brass); }
+.band-chip.is-warn { color: var(--warn); border-color: var(--warn); }
+
+.band-meter { margin-top: -4px; }
+
+/* the gods' acts on a beast: send a hero, tame */
+.band-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.band-acts:empty { display: none; }
+.band-act { display: inline-flex; align-items: center; gap: 6px; }
+.band-act .glyph { flex: none; }
+.band-odds {
+  font-family: var(--font-mono); font-size: var(--t-micro); color: var(--brass-hi);
+  padding-left: 6px; margin-left: 2px; border-left: 1px solid var(--rule);
+}
+.band-act[disabled] .band-odds { color: var(--ink-4); }
+.band-note { font-size: var(--t-small); color: var(--ink-2); font-style: italic; min-height: 0; }
+.band-note:empty { display: none; }
+
+/* strength over the years */
+.band-spark { display: block; width: 100%; height: 46px; color: var(--brass); }
+
+/* deeds from the chronicle */
+.band-deeds { display: flex; flex-direction: column; }
+.band-deed {
+  width: 100%; text-align: left; background: transparent; color: var(--ink);
+  border: 0; border-bottom: 1px solid var(--hair); cursor: pointer; font: inherit;
+}
+.band-deed:hover { background: var(--slate-2); }
+.band-deed:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.band-deed .t { font-size: var(--t-small); line-height: 1.35; }
+.band-deed.is-major .t { color: var(--brass-hi); }
+
+.band-lore { font-family: var(--font-display); font-style: italic; font-size: var(--t-small); color: var(--ink-3); line-height: 1.45; }
+
+@media (prefers-reduced-motion: reduce) {
+  .band-meter::before { transition: none; }
+}

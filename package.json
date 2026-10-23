@@ -1,0 +1,12 @@
+{
+  "name": "atlas-of-ages",
+  "private": true,
+  "type": "module",
+  "description": "An autonomous 2-D world simulator: plate-built continents, climate and ecology, peoples who become empires, wars, faiths and plagues, and an optional Mythic age.",
+  "scripts": {
+    "serve": "python3 -m http.server 8765 --bind 127.0.0.1",
+    "build": "node tools/build-standalone.mjs",
+    "sim": "node tools/headless.mjs",
+    "test": "node tools/headless.mjs --determinism && node tools/headless.mjs --rewind-test && node tools/headless.mjs --trial"
+  }
+}

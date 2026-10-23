@@ -1,0 +1,223 @@
+/* Ledgers, records & the inspector — WP6: life charts, dossier blocks, the Chronicle's threads,
+ * the Annals (Almanac, Hall of Records, centuries, the stream of empires), the digest card,
+ * comparisons and the statistics additions. Linked from index.html and inlined by
+ * tools/build-standalone.mjs. Uses the tokens defined in styles.css only. */
+
+/* --- life charts (charts.js MiniChart) ----------------------------------------------------- */
+.mini-chart { margin: 0; display: flex; flex-direction: column; gap: 6px; position: relative; }
+.mini-chart .mc-canvas { display: block; width: 100%; touch-action: pan-y; }
+.mc-chips { display: flex; flex-wrap: nowrap; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.mc-chips::-webkit-scrollbar { display: none; }
+.mc-chip {
+  flex: none; padding: 1px 8px; height: 22px; border: 1px solid var(--hair-2); border-radius: 11px;
+  background: transparent; color: var(--ink-3); font-family: var(--font-ui); font-size: var(--t-micro); cursor: pointer;
+}
+.mc-chip:hover { color: var(--ink); border-color: var(--rule-2); }
+.mc-chip[aria-pressed="true"] { color: var(--ink); border-color: var(--brass); background: var(--slate-2); }
+.mc-read { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; min-height: 17px; font-size: var(--t-micro); color: var(--ink-3); }
+.mc-read b { font-family: var(--font-mono); font-weight: 500; font-size: 12px; color: var(--ink); }
+.mc-read .yr { font-family: var(--font-sc); letter-spacing: .06em; color: var(--ink-2); }
+.mc-read .mk { color: var(--brass-hi); font-style: italic; }
+
+/* --- dossier blocks ------------------------------------------------------------------------ */
+.ins-epithet { font-family: var(--font-display); font-style: italic; font-size: 17px; color: var(--brass-hi); margin: -4px 0 0; }
+.ins-legend {
+  margin: 0; padding: 6px 0 6px 12px; border-left: 2px solid var(--rule-2);
+  font-family: var(--font-display); font-size: 15px; line-height: 1.4; color: var(--ink-2);
+}
+.ins-prose { margin: 0; font-size: var(--t-small); line-height: 1.5; color: var(--ink-2); }
+h5.sub-head { margin: 6px 0 0; font-family: var(--font-sc); font-weight: 400; font-size: var(--t-micro); letter-spacing: .08em; color: var(--ink-3); display: flex; align-items: center; gap: 4px; }
+.tag.is-trait { border-color: var(--brass); color: var(--brass-hi); }
+.tag.is-link { display: inline-flex; align-items: center; gap: 2px; padding-right: 8px; }
+.tag.is-link small { color: var(--ink-3); font-size: 10.5px; }
+.tag.is-first { border-color: var(--verdigris); color: var(--verdigris); }
+.tag.is-honour { border-color: var(--brass); color: var(--brass-hi); background: var(--slate-2); }
+.honours:empty { display: none; }
+.tech-time { display: flex; flex-direction: column; gap: 8px; }
+.tt-era > b { display: block; font-family: var(--font-sc); font-weight: 400; font-size: var(--t-micro); letter-spacing: .08em; color: var(--ink-3); margin-bottom: 4px; }
+.theatre { display: flex; flex-direction: column; gap: 6px; }
+.theatre-plate { width: 100%; height: auto; image-rendering: pixelated; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--slate-2); }
+.rec-caption { margin: 0; font-size: var(--t-micro); line-height: 1.4; color: var(--ink-3); }
+.score-legend { display: flex; justify-content: space-between; gap: 8px; font-size: var(--t-micro); color: var(--ink-3); }
+ol.lineage { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--rule-2); display: flex; flex-direction: column; gap: 8px; }
+ol.lineage li { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
+ol.lineage li::before { content: ""; position: absolute; left: -19px; top: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--slate-1); border: 2px solid var(--brass); }
+ol.lineage .rel { font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .07em; color: var(--ink-3); }
+ol.lineage .rel:empty { display: none; }
+ol.lineage .link { justify-self: start; font-family: var(--font-display); font-size: 16px; }
+ol.lineage .yrs { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-3); }
+
+/* --- the Chronicle's threads --------------------------------------------------------------- */
+.centry .thread {
+  display: block; width: 100%; margin-top: 4px; padding: 0; border: 0; background: none; text-align: left; cursor: pointer;
+  font-family: var(--font-ui); font-size: var(--t-micro); line-height: 1.35; color: var(--ink-3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.centry .thread b { font-family: var(--font-sc); font-weight: 400; letter-spacing: .06em; color: var(--brass); }
+.centry .thread.is-effect b { color: var(--verdigris); }
+.centry .thread:hover { color: var(--ink); }
+.centry .thread:hover b { text-decoration: underline; }
+.centry .thread-more { display: block; font-size: 10.5px; color: var(--ink-4); }
+.centry .fold { margin-left: 4px; padding: 0 5px; border: 1px solid var(--hair-2); border-radius: 3px; font-size: 9.5px; letter-spacing: .05em; color: var(--ink-4); }
+.centry.is-fold .txt { color: var(--ink-2); }
+.centry.is-flash { animation: entry-flash 2.2s ease-out; }
+@keyframes entry-flash { 0%, 30% { background: var(--verdigris-lo); box-shadow: inset 3px 0 0 var(--verdigris); } }
+.chip.is-range { border-color: var(--brass); color: var(--brass-hi); }
+.chart-tip .mk { margin-top: 4px; padding-left: 8px; border-left: 2px solid var(--c, var(--ink-3)); color: var(--ink-2); font-size: 10.5px; line-height: 1.3; white-space: normal; }
+.chart-tip .hint { margin-top: 4px; color: var(--ink-4); font-size: 10px; }
+
+/* --- statistics ---------------------------------------------------------------------------- */
+.stats-controls { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.stats-hint { margin: -4px 0 0; }
+.tile-link { font-size: inherit; }
+.world-ledger > summary { font-family: var(--font-display); font-size: 16px; color: var(--ink); }
+.ledger-tiles { margin-top: 8px; }
+.ledger-tiles .stat-tile .v { font-size: 17px; }
+.chart-card .ch-head .chip { height: 22px; padding: 0 8px; font-size: var(--t-micro); }
+
+/* --- nations and comparisons --------------------------------------------------------------- */
+.ledger-sortrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.compare-bar {
+  position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; border: 1px solid var(--brass); border-radius: var(--radius); background: var(--glass-strong); box-shadow: var(--shadow-1);
+}
+.compare-bar .cb-text { flex: 1; min-width: 140px; font-size: var(--t-small); color: var(--ink-2); }
+.ledger-row.is-picked { background: var(--slate-2); box-shadow: inset 0 0 0 1px var(--brass); }
+.compare-roster { align-items: center; }
+.compare-roster .x { color: var(--ink-3); }
+.compare-add { width: auto; max-width: 100%; height: 28px; padding: 0 8px; font-size: var(--t-small); }
+.compare-charts { display: flex; flex-direction: column; gap: 16px; }
+table.data.compare-table { table-layout: fixed; }
+table.data.compare-table td, table.data.compare-table th { white-space: normal; overflow-wrap: anywhere; text-align: left; vertical-align: top; padding: 5px 6px; }
+table.data.compare-table td { font-family: var(--font-ui); font-size: var(--t-micro); }
+table.data.compare-table th[scope="row"] { position: static; background: transparent; width: 74px; }
+.compare-h2h { display: flex; flex-direction: column; gap: 14px; }
+.h2h { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--slate-2); }
+.h2h .list .row { padding-left: 0; }
+
+/* --- the Annals ---------------------------------------------------------------------------- */
+.annals { gap: 12px; }
+.annals-nav { align-self: flex-start; max-width: 100%; overflow-x: auto; }
+.annals-pane { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.annals-pane .chron-search { position: relative; }
+.annals-pane .chron-search .glyph { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--ink-3); pointer-events: none; }
+.annals-pane .chron-search .field { padding-left: 32px; }
+.annals-pane .chip-row .chip .glyph { width: 13px; height: 13px; }
+.annals-pane .chip .count { color: var(--ink-3); font-family: var(--font-mono); font-size: 10.5px; }
+.almanac-filters { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.almanac-filters select.field { width: auto; height: 28px; padding: 0 8px; font-size: var(--t-small); }
+.almanac-list .row.is-live .n { color: var(--verdigris); }
+.almanac-list .row[disabled] { opacity: .75; cursor: default; }
+.hall-groups { display: flex; flex-direction: column; gap: 10px; }
+.hall-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px; }
+.rec-card { display: flex; flex-direction: column; gap: 4px; padding: 9px 10px 10px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--slate-2); min-width: 0; }
+.rec-card.is-empty { opacity: .6; }
+.rec-card h5 { margin: 0; font-family: var(--font-sc); font-weight: 400; font-size: var(--t-micro); letter-spacing: .07em; color: var(--ink-3); }
+.rec-holder {
+  display: flex; flex-direction: column; gap: 1px; padding: 2px 0 2px 8px; border: 0; border-left: 3px solid var(--c, var(--brass));
+  background: transparent; text-align: left; color: var(--ink); cursor: pointer; min-width: 0;
+}
+.rec-holder .rv { font-family: var(--font-display); font-size: 20px; line-height: 1.1; }
+.rec-holder .rl { font-size: var(--t-small); color: var(--ink-2); overflow-wrap: anywhere; }
+.rec-holder:hover .rl { color: var(--brass-hi); text-decoration: underline; }
+.rec-when { font-size: 10.5px; color: var(--ink-3); }
+.rec-runners { margin: 2px 0 0; padding-left: 18px; font-size: var(--t-micro); color: var(--ink-3); }
+.rec-runners .link { font-size: var(--t-micro); text-align: left; }
+.rec-spark { display: block; width: 100%; height: 26px; }
+.histomap-card { display: flex; flex-direction: column; gap: 6px; }
+.histomap-card .ch-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.histomap-card .ch-title { font-family: var(--font-display); font-size: 17px; }
+.histomap { display: block; width: 100%; border: 1px solid var(--rule); border-radius: var(--radius); touch-action: pan-y; }
+
+/* --- the digest card ----------------------------------------------------------------------- */
+.modal.is-digest { width: min(720px, 100%); }
+.digest { display: flex; flex-direction: column; gap: 14px; }
+.digest-span { margin: 0; font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .08em; color: var(--ink-3); }
+.digest-headline { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.digest-headline li { font-family: var(--font-display); font-size: 18px; line-height: 1.3; color: var(--ink); padding-left: 16px; position: relative; }
+.digest-headline li::before { content: ""; position: absolute; left: 0; top: .55em; width: 7px; height: 7px; transform: rotate(45deg); background: var(--brass); }
+.digest-plates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.digest-plates figure { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.digest-plate { width: 100%; height: auto; image-rendering: pixelated; border: 1px solid var(--rule); border-radius: var(--radius); }
+.digest-plates figcaption { font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .07em; color: var(--ink-3); }
+.digest-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px 18px; }
+.digest-sec ul { margin: 6px 0 0; padding-left: 16px; list-style: none; display: flex; flex-direction: column; gap: 5px; font-size: var(--t-small); line-height: 1.4; color: var(--ink-2); }
+/* a drawn bullet set by the first line (a wrapping link button would carry a list marker down to its last line) */
+.digest-sec li { position: relative; }
+.digest-sec li::before { content: ""; position: absolute; left: -11px; top: calc(.7em - 2px); width: 4px; height: 4px; border-radius: 50%; background: var(--ink-3); }
+.digest-sec .link { font-size: var(--t-small); text-align: left; line-height: 1.4; }
+.digest-auto { display: flex; align-items: center; gap: 6px; font-size: var(--t-micro); color: var(--ink-3); }
+
+@media (max-width: 900px), (max-height: 520px) {
+  .hall-cards { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .digest-headline li { font-size: 16px; }
+  .digest-sections { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .centry.is-flash { animation: none; box-shadow: inset 3px 0 0 var(--verdigris); }
+}
+
+/* a record whose title bar carries many acts: the buttons take their own row above the name */
+.ins-title.is-crowded { grid-template-columns: auto minmax(0, 1fr); }
+.ins-title.is-crowded .actions { order: -1; grid-column: 1 / -1; grid-row: auto; justify-content: flex-end; flex-wrap: wrap; margin-bottom: -2px; }
+.ins-title.is-crowded .emblem { grid-row: span 2; }
+.rec-runners { list-style: decimal; }
+.rec-runners li { display: list-item; }
+.rec-runners li > .rn { display: inline-block; max-width: calc(100% - 64px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.rec-runners li > .rv2 { float: right; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); }
+.annals-pane .chip-row .chip { height: 28px; white-space: nowrap; flex: none; }
+.almanac-filters select.field { min-width: 132px; }
+/* registered record bodies (views/records.js, compare.js) space their parts like the built-in records */
+.reg-view { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* --- temperament (./temper.js): trait bars, founding markers, shifts, the drift chart ------- */
+.temper { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tp-reading { margin: 0; font-family: var(--font-display); font-size: 16px; line-height: 1.4; color: var(--ink); }
+.tp-traits { display: flex; flex-direction: column; gap: 3px; }
+.tp-row { display: grid; grid-template-columns: 86px minmax(0, 1fr) 122px; gap: 10px; align-items: center; min-height: 22px; border-radius: 2px; }
+.tp-row:hover { background: var(--hair); }
+.tp-name { font-size: var(--t-small); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* the bar: today's value in brass, the drift since the founding brightened (gained) or hatched
+   (lost), and a faint tick where the founders stood */
+.tp-bar { position: relative; height: 6px; border-radius: 3px; background: var(--hair-2); --v: 0%; }
+.tp-fill { position: absolute; inset: 0 auto 0 0; width: var(--v); border-radius: 3px; background: var(--brass); opacity: .78; }
+.tp-gap { position: absolute; top: 0; bottom: 0; }
+.tp-gap.is-gain { background: var(--brass-hi); border-radius: 0 3px 3px 0; }
+.tp-gap.is-loss { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--brass) 55%, transparent) 0 1.5px, transparent 1.5px 4px); border-radius: 0 3px 3px 0; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--brass) 30%, transparent); }
+.tp-base { position: absolute; top: -4px; bottom: -4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--ink-2); opacity: .6; }
+.tp-band { display: flex; align-items: center; gap: 5px; min-width: 0; font-family: var(--font-display); font-style: italic; font-size: 14.5px; line-height: 1.1; color: var(--ink); white-space: nowrap; }
+.tp-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tp-band.is-mid { color: var(--ink-3); font-size: 13.5px; }
+.tp-band.is-extreme { color: var(--brass-hi); }
+.tp-arrow { display: inline-flex; flex: none; color: var(--verdigris); opacity: .85; }
+.tp-arrow.is-strong { opacity: 1; transform: scale(1.3); }
+.tp-part { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tp-part[hidden] { display: none; }
+.tp-shifts { display: flex; flex-direction: column; }
+.tp-shift {
+  display: grid; grid-template-columns: 42px 16px minmax(0, 1fr) auto; gap: 2px 8px; align-items: baseline;
+  width: 100%; padding: 6px 2px; border: 0; border-bottom: 1px solid var(--hair); background: transparent;
+  text-align: left; color: var(--ink); font-family: var(--font-ui); font-size: var(--t-small); line-height: 1.35;
+}
+.tp-shift .y { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-3); }
+.tp-shift .ic { color: var(--brass); align-self: center; display: inline-flex; }
+.tp-shift .t { min-width: 0; color: var(--ink-2); }
+.tp-shift .t b { font-weight: 500; color: var(--ink); }
+.tp-shift .n { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-2); white-space: nowrap; }
+.tp-shift .s {
+  grid-column: 3 / -1; font-family: var(--font-display); font-style: italic; font-size: 13.5px; line-height: 1.35; color: var(--ink-3);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tp-shift.is-link { cursor: pointer; }
+.tp-shift.is-link:hover { background: var(--slate-2); }
+.tp-shift.is-link:hover .s { color: var(--ink-2); }
+.tp-shift.is-link:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.tp-chart .ch-head { display: none; }
+.tp-chart .chart-legend { order: -1; }
+@media (max-width: 420px) {
+  .tp-row { grid-template-columns: 78px minmax(0, 1fr) 112px; gap: 8px; }
+  .tp-band { font-size: 14px; }
+}
+/* the two strongest bands in the Nations ledger and the map's hover card */
+.ledger-row .sb .tb { font-family: var(--font-display); font-size: 12.5px; color: var(--ink-2); }
+.hover-card .hc-temper { margin-top: 2px; font-family: var(--font-display); font-style: italic; font-size: 13.5px; color: var(--brass-hi); }

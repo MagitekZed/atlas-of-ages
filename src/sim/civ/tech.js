@@ -1,0 +1,693 @@
+// Technology: the 48-tech tree across the eight ERAS, research and diffusion, era
+// advancement, and the derived modifier object every other module reads via getMods().
+//
+// civ.tech = { known: { techId: dayLearned }, points (lifetime research), research (techId
+//              being studied | null), progress (points into it), era (0..7) }
+//
+// Mods (getMods(world, civ) → always a complete object; multipliers default 1):
+//   farming        0/1 agriculture known          farmYield, gatherYield, fishYield
+//   housing        housing capacity multiplier     health (health target multiplier)
+//   birth          birth-rate multiplier           research, culture, production, trade
+//   tradeRange     tiles (default 10)              military, defense, siege
+//   movement       army tiles/day multiplier       navigation 0 none, 1 coastal, 2 open sea
+//   medicine       ≤ 1, multiplies plague lethality
+//   sanitation     multiplier (≥ 1 reduces urban disease and crowding deaths)
+//   mining         ore/stone extraction multiplier
+//   stability      additive (default 0)            expansionRange tiles (default 8)
+//   industry       0..1+ (default 0) industrial capacity, drives factories and emissions
+//   pollution      default 0, emission intensity per unit of industry
+//   plagueResist   additive 0..0.5 (disease module reduces infectivity / lethality)
+// Extra keys (civ module, safe for others to read):
+//   storage        food-keeping multiplier (spoilage ÷ storage)
+//   taxEfficiency  multiplier on collected taxes   adminRange tiles governed without strain (12)
+//   seaRange       extra tiles colonists can sail  happiness additive settlement happiness
+//   soilCare       0..1 reduces soil exhaustion    irrigation 0/1 irrigated farming near water
+// Registered keys (core/ext.js registerModKeys, e.g. arcana, wards, taming, forestFarm,
+// deepHalls, mortality in Mythic worlds) join with their own default, limit and kind; a
+// registered key is stored on civ.mods only while it differs from its default, so a
+// Historical world's saved mods never depend on which modules were loaded. Read them with
+// modValue(mods, key).
+//
+// computeMods order (contracts §6, §7): techs, government, ruler, temperament, golden / dark
+// age, wonders, great figures; then the civ's timed effects (core/effects.js, applyFx
+// semantics; an effect counts for the whole month in which it is live, judged at the month's
+// first day like settlementMods); then every ext 'mods' provider; then the limits.
+// civ.mods carries _v (MODS_VERSION) and _e (the civ.effectsV it was computed from): both are
+// saved state, so getMods recomputes exactly when the effects change — in a continuous run
+// and in a reloaded one alike. extVersion() (process-local) only keys the merged tables below.
+//
+// Registered techs (registerTechs) join the tree lazily; branch 'arcane' never counts toward
+// the historical eras (computeEra, grantEra, grantWorldKnowledge), available(w, civ) gates
+// research, and the optional costMul(w, civ) / researchWeight(w, civ) of a def scale its cost
+// and its pull on the research choice (an arcane pick is held to under a quarter of research).
+
+import { DAYS_PER_YEAR, DAYS_PER_MONTH, ERAS, RESOURCES } from '../../core/constants.js';
+import { emitFx } from '../../core/world.js';
+import { emit } from '../../core/hooks.js';
+import { concatOf, hasProviders, extVersion, getModKeys, getRegisteredTechs } from '../../core/ext.js';
+import { GOVERNMENTS, RULER_TRAITS, wonderDef } from './data.js';
+import { fin, record } from './state.js';
+import { borderNeighbours } from './territory.js';
+import { PeopleOf, TheName, theName, peopleOf, pick } from './prose.js';
+
+/** Base cost per era (research points); individual techs vary around it. */
+const ERA_COST = [5500, 45000, 430000, 1150000, 2400000, 4000000, 7000000, 16000000];
+/** Global calibration of research costs (tuned for the SPEC era pacing at techRate 1). */
+export const COST_SCALE = 1;
+/** Number of an era's techs needed to enter it. */
+export const ERA_ENTRY = 2;
+
+// cat: farm | craft | sea | faith | science | commerce | military | civic | health | industry
+// first: completes "…were the first <first>."   deed: what a great scholar did for it.
+const T = (id, name, era, prereqs, fx, cat, first, deed, costMul = 1) => ({ id, name, era, prereqs, fx, cat, first, deed, cost: Math.round(ERA_COST[era] * costMul) });
+
+export const TECHS = [
+  // --- Stone Age ----------------------------------------------------------------------
+  T('toolmaking', 'Stone Tools', 0, [], { production: 0.1, gatherYield: 0.15 }, 'craft',
+    'to knap fine blades of flint', 'shaped the first polished stone axes', 0.8),
+  T('fishing', 'Fishing', 0, [], { fishYield: 0.4 }, 'sea',
+    'to weave nets and carve bone hooks', 'learned to smoke fish against the winter', 0.8),
+  T('mysticism', 'Mysticism', 0, [], { culture: 0.15, stability: 0.03 }, 'faith',
+    'to raise shrines to the spirits of the land', 'gave names to the spirits of sky and earth', 0.9),
+  T('agriculture', 'Agriculture', 0, ['toolmaking'], { farming: 1, gatherYield: 0.05 }, 'farm',
+    'to sow fields of grain', 'learned which wild grasses could be sown and reaped', 1.4),
+  T('husbandry', 'Animal Husbandry', 0, ['toolmaking'], { gatherYield: 0.1, farmYield: 0.1, soilCare: 0.15, military: 0.05 }, 'farm',
+    'to tame wild herds', 'bred docile herds of goats and cattle', 1.1),
+  T('pottery', 'Pottery', 0, ['agriculture'], { storage: 0.3, health: 0.02 }, 'craft',
+    'to fire clay into pots and storage jars', 'built a kiln hot enough to fire clay', 1.0),
+
+  // --- Bronze Age ---------------------------------------------------------------------
+  T('bronze', 'Bronze Working', 1, ['toolmaking'], { military: 0.25, production: 0.1, mining: 0.3 }, 'military',
+    'to smelt copper and tin into bronze', 'found the secret of alloying copper with tin', 1.0),
+  T('masonry', 'Masonry', 1, ['toolmaking', 'agriculture'], { defense: 0.3, housing: 0.15 }, 'craft',
+    'to raise walls of dressed stone', 'devised the corbelled arch', 0.9),
+  T('wheel', 'The Wheel', 1, ['husbandry'], { movement: 0.15, trade: 0.1, tradeRange: 3, adminRange: 2, expansionRange: 1 }, 'commerce',
+    'to build wheeled carts', 'built a cart that rolled on spoked wheels', 0.95),
+  T('sailing', 'Sailing', 1, ['fishing'], { navigation: 1, fishYield: 0.2, trade: 0.1, seaRange: 10 }, 'sea',
+    'to raise sails upon the water', 'rigged a sail upon a reed boat and rode the wind', 1.0),
+  T('writing', 'Writing', 1, ['pottery', 'mysticism'], { research: 0.2, culture: 0.1, stability: 0.02, adminRange: 2 }, 'science',
+    'to set down words in writing', 'devised a script of signs pressed into clay', 1.15),
+  T('irrigation', 'Irrigation', 1, ['agriculture'], { farmYield: 0.25, irrigation: 1 }, 'farm',
+    'to dig irrigation canals', 'led the river into the fields through a web of ditches', 1.0),
+
+  // --- Iron Age -----------------------------------------------------------------------
+  T('iron', 'Iron Working', 2, ['bronze'], { military: 0.25, production: 0.15, farmYield: 0.1, mining: 0.2 }, 'military',
+    'to forge iron', 'built a furnace hot enough to smelt iron from bog ore', 1.05),
+  T('mathematics', 'Mathematics', 2, ['writing'], { research: 0.15, siege: 0.3 }, 'science',
+    'to master the art of number', 'set down the rules of geometry', 1.0),
+  T('currency', 'Currency', 2, ['writing', 'bronze'], { trade: 0.2, taxEfficiency: 0.1 }, 'commerce',
+    'to strike coins', 'struck coins of stamped silver', 0.95),
+  T('horseback', 'Horseback Riding', 2, ['wheel'], { movement: 0.2, military: 0.1, tradeRange: 3, adminRange: 3, expansionRange: 2 }, 'military',
+    'to ride to war on horseback', 'broke wild horses to the saddle', 0.95),
+  T('laws', 'Code of Laws', 2, ['writing'], { stability: 0.05, taxEfficiency: 0.1, adminRange: 3 }, 'civic',
+    'to carve their laws in stone', 'carved the laws of the land upon a pillar of basalt', 1.0),
+
+  // --- Classical Age ------------------------------------------------------------------
+  T('philosophy', 'Philosophy', 3, ['mathematics', 'laws'], { research: 0.2, culture: 0.2 }, 'science',
+    'to found schools of philosophy', 'founded a school that questioned the nature of all things', 1.05),
+  T('engineering', 'Engineering', 3, ['mathematics', 'masonry'], { housing: 0.25, defense: 0.2, movement: 0.1, adminRange: 3, health: 0.03 }, 'craft',
+    'to build aqueducts and paved roads', 'designed an aqueduct that carried water across a valley', 1.0),
+  T('medicine', 'Medicine', 3, ['philosophy'], { health: 0.05, medicine: 0.85, plagueResist: 0.05 }, 'health',
+    'to practise the healing arts', 'wrote a great treatise on the healing arts', 0.95),
+  T('shipbuilding', 'Shipbuilding', 3, ['sailing', 'iron'], { trade: 0.15, tradeRange: 5, seaRange: 8, fishYield: 0.15, military: 0.05 }, 'sea',
+    'to launch oared galleys', 'laid the keel of a great oared galley', 0.95),
+  T('drama', 'Drama and Poetry', 3, ['writing', 'laws'], { culture: 0.25, happiness: 0.03 }, 'civic',
+    'to stage plays before the people', 'wrote a tragedy that moved the whole city to tears', 0.9),
+  T('tactics', 'Military Tactics', 3, ['iron', 'horseback'], { military: 0.25, siege: 0.2 }, 'military',
+    'to drill disciplined legions', 'wrote a manual of war still studied centuries later', 1.0),
+
+  // --- Medieval Age -------------------------------------------------------------------
+  T('feudalism', 'Feudalism', 4, ['laws', 'tactics'], { defense: 0.3, stability: 0.04, military: 0.1 }, 'civic',
+    'to bind lords and vassals by oath', 'codified the oaths of lord and vassal', 1.0),
+  T('theology', 'Theology', 4, ['philosophy', 'mysticism'], { culture: 0.15, stability: 0.05, happiness: 0.02 }, 'faith',
+    'to write learned works of theology', 'reconciled faith and reason in a great summa', 0.95),
+  T('astronomy', 'Astronomy', 4, ['mathematics', 'philosophy'], { research: 0.15, seaRange: 4 }, 'science',
+    'to chart the wandering stars', 'charted the courses of the wandering stars', 1.0),
+  T('croprotation', 'Crop Rotation', 4, ['iron', 'irrigation'], { farmYield: 0.35, soilCare: 0.3 }, 'farm',
+    'to rotate their fields through the seasons', 'proved that a field rested with clover returns richer', 0.9),
+  T('guilds', 'Guilds', 4, ['currency', 'engineering'], { production: 0.2, trade: 0.1 }, 'commerce',
+    'to organise their crafts into guilds', 'drew up the charters of the craft guilds', 0.95),
+  T('scholasticism', 'Scholasticism', 4, ['philosophy', 'theology'], { research: 0.25, culture: 0.1 }, 'science',
+    'to found universities', 'founded a university of masters and students', 1.05),
+
+  // --- Renaissance --------------------------------------------------------------------
+  T('navigation', 'Navigation', 5, ['astronomy', 'shipbuilding'], { navigation: 2, tradeRange: 10, seaRange: 30, expansionRange: 2 }, 'sea',
+    'to sail the open ocean', 'perfected the astrolabe and the magnetic compass', 1.0),
+  T('printing', 'Printing Press', 5, ['scholasticism', 'guilds'], { research: 0.3, culture: 0.2, stability: 0.03 }, 'science',
+    'to print books with movable type', 'built a press of movable type', 1.0),
+  T('gunpowder', 'Gunpowder', 5, ['feudalism', 'guilds'], { military: 0.45, siege: 0.6 }, 'military',
+    'to wield gunpowder in war', 'mixed saltpetre, sulphur and charcoal into black powder', 1.0),
+  T('banking', 'Banking', 5, ['currency', 'guilds'], { trade: 0.25, taxEfficiency: 0.15 }, 'commerce',
+    'to found banks and letters of credit', 'invented double-entry bookkeeping', 0.95),
+  T('anatomy', 'Anatomy', 5, ['medicine', 'printing'], { health: 0.05, medicine: 0.8, plagueResist: 0.05 }, 'health',
+    'to study the anatomy of the body', 'described the circulation of the blood', 0.95),
+  T('science', 'Scientific Method', 5, ['printing', 'astronomy'], { research: 0.4 }, 'science',
+    'to test nature by experiment', 'set out the method of experiment and proof', 1.1),
+
+  // --- Industrial Age -----------------------------------------------------------------
+  T('steam', 'Steam Power', 6, ['science', 'gunpowder'], { production: 0.5, industry: 0.5, pollution: 0.4, birth: -0.05 }, 'industry',
+    'to harness steam', 'built an engine driven by steam', 1.0),
+  T('railways', 'Railways', 6, ['steam'], { movement: 0.6, tradeRange: 15, trade: 0.3, adminRange: 8, expansionRange: 4 }, 'industry',
+    'to lay iron railways', 'drove a locomotive along iron rails', 1.0),
+  T('sanitation', 'Sanitation', 6, ['anatomy', 'engineering'], { sanitation: 0.6, health: 0.08, housing: 0.5, birth: -0.1 }, 'health',
+    'to build sewers beneath their cities', 'traced a cholera outbreak to a single fouled well', 0.95),
+  T('chemistry', 'Industrial Chemistry', 6, ['steam', 'science'], { farmYield: 0.6, production: 0.1, industry: 0.2, pollution: 0.3, soilCare: 0.2 }, 'industry',
+    'to make fertiliser in factories', 'fixed nitrogen from the air to feed the fields', 1.0),
+  T('vaccines', 'Vaccination', 6, ['anatomy', 'science'], { medicine: 0.6, plagueResist: 0.2, health: 0.05 }, 'health',
+    'to vaccinate against disease', 'proved that cowpox could guard against the pox', 0.95),
+  T('electricity', 'Electricity', 6, ['science', 'steam'], { research: 0.3, production: 0.3, industry: 0.2, pollution: 0.1, housing: 0.3 }, 'industry',
+    'to light their cities with electricity', 'tamed the lightning in copper wire', 1.05),
+
+  // --- Modern Age ---------------------------------------------------------------------
+  T('combustion', 'Combustion Engine', 7, ['railways', 'chemistry'], { movement: 0.5, production: 0.4, industry: 0.2, pollution: 0.4 }, 'industry',
+    'to build engines of combustion', 'built an engine that burned oil', 1.0),
+  T('flight', 'Flight', 7, ['combustion', 'electricity'], { movement: 0.4, military: 0.4, tradeRange: 20, seaRange: 40 }, 'industry',
+    'to take to the skies', 'flew a powered aircraft', 1.0),
+  T('antibiotics', 'Antibiotics', 7, ['vaccines', 'chemistry'], { medicine: 0.4, health: 0.1, plagueResist: 0.2, birth: -0.1 }, 'health',
+    'to cure infection with antibiotics', 'found a mould that killed the deadliest germs', 0.95),
+  T('massmedia', 'Mass Media', 7, ['electricity', 'printing'], { stability: 0.05, culture: 0.3, happiness: 0.03 }, 'civic',
+    'to broadcast by radio', 'broadcast a voice across the land', 0.9),
+  T('computers', 'Computers', 7, ['electricity', 'massmedia'], { research: 0.6, production: 0.2, birth: -0.05 }, 'science',
+    'to build computing machines', 'built a thinking machine of switches and wire', 1.1),
+  T('greenrev', 'Green Revolution', 7, ['chemistry', 'combustion'], { farmYield: 1.0 }, 'farm',
+    'to breed miracle strains of grain', 'bred a dwarf wheat that doubled the harvest', 1.0),
+  T('renewables', 'Renewable Power', 7, ['computers', 'electricity'], { pollution: -0.7, industry: 0.1 }, 'industry',
+    'to draw clean power from wind and sun', 'built a great field of sun-mirrors', 1.05),
+];
+
+export const TECH_BY_ID = Object.fromEntries(TECHS.map((t) => [t.id, t]));
+export const TECHS_BY_ERA = ERAS.map((e) => TECHS.filter((t) => t.era === e.id));
+const BUILTIN_TECH = new Set(TECHS.map((t) => t.id));
+
+export const hasTech = (civ, id) => Boolean(civ?.tech?.known && civ.tech.known[id] != null);
+export const techName = (id) => { syncRegistry(); return TECH_BY_ID[id]?.name || id; };
+/** Tech name for use mid-sentence ("the Wheel", not "The Wheel"). */
+const midName = (tech) => tech.name.replace(/^The /, 'the ');
+/** A tech of the arcane branch (registered by the Mythic module; never counts toward eras). */
+export const isArcane = (t) => Boolean(t && t.branch === 'arcane');
+
+// ---------------------------------------------------------------------------
+// Mods
+
+export const DEFAULT_MODS = Object.freeze({
+  farming: 0, farmYield: 1, gatherYield: 1, fishYield: 1, housing: 1, health: 1, birth: 1,
+  research: 1, culture: 1, production: 1, trade: 1, tradeRange: 10, military: 1, defense: 1,
+  siege: 1, movement: 1, navigation: 0, medicine: 1, sanitation: 1, mining: 1, stability: 0,
+  expansionRange: 8, industry: 0, pollution: 0, plagueResist: 0,
+  storage: 1, taxEfficiency: 1, adminRange: 12, seaRange: 0, happiness: 0, soilCare: 0, irrigation: 0,
+});
+const MODS_VERSION = 4;
+const SET_KEYS = new Set(['farming', 'navigation', 'irrigation']);
+const MUL_KEYS = new Set(['medicine']);
+const LIMITS = {
+  tradeRange: [2, 250], expansionRange: [3, 80], adminRange: [4, 150], seaRange: [0, 250],
+  medicine: [0.05, 1], plagueResist: [0, 0.5], stability: [-0.5, 0.5], happiness: [-0.4, 0.4],
+  industry: [0, 3], pollution: [0, 3], soilCare: [0, 0.9], navigation: [0, 2], farming: [0, 1], irrigation: [0, 1],
+};
+const GOLDEN = { research: 0.15, culture: 0.3, production: 0.1, trade: 0.1, stability: 0.08, happiness: 0.05 };
+const DARK = { research: -0.25, culture: -0.2, production: -0.1, trade: -0.1, stability: -0.1, happiness: -0.05 };
+
+// ---------------------------------------------------------------------------
+// Code registries, merged lazily by extVersion(). Module-level, but derived from code only
+// (never from a world), so losing it is harmless: the next call rebuilds the same tables.
+
+let regV = -1;
+let ALL_TECHS = TECHS;          // historical techs, then registered ones (registration order)
+let HIST_BY_ERA = TECHS_BY_ERA; // techs that count toward eras, by era
+const MT = { extra: null, set: SET_KEYS, mul: MUL_KEYS, limits: LIMITS };
+
+function normaliseTech(d) {
+  const era = Math.max(0, Math.min(ERAS.length - 1, Math.round(fin(d.era, 0))));
+  return {
+    ...d,
+    era,
+    prereqs: Array.isArray(d.prereqs) ? d.prereqs.filter((p) => typeof p === 'string') : [],
+    fx: d.fx && typeof d.fx === 'object' ? d.fx : {},
+    cat: d.cat || (d.branch === 'arcane' ? 'arcane' : 'science'),
+    name: String(d.name || d.id),
+    first: d.first || `to master ${String(d.name || d.id).toLowerCase()}`,
+    deed: d.deed || `mastered ${String(d.name || d.id).toLowerCase()}`,
+    cost: Number.isFinite(d.cost) && d.cost > 0 ? d.cost : ERA_COST[era],
+  };
+}
+
+/** Merge registered techs and mod keys (cheap when nothing changed). */
+export function syncRegistry() {
+  const v = extVersion();
+  if (v === regV) return;
+  regV = v;
+  for (const id of Object.keys(TECH_BY_ID)) if (!BUILTIN_TECH.has(id)) delete TECH_BY_ID[id];
+  const extra = [];
+  for (const d of getRegisteredTechs()) {
+    if (!d || typeof d.id !== 'string' || BUILTIN_TECH.has(d.id)) continue; // never shadow a historical tech
+    const t = normaliseTech(d);
+    extra.push(t);
+    TECH_BY_ID[t.id] = t;
+  }
+  ALL_TECHS = extra.length ? TECHS.concat(extra) : TECHS;
+  HIST_BY_ERA = extra.some((t) => !isArcane(t)) ? ERAS.map((e) => ALL_TECHS.filter((t) => t.era === e.id && !isArcane(t))) : TECHS_BY_ERA;
+  // registered mod keys: built-in keys keep their own default, limit and kind
+  const keys = getModKeys();
+  let ex = null;
+  const set = new Set(SET_KEYS), mul = new Set(MUL_KEYS), lim = { ...LIMITS };
+  for (const k in keys) {
+    if (k in DEFAULT_MODS || k.charAt(0) === '_') continue;
+    const d = keys[k];
+    (ex ||= {})[k] = d.default;
+    if (d.kind === 'set') set.add(k); else if (d.kind === 'mul') mul.add(k);
+    if (d.limit) lim[k] = d.limit;
+  }
+  MT.extra = ex; MT.set = set; MT.mul = mul; MT.limits = lim;
+}
+
+/** Every tech: the historical tree plus registered ones. */
+export function allTechs() { syncRegistry(); return ALL_TECHS; }
+/** The def of a tech id (historical or registered), or null. */
+export function techDef(id) { syncRegistry(); return TECH_BY_ID[id] || null; }
+
+/** Default of a mod key, built-in or registered (`fallback` for keys nobody registered). */
+export function modDefault(key, fallback = 0) {
+  if (key in DEFAULT_MODS) return DEFAULT_MODS[key];
+  const d = getModKeys()[key];
+  return d && Number.isFinite(d.default) ? d.default : fallback;
+}
+/**
+ * A mod value, else its default (registered keys are stored only while not default; a key
+ * no module registered reads as `fallback`, e.g. modValue(mods, 'mortality', 1)).
+ */
+export function modValue(mods, key, fallback = 0) {
+  const v = mods ? mods[key] : undefined;
+  return typeof v === 'number' && Number.isFinite(v) ? v : modDefault(key, fallback);
+}
+
+function applyFx(m, fx, scale = 1) {
+  const set = MT.set, mul = MT.mul;
+  for (const k in fx) {
+    const v = fx[k];
+    if (!Number.isFinite(v) || !(k in m)) continue;
+    if (set.has(k)) m[k] = Math.max(m[k], v);
+    else if (mul.has(k)) m[k] *= scale === 1 ? v : 1 - (1 - v) * scale;
+    else m[k] += v * scale;
+  }
+}
+
+/**
+ * The defaults with every known tech's fx applied, in the known techs' order. That order only
+ * ever grows at its end (techs are learnt, never forgotten), so the result is kept per known
+ * object and reused while no tech has been added (and the registries are unchanged): a copy
+ * of exactly what the loop would produce. Cache only (keyed by object identity).
+ */
+const TECH_PART = new WeakMap();
+function techMods(known, extra) {
+  let n = 0;
+  for (const id in known) n++;
+  const hit = TECH_PART.get(known);
+  if (hit && hit.n === n && hit.v === regV && hit.extra === extra) return { ...hit.m };
+  const m = extra ? { ...DEFAULT_MODS, ...extra } : { ...DEFAULT_MODS };
+  for (const id in known) { const t = TECH_BY_ID[id]; if (t) applyFx(m, t.fx); }
+  TECH_PART.set(known, { n, v: regV, extra, m: { ...m } });
+  return m;
+}
+
+/**
+ * Compute a fresh mods object: techs, government, ruler, temperament, ages, wonders, figures,
+ * then the civ's live effects, then the ext 'mods' providers, then the limits (see the header).
+ */
+export function computeMods(world, civ) {
+  syncRegistry();
+  const extra = MT.extra;
+  const known = civ?.tech?.known;
+  const m = known ? techMods(known, extra) : extra ? { ...DEFAULT_MODS, ...extra } : { ...DEFAULT_MODS };
+  const gov = GOVERNMENTS[civ?.government];
+  if (gov) applyFx(m, gov.mods);
+  const traits = civ?.ruler?.traits;
+  if (Array.isArray(traits)) for (const tr of traits) { const d = RULER_TRAITS[tr]; if (d) applyFx(m, d.mods); }
+  const tr = civ?.traits;
+  if (tr) {
+    m.military += 0.2 * (fin(tr.militarism, 0.5) - 0.5);
+    m.trade += 0.2 * (fin(tr.commerce, 0.5) - 0.5);
+    m.culture += 0.15 * (fin(tr.religiosity, 0.5) - 0.5);
+    m.expansionRange += Math.round(2 * (fin(tr.expansion, 0.5) - 0.5));
+  }
+  if (fin(civ?.goldenAge) > 0) applyFx(m, GOLDEN);
+  if (fin(civ?.darkAge) > 0) applyFx(m, DARK);
+  if (world && Array.isArray(world.wonders) && civ && civ.id != null) {
+    for (const w of world.wonders) {
+      if (!w || w.civId !== civ.id || w.destroyedDay != null) continue;
+      const def = wonderDef(w.kind);
+      if (def && def.mods) applyFx(m, def.mods);
+    }
+  }
+  const fc = civ?.flags?.figureCounts;
+  if (fc) {
+    m.military += 0.05 * Math.min(3, fin(fc.general));
+    m.research += 0.03 * Math.min(3, fin(fc.scholar));
+    m.culture += 0.05 * Math.min(3, fin(fc.artist));
+    m.trade += 0.04 * Math.min(3, fin(fc.merchant));
+    m.seaRange += 4 * Math.min(3, fin(fc.explorer));
+  }
+  // timed effects (an effect counts for the whole month in which it is live, as settlementMods)
+  const effs = civ?.effects;
+  if (Array.isArray(effs) && effs.length) {
+    const ms = world?.time ? Math.floor(world.time.day / DAYS_PER_MONTH) * DAYS_PER_MONTH : 0;
+    for (const e of effs) if (e && e.m && (e.until < 0 || e.until > ms)) applyFx(m, e.m);
+  }
+  // ext providers (race mods and the like; neutral in a Historical world)
+  if (world && civ && hasProviders('mods')) {
+    for (const p of concatOf('mods', world, civ)) if (p && typeof p === 'object') applyFx(m, p);
+  }
+  // sanitise
+  const limits = MT.limits;
+  for (const k in m) {
+    let v = m[k];
+    const def = k in DEFAULT_MODS ? DEFAULT_MODS[k] : extra[k];
+    if (!Number.isFinite(v)) v = def;
+    const lim = limits[k];
+    if (lim) v = Math.min(lim[1], Math.max(lim[0], v));
+    else if (def === 1) v = Math.max(0.05, v);
+    m[k] = v;
+  }
+  m.navigation = Math.round(m.navigation);
+  m.farming = m.farming >= 0.5 ? 1 : 0;
+  m.irrigation = m.irrigation >= 0.5 ? 1 : 0;
+  // registered keys are kept only while they matter (a Historical save never carries them)
+  if (extra) for (const k in extra) if (m[k] === extra[k]) delete m[k];
+  m._v = MODS_VERSION;
+  m._e = civ ? fin(civ.effectsV, 0) | 0 : 0;
+  return m;
+}
+
+/**
+ * The derived modifier object of a civ (SPEC §6.3). Always complete for the built-in keys:
+ * unknown civs, ids, dead civs and foreign objects get defaults. Cached on civ.mods (saved),
+ * refreshed monthly and whenever its inputs change; recomputed at once when the civ's effects
+ * changed since (civ.effectsV ≠ mods._e).
+ */
+export function getMods(world, civ) {
+  if (typeof civ === 'number') civ = world?.civs?.[civ] || null;
+  if (!civ || typeof civ !== 'object') return { ...DEFAULT_MODS };
+  const cur = civ.mods;
+  if (cur && cur._v === MODS_VERSION && cur._e === (fin(civ.effectsV, 0) | 0)) return cur;
+  let m;
+  try { m = computeMods(world, civ); } catch (e) { console.error('[civ:mods]', e); m = { ...DEFAULT_MODS, _v: MODS_VERSION, _e: fin(civ.effectsV, 0) | 0 }; }
+  if (Object.isExtensible(civ)) civ.mods = m;
+  return m;
+}
+
+/** Recompute and store (call after any change to techs, government, ruler or ages). */
+export function refreshMods(world, civ) {
+  civ.mods = computeMods(world, civ);
+  return civ.mods;
+}
+
+// ---------------------------------------------------------------------------
+// Eras
+
+/** Highest era whose entry requirement the civ meets (eras are cumulative; arcane arts never count). */
+export function computeEra(civ) {
+  syncRegistry();
+  let era = 0;
+  for (let e = 1; e < ERAS.length; e++) {
+    let n = 0;
+    for (const t of HIST_BY_ERA[e]) if (hasTech(civ, t.id)) n++;
+    if (n >= ERA_ENTRY) era = e; else break;
+  }
+  return era;
+}
+
+/** Silently grant a tech (genesis, inheritance, emergence). */
+export function grantTech(civ, id, day = 0) {
+  syncRegistry();
+  if (!TECH_BY_ID[id] || !civ?.tech || hasTech(civ, id)) return;
+  civ.tech.known[id] = day;
+  if (civ.tech.research === id) { civ.tech.research = null; civ.tech.progress = 0; }
+}
+
+/**
+ * Start a civ in `era`: every tech of earlier eras, plus the cheapest ERA_ENTRY techs of
+ * that era whose prerequisites are met (so a Classical start really is Classical).
+ * Only the historical tree: magic is learned, never granted by the age.
+ */
+export function grantEra(world, civ, era) {
+  for (const t of TECHS) if (t.era < era) grantTech(civ, t.id, world.time.day);
+  if (era > 0 && era < ERAS.length) {
+    const cands = TECHS_BY_ERA[era].filter((t) => !hasTech(civ, t.id) && t.prereqs.every((p) => hasTech(civ, p))).sort((a, b) => a.cost - b.cost || (a.id < b.id ? -1 : 1));
+    let have = TECHS_BY_ERA[era].filter((t) => hasTech(civ, t.id)).length;
+    for (const t of cands) { if (have >= ERA_ENTRY) break; grantTech(civ, t.id, world.time.day); have++; }
+  }
+  civ.tech.era = Math.max(civ.tech.era || 0, computeEra(civ));
+}
+
+// ---------------------------------------------------------------------------
+// Research
+
+/** Can civ study t now (its own gate, e.g. mana or race for an arcane art)? */
+function gateOk(world, civ, t) {
+  if (typeof t.available !== 'function') return true;
+  if (!world) return false;
+  try { return Boolean(t.available(world, civ)); } catch (e) { return false; }
+}
+
+/**
+ * Available techs: unknown, all prerequisites known, and (registered techs) available(world,
+ * civ). world is needed for gated techs; without it they are left out.
+ */
+export function availableTechs(civ, world = null) {
+  syncRegistry();
+  const out = [];
+  for (const t of ALL_TECHS) {
+    if (hasTech(civ, t.id)) continue;
+    let ok = true;
+    for (const p of t.prereqs) if (!hasTech(civ, p)) { ok = false; break; }
+    if (ok && (t.available == null || gateOk(world, civ, t))) out.push(t);
+  }
+  return out;
+}
+
+/** Contacts used for diffusion: diplomatic relations (and trade), plus bordering civs. */
+export function diffusionPeers(world, civ) {
+  const peers = [];
+  const seen = new Set();
+  const rels = civ.relations || {};
+  for (const k in rels) {
+    const o = world.civs[+k];
+    if (!o || !o.alive || o.id === civ.id) continue;
+    seen.add(o.id);
+    peers.push({ civ: o, trade: fin(rels[k]?.trade) > 0 });
+  }
+  for (const other of borderNeighbours(world, civ.id)) {
+    if (seen.has(other)) continue;
+    const o = world.civs[other];
+    if (!o || !o.alive) continue;
+    seen.add(other);
+    peers.push({ civ: o, trade: false });
+  }
+  return peers;
+}
+
+/** A registered def's own cost multiplier for this civ (1 without one). */
+function defCostMul(world, civ, tech) {
+  if (typeof tech.costMul !== 'function' || !world || !civ) return 1;
+  let v = 1;
+  try { v = Number(tech.costMul(world, civ)); } catch (e) { v = 1; }
+  return Number.isFinite(v) && v > 0 ? Math.min(8, Math.max(0.1, v)) : 1;
+}
+
+/** Research cost after diffusion from peers who already know the tech (× a def's own costMul). */
+export function effectiveCost(tech, peers, world = null, civ = null) {
+  let disc = 0;
+  for (const p of peers) if (hasTech(p.civ, tech.id)) disc += p.trade ? 0.22 : 0.14;
+  const base = tech.cost * COST_SCALE * (1 - Math.min(0.6, disc));
+  return tech.costMul ? base * defCostMul(world, civ, tech) : base;
+}
+
+const CAT_TRAIT = { military: 'militarism', commerce: 'commerce', faith: 'religiosity', science: 'innovation', civic: 'tolerance' };
+/** Most of the research choice an arcane art may claim against the historical tree. */
+const ARCANE_SHARE = 0.3;
+
+function chooseResearch(world, civ, peers, ctx) {
+  const avail = availableTechs(civ, world);
+  if (!avail.length) return null;
+  let minCost = Infinity, minArc = Infinity;
+  const costs = avail.map((t) => {
+    const c = effectiveCost(t, peers, world, civ);
+    if (isArcane(t)) { if (c < minArc) minArc = c; } else if (c < minCost) minCost = c;
+    return c;
+  });
+  if (!Number.isFinite(minCost)) minCost = minArc;
+  let histW = 0, arcW = 0;
+  const weights = avail.map((t, k) => {
+    if (isArcane(t)) {
+      // the arts are pursued for their own sake, not because they are cheap
+      let w = Math.pow(Math.min(1.5, minArc / costs[k]), 1.2);
+      if (typeof t.researchWeight === 'function') {
+        let rw = 1;
+        try { rw = Number(t.researchWeight(world, civ)); } catch (e) { rw = 1; }
+        w *= Number.isFinite(rw) && rw > 0 ? Math.min(4, rw) : 0;
+      }
+      arcW += w;
+      return w;
+    }
+    let w = Math.pow(minCost / costs[k], 2.2);
+    const trait = CAT_TRAIT[t.cat];
+    if (trait) w *= 0.6 + fin(civ.traits?.[trait], 0.5);
+    if (t.cat === 'sea') w *= ctx.coastShare > 0.15 ? 1.3 : 0.25;
+    if (t.cat === 'farm' && !hasTech(civ, 'agriculture')) w *= 1.4;
+    if (t.id === 'bronze' && ctx.hasOre) w *= 1.6;
+    if (t.id === 'horseback' && ctx.hasHorses) w *= 1.6;
+    if (t.cat === 'military' && ctx.atWar) w *= 1.5;
+    if (t.cat === 'health' && ctx.plagued) w *= 1.8;
+    histW += w;
+    return w;
+  });
+  // keep the march of the ages: magic takes at most ARCANE_SHARE of the historical weight
+  if (arcW > 0 && histW > 0 && arcW > ARCANE_SHARE * histW) {
+    const k = (ARCANE_SHARE * histW) / arcW;
+    for (let j = 0; j < avail.length; j++) if (isArcane(avail[j])) weights[j] *= k;
+  }
+  let total = 0;
+  for (const w of weights) total += w;
+  if (!(total > 0)) return avail[0].id;
+  let r = world.rng.next() * total;
+  for (let k = 0; k < avail.length; k++) { r -= weights[k]; if (r <= 0) return avail[k].id; }
+  return avail[avail.length - 1].id;
+}
+
+/**
+ * Monthly research for a civ. ctx: { pop, libBonus, resMul, coastShare, hasOre, hasHorses,
+ * atWar, plagued, capital } (from the civ monthly pass; resMul = the people-weighted
+ * settlement research modifier).
+ */
+export function researchMonthly(world, civ, ctx) {
+  syncRegistry();
+  const t = civ.tech;
+  const peers = diffusionPeers(world, civ);
+  if (!t.research || hasTech(civ, t.research) || !TECH_BY_ID[t.research]) {
+    t.research = chooseResearch(world, civ, peers, ctx);
+    if (!t.research) return;
+  }
+  const mods = getMods(world, civ);
+  const innov = fin(civ.traits?.innovation, 0.5);
+  const pts = 0.085 * Math.pow(Math.max(0, ctx.pop), 0.6) * (0.55 + 0.9 * innov) * mods.research
+    * fin(world.params.techRate, 1) * (1 + fin(ctx.libBonus)) * (civ.ruler ? 1 : 0.8) * fin(ctx.resMul, 1);
+  const p = Number.isFinite(pts) && pts > 0 ? pts : 0;
+  t.points += p;
+  t.progress += p;
+  const tech = TECH_BY_ID[t.research];
+  const cost = effectiveCost(tech, peers, world, civ);
+  if (t.progress >= cost) {
+    t.progress = Math.min(cost * 0.5, t.progress - cost);
+    const teacher = peers.find((q) => hasTech(q.civ, tech.id))?.civ || null;
+    discover(world, civ, tech.id, teacher ? 'diffusion' : 'research', teacher);
+  }
+}
+
+/** A scholar's breakthrough: a burst of progress on the current research. */
+export function researchBurst(world, civ, fraction) {
+  syncRegistry();
+  const t = civ.tech;
+  if (!t.research || !TECH_BY_ID[t.research]) {
+    t.research = chooseResearch(world, civ, diffusionPeers(world, civ), { coastShare: civ.flags?.coastShare || 0 });
+    if (!t.research) return null;
+  }
+  const tech = TECH_BY_ID[t.research];
+  t.progress += tech.cost * COST_SCALE * fraction;
+  if (t.progress >= effectiveCost(tech, diffusionPeers(world, civ), world, civ)) {
+    t.progress = 0;
+    discover(world, civ, tech.id, 'figure');
+  }
+  return tech;
+}
+
+/**
+ * Techs a civ could be given now (unknown, prerequisites known, and its gate open): the
+ * Gift a Technology picker. Historical techs first by era, then the arts.
+ */
+export function giftableTechs(world, civ) {
+  if (!civ || !civ.tech) return [];
+  return availableTechs(civ, world).slice().sort((a, b) => (isArcane(a) - isArcane(b)) || a.era - b.era || a.name.localeCompare(b.name));
+}
+
+const LEARN = ['learned the art of {tech}', 'mastered {tech}', 'took up {tech}', 'came to know {tech}'];
+const LEARN_ARCANE = ['learned the art of {tech}', 'were initiated into {tech}', 'took up the secrets of {tech}'];
+
+/**
+ * Record a discovery: update knowledge, mods and era; chronicle, hooks and fx.
+ * how: 'research' | 'diffusion' | 'figure' | 'divine' | 'grant' (no discovery entry: the
+ * caller tells the story; a first entry into an era is still chronicled).
+ * opts: { quiet (as 'grant', keeping how for the hook), cause (seq of the caller's entry) }.
+ * Emits techDiscovered(world, civ, id, how, first) and eraReached(world, civ, era, first);
+ * the first realm into each era is noted in sys.civ.eraFirst[era] = { civId, day }.
+ */
+export function discover(world, civ, id, how = 'research', teacher = null, opts = {}) {
+  syncRegistry();
+  const tech = TECH_BY_ID[id];
+  if (!tech || !civ?.tech || hasTech(civ, id)) return false;
+  const st = world.sys.civ;
+  civ.tech.known[id] = world.time.day;
+  if (civ.tech.research === id) civ.tech.research = null;
+  refreshMods(world, civ);
+  if (civ.ruler?.deeds) civ.ruler.deeds.techs = (civ.ruler.deeds.techs || 0) + 1;
+  const cap = civ.capitalId != null ? world.settlements[civ.capitalId] : null;
+  const arcane = isArcane(tech);
+  const firstInWorld = Boolean(st && st.firstTech[id] == null);
+  if (st && firstInWorld) st.firstTech[id] = civ.id;
+  let entry = null;
+  const quiet = how === 'grant' || Boolean(opts.quiet);
+  if (!quiet) {
+    const cat = arcane ? 'myth' : 'tech';
+    const key = `tech.${arcane ? 'arcane.' : ''}${firstInWorld ? 'first' : how === 'diffusion' ? 'diffused' : 'learned'}`;
+    if (firstInWorld) {
+      const city = cap ? cap.name : null;
+      const text = city
+        ? pick(world, [`${PeopleOf(civ)} of ${city} were the first ${tech.first}.`, `At ${city}, ${peopleOf(civ)} became the first ${tech.first}.`])
+        : `${PeopleOf(civ)} were the first ${tech.first}.`;
+      entry = record(world, { cat, imp: 2, key, text, civ, tags: [id] });   // (integration: arcane firsts are notable like any other first)
+    } else if (how === 'diffusion' && teacher) {
+      entry = record(world, { cat, imp: 1, key, text: `Learning from ${theName(teacher)}, ${theName(civ)} ${pick(world, arcane ? LEARN_ARCANE : LEARN).replace('{tech}', midName(tech))}.`, civ, tags: [id] });
+    } else {
+      entry = record(world, { cat, imp: 1, key, text: `${TheName(civ)} ${pick(world, arcane ? LEARN_ARCANE : LEARN).replace('{tech}', midName(tech))}.`, civ, tags: [id] });
+    }
+    if (cap) emitFx(world, { type: 'discovery', x: cap.x, y: cap.y, civId: civ.id });
+  }
+  emit(world, 'techDiscovered', civ, id, how, firstInWorld);
+  if (arcane) return true;
+  const era = computeEra(civ);
+  if (era > civ.tech.era) {
+    const prev = civ.tech.era;
+    civ.tech.era = era;
+    let first = false;
+    if (st) {
+      const n = (st.eraReached[era] = (st.eraReached[era] || 0) + 1);
+      first = st.eraFirst[era] == null;
+      if (first) st.eraFirst[era] = { civId: civ.id, day: world.time.day };
+      const eraName = ERAS[era].name;
+      let text, imp;
+      if (first) {
+        imp = 5;
+        text = pick(world, [
+          `With ${midName(tech)}, ${theName(civ)} became the first people of the world to enter the ${eraName}.`,
+          `${TheName(civ)} led the world into the ${eraName}, mastering ${midName(tech)} before any other people.`,
+        ]);
+      } else {
+        imp = n <= 3 ? 3 : 2;
+        text = pick(world, [
+          `${TheName(civ)} entered the ${eraName}.`,
+          `With the mastery of ${midName(tech)}, ${theName(civ)} passed into the ${eraName}.`,
+          `${TheName(civ)} left the ${ERAS[prev].name} behind and entered the ${eraName}.`,
+        ]);
+      }
+      if (!quiet || first) record(world, { cat: 'tech', imp, key: first ? 'era.first' : 'era.reached', text, civ, cause: entry ? entry.seq : opts.cause ?? null, tags: [`era${era}`] });
+    }
+    emit(world, 'eraReached', civ, era, first);
+  }
+  return true;
+}
+
+/** Does the civ's territory hold usable deposits of a resource key? (for research bias) */
+export function resourceKeyId(key) {
+  const r = RESOURCES.find((x) => x.key === key);
+  return r ? r.id : -1;
+}
+
+export const yearsKnown = (world, civ, id) => (hasTech(civ, id) ? (world.time.day - civ.tech.known[id]) / DAYS_PER_YEAR : -1);

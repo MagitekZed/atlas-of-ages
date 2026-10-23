@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Atlas of Ages</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23101923'/%3E%3Ccircle cx='16' cy='16' r='10.5' fill='none' stroke='%23c9a466' stroke-width='1.8'/%3E%3Cellipse cx='16' cy='16' rx='4.6' ry='10.5' fill='none' stroke='%23c9a466' stroke-width='1.3'/%3E%3Cpath d='M5.5 16h21' stroke='%23c9a466' stroke-width='1.3'/%3E%3Ccircle cx='16' cy='16' r='1.8' fill='%2363b5a3'/%3E%3C/svg%3E">
+<meta name="description" content="An autonomous world simulator: shape a planet's genesis, then watch continents, climates, peoples, faiths and empires unfold across the ages.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap">
+<link rel="stylesheet" href="styles.css">
+<!-- expansion packages' stylesheets (tokens from styles.css only); inlined by tools/build-standalone.mjs -->
+<link rel="stylesheet" href="src/ui/css/story.css">
+<link rel="stylesheet" href="src/ui/css/records.css">
+<link rel="stylesheet" href="src/ui/css/myth.css">
+<link rel="stylesheet" href="src/ui/css/bands.css">
+<script>
+  // Theme before first paint: ?theme=light|dark, else the viewer's saved choice.
+  (function () {
+    try {
+      var q = new URLSearchParams(window.location.search).get('theme');
+      var t = q;
+      if (!t) { try { t = (JSON.parse(window.localStorage.getItem('atlas-of-ages:prefs:v1') || '{}') || {}).theme; } catch (e) { t = null; } }
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) { /* no theme override */ }
+  })();
+</script>
+</head>
+<body>
+<div id="app" class="app is-booting" data-mode="genesis">
+  <main id="stage" class="stage" aria-label="World map">
+    <canvas id="map" class="map" tabindex="0" aria-label="World map. Drag to pan, scroll or pinch to zoom, click to inspect."></canvas>
+    <div id="atlas-banner" class="atlas-banner" hidden></div>
+    <header class="hud-top">
+      <div id="cartouche" class="cartouche instrument ticked"></div>
+      <div id="drive" class="drive instrument"></div>
+    </header>
+    <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+    <div class="hud-bottom">
+      <div id="mapdock" class="mapdock"></div>
+      <div id="palette" class="palette"></div>
+    </div>
+    <div id="readout" class="readout" aria-hidden="true"></div>
+    <div id="hover-card" class="hover-card" hidden></div>
+    <button id="ui-hint" class="ui-hint" type="button" hidden>Press H to show the instruments</button>
+  </main>
+  <aside id="panel" class="panel" aria-label="Instruments"></aside>
+</div>
+
+<section id="genesis" class="genesis" aria-labelledby="genesis-title">
+  <div class="genesis-frame">
+    <header class="genesis-head">
+      <p class="genesis-kicker">A world simulator</p>
+      <h1 id="genesis-title" class="genesis-title">Atlas of Ages</h1>
+      <p class="genesis-sub">Set the conditions of a new world. Then let the ages run: continents and climates, forests and herds, tribes becoming empires, faiths, plagues and wars.</p>
+    </header>
+    <div id="genesis-body" class="genesis-body">
+      <p class="boot-line">Preparing the instruments…</p>
+    </div>
+  </div>
+</section>
+
+<div id="progress" class="progress" hidden></div>
+<div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+<div id="modal-root"></div>
+<div id="fatal" class="fatal" role="alert" hidden></div>
+
+<script>
+  // Boot guard: if the module graph fails to load, say so plainly instead of showing a blank page.
+  (function () {
+    var shown = false;
+    function show(msg) {
+      if (shown || window.__atlasBooted) return;
+      shown = true;
+      var el = document.getElementById('fatal');
+      if (!el) return;
+      el.hidden = false;
+      while (el.firstChild) el.removeChild(el.firstChild);
+      var box = document.createElement('div'); box.className = 'fatal-box';
+      var h = document.createElement('h2'); h.textContent = 'The atlas could not start';
+      var p = document.createElement('p'); p.className = 'fatal-msg'; p.textContent = msg;
+      var p2 = document.createElement('p');
+      p2.textContent = 'Reload the page to try again. When opening the project from disk, serve the folder over HTTP (for example python3 -m http.server) so the browser can load its modules.';
+      box.appendChild(h); box.appendChild(p); box.appendChild(p2); el.appendChild(box);
+    }
+    window.addEventListener('error', function (e) {
+      if (window.__atlasBooted) return;
+      var t = e && e.target;
+      if (t && t.tagName === 'SCRIPT') show('A program file failed to load: ' + (t.src || 'inline script') + ', or one of the files it needs. The browser console names the missing file.');
+      else if (e && e.message) show(e.message);
+    }, true);
+    window.addEventListener('unhandledrejection', function (e) {
+      if (window.__atlasBooted) return;
+      var r = e && e.reason;
+      show((r && r.message) || String(r || 'Unknown error while starting.'));
+    });
+    setTimeout(function () { if (!window.__atlasBooted) show('The program did not finish loading within 45 seconds. A slow connection or device may need another try.'); }, 45000);
+  })();
+</script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

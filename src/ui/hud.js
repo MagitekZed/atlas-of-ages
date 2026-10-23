@@ -1,0 +1,395 @@
+// The HUD: the cartouche (world name, year-dial, date and seasons, headline numbers) and
+// the drive (pause, six speed notches, measured pace, the Story button that starts the
+// Director, the finder that opens the command palette, instrument menu). The menu holds the
+// Chronoscope (undo names the act it would take back), Notices, and registered commands that
+// ask for it; the Leap dialog offers "run until…" beside its fixed spans; the keyboard sheet
+// lists the built-in keys, then every registered key and tab key (src/ui/registry.js).
+
+import { SPEEDS, MONTH_NAMES, DAYS_PER_YEAR, DAYS_PER_MONTH } from '../core/constants.js';
+import { dateString, seasonName, yearOf } from '../core/world.js';
+import { h, clear, svgEl, setText, svgNode } from './dom.js';
+import { glyph, iconEl } from './icons.js';
+import { tip, openPopover, closePopover, openModal, msText } from './widgets.js';
+import { people, eraName, int } from './format.js';
+import { summarize } from '../sim/stats.js';
+import { setTheme, themeChoice } from './theme.js';
+import { setPref } from './prefs.js';
+import { openSaves, quickSave } from './saves.js';
+import { getCommands, runCommand, listKeys, getTabs, describeKey } from './registry.js';
+import { tabOpen } from './app.js';
+
+// WP1's world ages (pure readers), shown beside the date. Loaded lazily, never as a top-level
+// await: the single-file bundle must not wait on the sim modules while the UI mounts.
+let eventsMod = null;
+import('../sim/events/index.js').then((m) => { eventsMod = m; }).catch(() => { /* no ages without the event deck */ });
+
+export function mountHud(app) {
+  const cart = document.getElementById('cartouche');
+  const drive = document.getElementById('drive');
+  clear(cart); clear(drive);
+
+  // --- cartouche --------------------------------------------------------------------
+  const dial = buildDial();
+  const name = h('div.world-name', { text: '' });
+  // the year keeps its place on a narrow screen: the month and day give way first
+  const dateMD = h('span.date-md', { text: '' });
+  const dateY = h('span.date-y', { text: '' });
+  const date = h('span.date', null, dateMD, dateY);
+  const season = h('span.season', { text: '' });
+  const ages = h('button.age-chip', { type: 'button', hidden: true });
+  let agesSig = '';
+  ages.addEventListener('click', () => { const k = ages.dataset.key; if (k) app.select({ kind: 'event', id: 'age:' + k }); });
+  const stats = {
+    pop: stat('Pop.', 'statistics', 'World population. Opens the statistics.'),
+    civs: stat('Nations', 'nations', 'Living nations. Opens the ledger.'),
+    wars: stat('Wars', 'nations', 'Wars being fought now.'),
+    faiths: stat('Faiths', 'chronicle', 'Living religions.'),
+    plagues: stat('Plagues', 'chronicle', 'Active outbreaks.'),
+    era: stat('Era', 'nations', 'The most advanced age any nation has reached.'),
+  };
+  const headline = h('div.headline', null, Object.values(stats).map((s) => s.el));
+  cart.append(dial.el, name, h('div.date-line', null, date, season, ages), headline);
+
+  function stat(label, tab, desc) {
+    const v = h('span.v', { text: '—' });
+    const el = h('button.stat.stat-btn', { type: 'button' }, h('span.k', { text: label }), v);
+    tip(el, desc, label);
+    el.addEventListener('click', () => { app.setTab(tab); app.emit('layout', 'open-panel'); });   // a folded panel opens to show it
+    return { el, v };
+  }
+
+  // --- drive --------------------------------------------------------------------------
+  const play = h('button.play', { type: 'button', 'aria-label': 'Pause' });
+  tip(play, 'Pause or resume time.', 'Pause', 'Space');
+  play.addEventListener('click', () => app.togglePause());
+  const notches = h('div.speed-notches', { role: 'group', 'aria-label': 'Speed' });
+  const notchBtns = [];
+  for (let k = 1; k < SPEEDS.length; k++) {
+    const s = SPEEDS[k];
+    const b = h('button', { type: 'button', 'aria-label': `${s.label} speed`, style: { '--h': (8 + k * 4) + 'px' } });
+    tip(b, s.dps === Infinity ? 'As fast as this device allows.' : `${s.dps} days each second.`, s.label, String(k));
+    b.addEventListener('click', () => app.setSpeed(k));
+    notches.appendChild(b);
+    notchBtns.push(b);
+  }
+  const cycle = h('button.icon-btn.speed-cycle', { type: 'button', 'aria-label': 'Change speed' });
+  cycle.addEventListener('click', () => app.setSpeed(app.speed >= SPEEDS.length - 1 ? 1 : app.speed + 1));
+  const speedName = h('span.name');
+  const speedRate = h('span.rate');
+  const speedLabel = h('div.speed-label', null, speedName, speedRate);
+  const status = h('button.icon-btn.warn-chip', { type: 'button', hidden: true });
+  status.appendChild(svgEl(glyph('help', 18)));
+  status.addEventListener('click', () => { app.setTab('world'); app.emit('layout', 'open-panel'); app.emit('engineRoom'); });
+  const menuBtn = h('button.icon-btn', { type: 'button', 'aria-label': 'Menu', 'aria-haspopup': 'true' });
+  menuBtn.appendChild(svgEl(glyph('menu', 20)));
+  tip(menuBtn, 'New world, saving, theme and shortcuts.', 'Menu');
+  menuBtn.addEventListener('click', () => openMenu(app, menuBtn));
+  const layersBtn = h('button.icon-btn.layers-phone', { type: 'button', 'aria-label': 'Map layers' });
+  layersBtn.appendChild(svgEl(glyph('layers', 18)));
+  layersBtn.addEventListener('click', () => app.emit('toggleDockPhone'));
+  // the Director (story mode) and the finder (command palette), when their modules are here
+  const storyBtn = h('button.icon-btn.story-btn', { type: 'button', 'aria-label': 'Story mode', 'aria-pressed': 'false', hidden: true }, svgEl(glyph('eye', 18)), h('span.story-label', { text: 'Story' }));
+  tip(storyBtn, 'The Director flies to great events as they happen and tells them.', 'Story mode', 'G');
+  storyBtn.addEventListener('click', () => app.director?.toggle());
+  const findBtn = h('button.icon-btn.find-btn', { type: 'button', 'aria-label': 'Find anything', hidden: true }, svgEl(glyph('search', 18)));
+  tip(findBtn, 'Find any place, people, war or command.', 'Find', '/');
+  findBtn.addEventListener('click', () => app.openCommand?.(''));
+  drive.append(play, notches, cycle, speedLabel, h('span.sep'), storyBtn, findBtn, status, layersBtn, menuBtn);
+  const syncStory = () => {
+    storyBtn.hidden = !app.director;
+    findBtn.hidden = !app.openCommand;
+    const on = Boolean(app.director?.on);
+    storyBtn.classList.toggle('is-on', on);
+    storyBtn.setAttribute('aria-pressed', String(on));
+  };
+  app.on('director', syncStory);
+  app.on('world', syncStory);
+
+  function refreshSpeed() {
+    const k = app.speed;
+    clear(play);
+    play.appendChild(svgEl(glyph(k === 0 ? 'play' : 'pause', 20)));
+    play.setAttribute('aria-label', k === 0 ? 'Resume' : 'Pause');
+    notchBtns.forEach((b, j) => {
+      b.classList.toggle('is-on', j + 1 === k);
+      b.classList.toggle('is-lit', j + 1 < k && k !== 0);
+      b.setAttribute('aria-pressed', j + 1 === k ? 'true' : 'false');
+    });
+    const s = SPEEDS[k];
+    setText(speedName, s ? s.label : '');
+    setText(cycle, '×' + (k === 0 ? app.lastSpeed || 2 : k));
+    tip(cycle, `${SPEEDS[k === 0 ? app.lastSpeed || 2 : k].label}. Tap for the next speed.`, 'Speed');
+    refreshRate();
+  }
+
+  function refreshRate() {
+    const k = app.speed;
+    if (!app.world) { setText(speedRate, ''); return; }
+    if (k === 0) { setText(speedRate, 'time stands still'); return; }
+    const dps = app.measured.dps || SPEEDS[k].dps;
+    if (!Number.isFinite(dps)) { setText(speedRate, 'measuring…'); return; }   // Max, before its first second
+    const ypm = (dps / DAYS_PER_YEAR) * 60;
+    const days = Math.round(dps);
+    setText(speedRate, dps >= DAYS_PER_YEAR / 2 ? `${ypm >= 100 ? int(ypm) : ypm.toFixed(1)} years / min` : `${days} ${days === 1 ? 'day' : 'days'} / s`);
+  }
+
+  function refresh() {
+    const w = app.world;
+    if (!w) return;
+    setText(name, w.name);
+    const ds = dateString(w), cut = ds.lastIndexOf(', Year ');
+    setText(dateMD, cut >= 0 ? ds.slice(0, cut + 1) : ds);
+    setText(dateY, cut >= 0 ? ds.slice(cut + 2) : '');
+    date.title = ds;
+    const tilt = Number(w.params.axialTilt);
+    if (Number.isFinite(tilt) && tilt < 3) setText(season, 'No seasons: the world stands upright');
+    else setText(season, `${seasonName(w, 0)} in the north · ${seasonName(w, w.H - 1)} in the south`);
+    dial.set(w.time.day);
+    refreshAges(w);
+    const s = summarize(w);
+    setText(stats.pop.v, people(s.pop));
+    setText(stats.civs.v, String(s.civs));
+    setText(stats.wars.v, String(s.wars));
+    stats.wars.v.classList.toggle('is-alert', s.wars > 0);
+    setText(stats.faiths.v, String(s.faiths));
+    setText(stats.plagues.v, String(s.plagues));
+    stats.plagues.v.classList.toggle('is-alert', s.plagues > 0);
+    stats.plagues.el.hidden = s.plagues === 0;
+    setText(stats.era.v, eraName(s.era));
+    refreshRate();
+    const offline = app.loadErrors.length;
+    status.hidden = offline === 0 && !app.renderInfo.fallback;
+    const msg = app.renderInfo.fallback ? 'The full map renderer is not loaded; a simplified map is shown.' : '';
+    tip(status, `${offline ? `${offline} module${offline === 1 ? '' : 's'} did not load. ` : ''}${msg} Open the engine room for details.`, 'Instrument warning');
+  }
+
+  /** The age(s) the world is living through (WP1 currentAges): short name, tone, the reason as tooltip. */
+  function refreshAges(w) {
+    let list = [];
+    try { list = eventsMod?.currentAges ? eventsMod.currentAges(w) || [] : []; } catch (e) { list = []; }
+    const sig = list.map((a) => a.key + ':' + a.from).join('|');
+    if (sig === agesSig) return;
+    agesSig = sig;
+    ages.hidden = !list.length;
+    if (!list.length) return;
+    const a = list[0];
+    ages.dataset.key = a.key;
+    ages.className = `age-chip is-${a.tone || 'neutral'}`;
+    setText(ages, list.map((x) => x.short || x.name).join(' · '));
+    tip(ages, `${list.map((x) => `${x.name}: ${x.desc || ''}${x.why ? ` (${x.why})` : ''}`).join(' ')} Open its record.`, a.name);
+  }
+
+  app.on('speed', refreshSpeed);
+  app.on('tick', refresh);
+  app.on('world', () => { refresh(); refreshSpeed(); });
+  refreshSpeed();
+  setTimeout(syncStory, 0);
+}
+
+/** The year-dial: twelve month ticks, four season arcs, and a hand on today's date. */
+function buildDial() {
+  const svg = svgNode('svg', { class: 'dial', viewBox: '-26 -26 52 52', 'aria-hidden': 'true' });
+  svg.appendChild(svgNode('circle', { r: 24, fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.5, 'stroke-width': 1 }));
+  svg.appendChild(svgNode('circle', { r: 17.5, fill: 'none', stroke: 'currentColor', 'stroke-opacity': 0.35, 'stroke-width': 0.8 }));
+  // season arcs (northern): winter months 11,0,1 … drawn as faint bands
+  const seasons = [[-1.5, 1.5, 0.08], [1.5, 4.5, 0.22], [4.5, 7.5, 0.4], [7.5, 10.5, 0.22]];
+  for (const [a0, a1, op] of seasons) {
+    const t0 = (a0 / 12) * Math.PI * 2 - Math.PI / 2, t1 = (a1 / 12) * Math.PI * 2 - Math.PI / 2;
+    const R = 21;
+    const d = `M ${Math.cos(t0) * R} ${Math.sin(t0) * R} A ${R} ${R} 0 0 1 ${Math.cos(t1) * R} ${Math.sin(t1) * R}`;
+    svg.appendChild(svgNode('path', { d, fill: 'none', stroke: 'currentColor', 'stroke-opacity': op + 0.25, 'stroke-width': 3.2 }));
+  }
+  for (let m = 0; m < 12; m++) {
+    const t = (m / 12) * Math.PI * 2 - Math.PI / 2;
+    const r0 = m % 3 === 0 ? 14.5 : 16;
+    svg.appendChild(svgNode('line', { x1: Math.cos(t) * r0, y1: Math.sin(t) * r0, x2: Math.cos(t) * 17.5, y2: Math.sin(t) * 17.5, stroke: 'currentColor', 'stroke-width': m % 3 === 0 ? 1.2 : 0.8 }));
+  }
+  const hand = svgNode('g');
+  hand.appendChild(svgNode('line', { x1: 0, y1: 3, x2: 0, y2: -20, stroke: 'var(--brass-hi)', 'stroke-width': 1.6, 'stroke-linecap': 'round' }));
+  hand.appendChild(svgNode('circle', { cx: 0, cy: -20, r: 1.6, fill: 'var(--brass-hi)' }));
+  svg.appendChild(hand);
+  svg.appendChild(svgNode('circle', { r: 2.4, fill: 'var(--slate-1)', stroke: 'var(--brass-hi)', 'stroke-width': 1.2 }));
+  const title = svgNode('title');
+  svg.appendChild(title);
+  let lastDay = -1;
+  return {
+    el: svg,
+    set(day) {
+      if (day === lastDay) return;
+      lastDay = day;
+      const doy = day % DAYS_PER_YEAR;
+      hand.setAttribute('transform', `rotate(${((doy / DAYS_PER_YEAR) * 360).toFixed(2)})`);
+      title.textContent = MONTH_NAMES[Math.floor(doy / DAYS_PER_MONTH)];
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Menu
+
+function openMenu(app, anchor) {
+  const item = (icon, label, fn, hint = '') => {
+    const b = h('button.menu-item', { type: 'button' }, svgEl(glyph(icon, 18)), h('span', { text: label }), hint ? h('span.hint', { text: hint }) : null);
+    b.addEventListener('click', () => { closePopover(); fn(); });
+    return b;
+  };
+  const toggle = (label, get, set) => {
+    const id = 'menu-' + label.replace(/\W+/g, '-').toLowerCase();
+    const input = h('input', { id, type: 'checkbox' });
+    input.checked = get();
+    input.addEventListener('change', () => set(input.checked));
+    return h('label.menu-item.switch', { for: id }, input, h('span.track'), h('span', { text: label }));
+  };
+  const themeSeg = h('div.seg', { role: 'group', 'aria-label': 'Theme', style: { margin: '2px 10px 6px' } });
+  for (const [v, lab] of [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]) {
+    const b = h('button', { type: 'button', text: lab, 'aria-pressed': themeChoice() === v ? 'true' : 'false' });
+    b.addEventListener('click', () => {
+      setTheme(app, v);
+      for (const x of themeSeg.children) x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+    });
+    themeSeg.appendChild(b);
+  }
+  // the Chronoscope: undo names what it would take back
+  const chrono = app.chrono;
+  const last = chrono?.lastAct?.();
+  const chronoRows = chrono ? [
+    h('div.menu-sep'),
+    h('div.menu-label', { text: 'Chronoscope' }),
+    disabled(item('hourglass', last ? `Undo ${last.label}` : 'Nothing to undo', () => chrono.undo(), 'Ctrl Z'), !last),
+    chrono.canRedo() ? item('hourglass', 'Redo', () => chrono.redo(), 'Ctrl Shift Z') : null,
+    item('hourglass', 'Rewind history…', () => chrono.openRewind()),
+  ] : [];
+  const content = h('div', { style: { display: 'flex', flexDirection: 'column' } },
+    item('newWorld', 'New world…', () => app.newWorld()),
+    item('save', 'Save and load…', () => openSaves(app)),
+    item('save', 'Quick save', () => quickSave(app), 'Ctrl S'),
+    item('leap', 'Leap ahead…', () => openLeap(app), 'J'),
+    app.openUntil ? item('hourglass', 'Run until…', () => app.openUntil(), 'U') : null,
+    app.director ? item('eye', app.director.on ? 'Stop the Director' : 'The Director: story mode', () => app.director.toggle(), 'G') : null,
+    app.openCommand ? item('search', 'Find anything…', () => app.openCommand(''), '/') : null,
+    ...chronoRows,
+    h('div.menu-sep'),
+    item('fit', 'Show the whole world', () => app.r('fitWorld'), 'F'),
+    item('eyeOff', 'Hide instruments', () => app.emit('layout', 'hide-ui'), 'H'),
+    item('keyboard', 'Keyboard and mouse', () => showHelp(app), '?'),
+    ...menuCommands(app),
+    h('div.menu-sep'),
+    h('div.menu-label', { text: 'Theme' }),
+    themeSeg,
+    app.openNotices ? item('chronicle', 'Notices and pauses…', () => app.openNotices()) : toggle('Pause on epochal events', () => app.autoPause, (v) => { app.autoPause = v; setPref('autoPause', v); }),
+    toggle('Autosave every century', () => app.autosave, (v) => { app.autosave = v; setPref('autosave', v); }),
+    app.sound ? toggle('Sound', () => app.sound.on, (v) => app.sound.setOn(v)) : null,
+  );
+  openPopover(anchor, content, { align: 'end', cls: 'menu' });
+}
+
+function disabled(el, off) { if (off) { el.disabled = true; el.classList.add('is-off'); } return el; }
+
+/** Commands this menu shows itself (with live labels), so their registered menu rows are skipped. */
+const OWN_MENU = new Set(['chrono.undo', 'chrono.redo', 'chrono.rewind', 'until.open', 'director.toggle', 'notices.open', 'sound.toggle']);
+
+/** Menu rows for registered commands with `menu` set, under their headings (none: nothing at all). */
+function menuCommands(app) {
+  const list = getCommands(app).filter((c) => c.menu && !OWN_MENU.has(c.id));
+  if (!list.length) return [];
+  const out = [];
+  const groups = new Map();
+  for (const c of list) { const g = typeof c.menu === 'string' ? c.menu : ''; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(c); }
+  for (const [g, cs] of groups) {
+    out.push(h('div.menu-sep'));
+    if (g) out.push(h('div.menu-label', { text: g }));
+    for (const c of cs) {
+      const b = h('button.menu-item', { type: 'button' }, iconEl(c.icon || c.id, { size: 18, label: c.label }), h('span', { text: c.label }), c.keys ? h('span.hint', { text: c.keys }) : null);
+      b.addEventListener('click', () => { closePopover(); runCommand(app, c.id); });
+      out.push(b);
+    }
+  }
+  return out;
+}
+
+/** Measured cost of one simulated year on this device (ms), or null before there is enough to go on. */
+export function msPerSimYear(app) {
+  const sim = app.sim, w = app.world;
+  if (!sim || !w) return null;
+  const days = w.time.day - (app.simStartDay ?? 0);
+  if (days < 60) return null;
+  let total = 0;
+  for (const v of Object.values(sim.timing)) total += v;
+  const ms = (total / days) * DAYS_PER_YEAR;
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+
+const LEAPS = [10, 50, 100, 250, 500, 1000];
+
+/** Leap ahead: run a span of history at full speed, with progress and a stop button. */
+export function openLeap(app) {
+  if (!app.world || !app.leapAhead || app.fastForwarding) return;
+  const y = yearOf(app.world);
+  const per = msPerSimYear(app);
+  const grid = h('div.presets.leap-grid');
+  let modal = null;
+  for (const n of LEAPS) {
+    const est = per ? (per * n) / 0.85 : null;
+    const b = h('button.preset', { type: 'button' },
+      h('span.pn', { text: `${int(n)} years` }),
+      h('span.pd', { text: `to Year ${int(y + n)}${est ? ' · about ' + msText(Math.max(400, est)) : ''}` }));
+    b.addEventListener('click', () => { modal?.close(true); app.leapAhead(n); });
+    grid.appendChild(b);
+  }
+  const until = typeof app.untilQuick === 'function' ? app.untilQuick(() => modal?.close(true)) : null;
+  modal = openModal({
+    title: 'Leap ahead', small: true,
+    body: h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
+      h('p', { text: 'Run history as fast as this device allows. Every day is still simulated; the map keeps drawing, and you can stop at any moment.' }),
+      grid,
+      until ? h('h4.rule-head', { text: 'Or run until…' }) : null,
+      until,
+      per ? h('p.gen-note', { text: `This world costs about ${msText(per)} of computing per simulated year here.` }) : null),
+    actions: [{ label: 'Cancel', onClick: (m) => m.close() }],
+  });
+}
+
+export function showHelp(app = null) {
+  const rows = [
+    ['Space', 'Pause or resume (hold and drag to pan)'],
+    ['1 – 6', 'Slow, Normal, Fast, Faster, Rapid, Max'],
+    ['0', 'Pause'],
+    ['Drag', 'Pan the map (right or middle button always pans)'],
+    ['Wheel, + / −', 'Zoom at the cursor'],
+    ['Double-click', 'Zoom in; on a town, dive down to it; on held ground, open its nation'],
+    ['Right-click', 'What can be done here (long-press on touch)'],
+    ['W A S D, arrows', 'Pan'],
+    ['Tab, Shift Tab', 'With the map focused: walk through the largest towns and armies in view (a dozen or so), then on out of the map'],
+    ['F', 'Show the whole world'],
+    ['M, Shift M', 'Next or previous map mode'],
+    ['Esc', 'Back to Inspect (or let go of a pair tool’s first pick); again to clear the selection'],
+    ['[ and ]', 'Shrink or grow the brush'],
+    ['Shift wheel, Alt wheel', 'With a brush: its radius, its strength'],
+    ['H', 'Hide or show the instruments'],
+    ['I C N T P L', 'Inspector, Chronicle, Nations, Statistics, World settings, Atlas'],
+    ['\\', 'Fold or open the side panel'],
+    ['Ctrl S', 'Quick save'],
+    ['J', 'Leap ahead: run years of history at full speed'],
+    ['Touch', 'Drag to pan, pinch to zoom, tap to inspect, long-press for more'],
+  ];
+  // what other packages added: their tabs' keys, then their shortcuts by group
+  const tabKeys = getTabs().filter((t) => t.key && tabOpen(app, t));
+  if (tabKeys.length) rows.push([tabKeys.map((t) => String(t.key).toUpperCase()).join(' '), tabKeys.map((t) => t.label).join(', ')]);
+  const grid = h('div.keys');
+  const put = (k, d) => grid.append(h('span', null, ...k.split(/(\s+)/).map((p) => (p.trim() ? h('kbd', { text: p }) : ' '))), h('span', { text: d }));
+  for (const [k, d] of rows) put(k, d);
+  // registered keys by group (a key may hide itself, or show a range as one row)
+  const extra = listKeys().filter((d) => !d.hidden).sort((a, b) => String(a.group).localeCompare(String(b.group)) || String(a.label).localeCompare(String(b.label)));
+  let group = null;
+  for (const d of extra) {
+    if (d.group !== group) { group = d.group; grid.append(h('span.keys-group', { text: group || 'More' })); }
+    put(d.display || describeKey(d), d.label);
+  }
+  openModal({
+    title: 'Keyboard and mouse',
+    body: h('div', { style: { display: 'flex', flexDirection: 'column', gap: '14px' } },
+      grid,
+      h('p.muted', { text: 'With a god tool selected, click or drag on the map to use it; brush tools keep working while you hold the button down. Inspect is the default tool.' })),
+    actions: [{ label: 'Close', cls: 'btn-brass', onClick: (m) => m.close() }],
+  });
+}

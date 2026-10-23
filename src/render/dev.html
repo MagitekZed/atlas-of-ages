@@ -1,0 +1,597 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Atlas Renderer Dev</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&family=Alegreya+Sans:wght@400;700&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+<style>
+  :root { --bg: #0b1219; --fg: #e8dcc0; --brass: #d6ac5c; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg); overflow: hidden; }
+  #map { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #hud { position: fixed; left: 10px; top: 8px; font: 12px "IBM Plex Mono", monospace; background: rgba(11,18,25,0.72); padding: 6px 9px; border: 1px solid rgba(214,172,92,0.4); border-radius: 4px; pointer-events: none; white-space: pre; }
+  #legend { position: fixed; right: 10px; bottom: 10px; font: 12px "Alegreya Sans", sans-serif; background: rgba(11,18,25,0.78); padding: 8px 10px; border: 1px solid rgba(214,172,92,0.4); border-radius: 4px; max-width: 260px; }
+  #legend .sw { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -2px; border: 1px solid rgba(0,0,0,0.4); }
+  #legend .grad { height: 10px; border-radius: 2px; margin: 4px 0; }
+  #mini { position: fixed; right: 10px; top: 10px; border: 1px solid rgba(214,172,92,0.5); background: #0b1219; }
+  body.clean #hud, body.clean #legend, body.clean #mini { display: none; }
+</style>
+</head>
+<body>
+<canvas id="map"></canvas>
+<canvas id="mini" width="240" height="150"></canvas>
+<div id="hud">loading…</div>
+<div id="legend"></div>
+<script type="module">
+// Renderer development harness (not part of the app). URL parameters:
+//   seed, size (preview|small|medium|large|vast), years (simulated before display), gen=real|fallback,
+//   cache=1 (keep the simulated world in IndexedDB), month (land on a month), p.<param>=value,
+//   fake=0 (no stand-ins for missing armies/routes/storms/faiths), boost=1 (inflate towns to show
+//   every tier), mode, zoom, x, y, focus=capital, select=kind:id, o.<overlay>=0|1, brush=1, run=1,
+//   clean=1 (hide the HUD), preview=1&pw=<css px> (the genesis plate via renderPreview).
+// window.dev offers setView, settle, contactSheet, showField, emitAll, bench, rafBench, step.
+import { createWorld, yearOf, emitFx, dateString, bumpVersion } from '../core/world.js';
+import { Simulation } from '../core/sim.js';
+import { loadSystems } from '../systems.js';
+import { createCiv, createSettlement, createArmy, addEntity, liveSettlements, liveCivs, destroySettlement, startWar } from '../core/entities.js';
+import { serializeWorld, deserializeWorld } from '../core/serialize.js';
+import { DAYS_PER_YEAR, WATER, BIOMES, tierForPop } from '../core/constants.js';
+import { RNG } from '../core/rng.js';
+import { MinHeap } from '../core/util.js';
+import { createRenderer, MAP_MODES, renderPreview } from './renderer.js';
+
+const q = new URLSearchParams(location.search);
+const num = (k, d) => (q.has(k) && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : d);
+const hud = document.getElementById('hud');
+const say = (t) => { hud.textContent = t; document.title = t.split('\n')[0]; };
+if (q.get('clean') === '1') document.body.classList.add('clean');
+if (q.get('preview') === '1') await previewHarness();
+else await mainHarness();
+
+/** ?preview=1: the genesis-screen plate (renderPreview into an 8:5 canvas of CSS width ?pw). */
+async function previewHarness() {
+  document.body.classList.add('clean');
+  document.getElementById('map').style.display = 'none';
+  let gen = null;
+  try { gen = await import('../gen/worldgen.js'); } catch (e) { console.warn('[dev] worldgen did not load', e.message); }
+  const fb = await import('../../tools/fallback-gen.mjs');
+  const pw = num('pw', 1040);
+  const c = document.createElement('canvas');
+  c.width = 640; c.height = 400;
+  c.style.cssText = `position:fixed;left:16px;top:16px;width:${pw}px;height:auto;aspect-ratio:8/5;display:block;background:#1b2430`;
+  document.body.appendChild(c);
+  const make = (seed2) => {
+    const p = { ...Object.fromEntries([...q].filter(([k]) => k.startsWith('p.')).map(([k, v]) => [k.slice(2), Number.isFinite(Number(v)) ? Number(v) : v])), seed: seed2 || q.get('seed') || 'atlas', worldSize: 'preview' };
+    const w = createWorld(p);
+    const t0 = performance.now();
+    let genUsed = 'real';
+    try { if (!gen) throw new Error('no worldgen'); gen.generateWorld(w, { preview: true }); }
+    catch (e) { console.warn('[dev] worldgen failed, using fallback:', e.message); genUsed = 'fallback'; Object.assign(w, createWorld(p)); fb.fallbackGenerate(w); }
+    const tg = performance.now() - t0;
+    const t1 = performance.now();
+    renderPreview(w, c);
+    const tr = performance.now() - t1;
+    return { world: w, gen: genUsed, genMs: +tg.toFixed(1), renderMs: +tr.toFixed(1), backing: [c.width, c.height] };
+  };
+  await document.fonts.ready;
+  const res = make();
+  window.dev = { canvas: c, make, last: res };
+  console.log('[preview]', JSON.stringify({ gen: res.gen, genMs: res.genMs, renderMs: res.renderMs, backing: res.backing }));
+  window.devReady = true;
+}
+
+async function mainHarness() {
+
+const seed = q.get('seed') || 'atlas';
+const size = q.get('size') || 'medium';
+const years = num('years', 40);
+const genMode = q.get('gen') || 'real';
+const params = { seed, worldSize: size };
+for (const [k, v] of q) if (k.startsWith('p.')) params[k.slice(2)] = Number.isFinite(Number(v)) ? Number(v) : v;
+
+// ---------------------------------------------------------------------------
+// world: cached in IndexedDB per (seed, size, years, gen) when ?cache=1
+
+const cacheKey = `${seed}|${size}|${years}|${genMode}|${JSON.stringify(params)}`;
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('atlas-dev', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('worlds');
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function cacheGet(key) {
+  try { const db = await idb(); return await new Promise((res) => { const t = db.transaction('worlds').objectStore('worlds').get(key); t.onsuccess = () => res(t.result || null); t.onerror = () => res(null); }); } catch (e) { return null; }
+}
+async function cachePut(key, val) {
+  try { const db = await idb(); await new Promise((res) => { const t = db.transaction('worlds', 'readwrite').objectStore('worlds').put(val, key); t.onsuccess = res; t.onerror = res; }); } catch (e) { /* ignore */ }
+}
+
+let world = null, fromCache = false;
+const systems = await loadSystems({ onError: (p, e) => console.warn('[dev] system not loaded', p, e.message.split('\n')[0]) });
+if (q.get('cache') === '1') {
+  const txt = await cacheGet(cacheKey);
+  if (txt) { try { world = deserializeWorld(JSON.parse(txt)); fromCache = true; } catch (e) { console.warn('cache load failed', e); } }
+}
+const sim = () => null;
+let simulation = null;
+if (!world) {
+  world = createWorld(params);
+  let used = 'fallback';
+  if (genMode === 'real') {
+    try { const gen = await import('../gen/worldgen.js'); gen.generateWorld(world); used = 'real'; }
+    catch (e) { console.warn('[dev] worldgen failed', e); world = createWorld(params); }
+  }
+  if (used === 'fallback') { const fb = await import('../../tools/fallback-gen.mjs'); fb.fallbackGenerate(world); }
+  simulation = new Simulation(world, systems);
+  simulation.init();
+  const t0 = performance.now();
+  for (let y = 0; y < years; y++) {
+    simulation.run(DAYS_PER_YEAR);
+    if (y % 5 === 0) { say(`simulating year ${y}/${years} (${used} gen)…`); await new Promise((r) => setTimeout(r, 0)); }
+  }
+  // land on a chosen month (season) if requested
+  const month = num('month', -1);
+  if (month >= 0) { const d = ((month * 30) - (world.time.day % 360) + 360) % 360; simulation.run(d); }
+  console.log(`[dev] simulated ${years} years in ${((performance.now() - t0) / 1000).toFixed(1)} s`);
+  if (q.get('cache') === '1') { try { await cachePut(cacheKey, JSON.stringify(serializeWorld(world))); } catch (e) { console.warn('cache save failed', e); } }
+} else {
+  simulation = new Simulation(world, systems);
+  simulation.init();
+}
+
+// ---------------------------------------------------------------------------
+// fakes for modules that are not ready yet (dev only; never part of the app)
+
+const frng = new RNG('dev-fakes:' + seed);
+function landCost(i) { const b = BIOMES[world.f.biome[i]]; return b && b.move > 0 ? b.move : 1.5; }
+
+function fakeCivs(n) {
+  const { W, H, N, f } = world;
+  const sites = [];
+  const score = (i) => {
+    if (f.water[i] !== WATER.LAND) return -1;
+    const b = BIOMES[f.biome[i]];
+    let s = (b?.habit || 0) + (f.river[i] ? 0.3 : 0) + (f.coast[i] ? 0.15 : 0);
+    if (f.annTemp[i] < 0 || f.annTemp[i] > 30) s *= 0.3;
+    return s + frng.next() * 0.2;
+  };
+  const cand = [];
+  for (let i = 0; i < N; i += 3) { const s = score(i); if (s > 0.6) cand.push([s, i]); }
+  cand.sort((a, b) => b[0] - a[0]);
+  for (const [, i] of cand) {
+    const x = i % W, y = (i / W) | 0;
+    if (sites.every((j) => Math.hypot((j % W) - x, ((j / W) | 0) - y) > 26)) sites.push(i);
+    if (sites.length >= n) break;
+  }
+  for (const i of sites) {
+    const x = i % W, y = (i / W) | 0;
+    const civ = createCiv(world, { x, y });
+    civ.tech.era = frng.int(1, 7);
+    const capPop = frng.pick([30000, 70000, 160000, 320000]);
+    const cap = createSettlement(world, civ.id, x, y, { population: capPop });
+    if (!cap) continue;
+    const kids = frng.int(5, 14);
+    for (let k = 0; k < kids * 4 && civ.settlementIds.length < kids + 1; k++) {
+      const a = frng.next() * Math.PI * 2, d = frng.float(5, 22);
+      const sx = Math.round(x + Math.cos(a) * d), sy = Math.round(y + Math.sin(a) * d);
+      if (sx < 1 || sy < 1 || sx >= W - 1 || sy >= H - 1) continue;
+      const j = sy * W + sx;
+      if (f.water[j] !== WATER.LAND || f.annTemp[j] < -3) continue;
+      if (liveSettlements(world).some((s) => Math.hypot(s.x - sx, s.y - sy) < 4.5)) continue;
+      const pop = Math.round(Math.exp(frng.float(Math.log(60), Math.log(60000))));
+      createSettlement(world, civ.id, sx, sy, { population: pop });
+    }
+  }
+  for (const s of liveSettlements(world)) { s.tier = tierForPop(s.population); s.radius = 2 + s.tier; }
+  fakeTerritory();
+  // ruins and roads
+  const towns = liveSettlements(world);
+  if (towns.length > 6) { destroySettlement(world, towns[3].id, 'razed'); }
+  fakeRoads();
+  fakeTrade();
+  fakeArmies();
+  fakeFaiths();
+  bumpVersion(world, 'owner'); bumpVersion(world, 'roads'); bumpVersion(world, 'settlements');
+}
+
+function fakeTerritory() {
+  const { W, H, N, f } = world;
+  const cost = new Float64Array(N).fill(Infinity);
+  const heap = new MinHeap(4096);
+  f.owner.fill(-1); f.ownerSettle.fill(-1);
+  for (const s of liveSettlements(world)) {
+    cost[s.i] = 0; f.owner[s.i] = s.civId; f.ownerSettle[s.i] = s.id; heap.push(s.i, 0);
+  }
+  while (heap.size) {
+    const pr = heap.peekPriority();
+    const i = heap.pop();
+    if (pr > cost[i]) continue;
+    const s = world.settlements[f.ownerSettle[i]];
+    const cap = 7 + (s.tier || 0) * 2.6;
+    const x = i % W, y = (i / W) | 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const j = ny * W + nx;
+      if (f.water[j] !== WATER.LAND) continue;
+      const c = pr + landCost(j) * (dx && dy ? 1.414 : 1);
+      if (c < cost[j] && c < cap) { cost[j] = c; f.owner[j] = f.owner[i]; f.ownerSettle[j] = f.ownerSettle[i]; heap.push(j, c); }
+    }
+  }
+  // farms & people
+  for (let i = 0; i < N; i++) {
+    const sid = f.ownerSettle[i];
+    if (sid < 0) continue;
+    const s = world.settlements[sid];
+    const d = Math.hypot((i % W) - s.x, ((i / W) | 0) - s.y);
+    const fs = BIOMES[f.biome[i]]?.farm || 0;
+    const r = 1.5 + (s.tier || 0) * 0.9;
+    if (d < r) f.farm[i] = Math.max(f.farm[i], Math.min(1, fs * 1.4 * (1 - d / r) + 0.15));
+    f.popDensity[i] = d < 0.5 ? s.population * 0.6 : (s.population * 0.4) / (1 + d * d * 2) + 15;
+  }
+}
+
+function bfsPath(a, b, mode = 'land') {
+  const { W, H, N, f } = world;
+  const prev = new Int32Array(N).fill(-1), cost = new Float64Array(N).fill(Infinity);
+  const heap = new MinHeap(4096);
+  cost[a] = 0; heap.push(a, 0);
+  while (heap.size) {
+    const pr = heap.peekPriority(); const i = heap.pop();
+    if (i === b) break;
+    if (pr > cost[i]) continue;
+    const x = i % W, y = (i / W) | 0;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dy) continue;
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      const j = ny * W + nx;
+      const land = f.water[j] === WATER.LAND;
+      if (mode === 'land' ? !land : land && j !== b) continue;
+      const c = pr + (mode === 'land' ? landCost(j) : 1) * (dx && dy ? 1.414 : 1) * (mode === 'land' && f.road[j] ? 0.5 : 1);
+      if (c < cost[j]) { cost[j] = c; prev[j] = i; heap.push(j, c + Math.hypot(nx - (b % W), ny - ((b / W) | 0)) * 0.9); }
+    }
+  }
+  if (prev[b] < 0) return null;
+  const out = [b];
+  let k = b;
+  while (k !== a && out.length < N) { k = prev[k]; out.push(k); }
+  return out.reverse();
+}
+
+function fakeRoads() {
+  const f = world.f;
+  for (const civ of liveCivs(world)) {
+    const cap = world.settlements[civ.capitalId];
+    if (!cap) continue;
+    for (const sid of civ.settlementIds) {
+      const s = world.settlements[sid];
+      if (!s || s === cap) continue;
+      const p = bfsPath(s.i, cap.i, 'land');
+      if (!p) continue;
+      const lvl = s.tier >= 4 ? 3 : s.tier >= 2 ? 2 : 1;
+      for (const i of p) f.road[i] = Math.max(f.road[i], lvl);
+    }
+  }
+}
+
+function fakeTrade() {
+  const towns = liveSettlements(world).filter((s) => s.tier >= 3);
+  let id = world.tradeRoutes.length;
+  for (let k = 0; k < towns.length; k++) {
+    const a = towns[k], b = towns[(k + 3) % towns.length];
+    if (a === b) continue;
+    let kind = 'land';
+    let path = bfsPath(a.i, b.i, 'land');
+    if (!path && a.coastal && b.coastal) { path = bfsPath(a.i, b.i, 'sea'); kind = 'sea'; }
+    if (!path || path.length > 140) continue;
+    const rt = { id: id++, aId: a.id, bId: b.id, kind, path, value: frng.float(5, 80), active: true, establishedDay: world.time.day, civA: a.civId, civB: b.civId };
+    world.tradeRoutes.push(rt);
+    for (let c = 0; c < 3; c++) {
+      const st = frng.int(0, path.length - 1);
+      const i = path[st];
+      addEntity(world, 'caravans', { routeId: rt.id, civId: a.civId, x: i % world.W, y: (i / world.W) | 0, path, pathStep: st, kind: kind === 'sea' ? 'ship' : 'caravan', value: rt.value }, 'caravan');
+    }
+  }
+}
+
+function fakeArmies() {
+  const civs = liveCivs(world);
+  if (civs.length < 2) return;
+  // two nations whose capitals share a landmass, so armies can march between them
+  let a = civs[0], b = civs[1];
+  const lm = (c) => { const s = world.settlements[c.capitalId]; return s ? world.f.landmass[s.i] : -9; };
+  outer: for (const p of civs) for (const q of civs) { if (p !== q && lm(p) >= 0 && lm(p) === lm(q)) { a = p; b = q; break outer; } }
+  const war = startWar(world, [a.id], [b.id], 'conquest');
+  const capB = world.settlements[b.capitalId], capA = world.settlements[a.capitalId];
+  if (!capA || !capB) return;
+  let path = bfsPath(capA.i, capB.i, 'land');
+  if (!path) {
+    // fall back to a short approach march from the nearest land tiles west of the target
+    const W = world.W, f = world.f;
+    path = [];
+    for (let d = 14; d >= 0; d--) {
+      const x = Math.max(0, capB.x - d), j = capB.y * W + x;
+      if (f.water[j] === WATER.LAND) path.push(j);
+    }
+    if (path.length < 4) path = null;
+  }
+  if (path) {
+    for (let k = 0; k < 3; k++) {
+      const st = Math.floor(path.length * (0.3 + k * 0.2));
+      const i = path[st];
+      createArmy(world, { civId: a.id, x: i % world.W, y: (i / world.W) | 0, strength: frng.int(800, 30000), warId: war.id, targetId: capB.id, state: 'marching' }).path = path.slice(st);
+    }
+  }
+  const i = capB.i;
+  createArmy(world, { civId: b.id, x: (i % world.W) + 1, y: (i / world.W) | 0, strength: 12000, warId: war.id, state: 'defending' });
+  // a fleet at sea near a coastal town
+  const port = liveSettlements(world).find((s) => s.coastal);
+  if (port) {
+    const { W, H, f } = world;
+    for (let r = 1; r < 6; r++) {
+      const j = (port.y + r) * W + port.x;
+      if (port.y + r < H && f.water[j] === WATER.OCEAN) { const ar = createArmy(world, { civId: port.civId, x: port.x, y: port.y + r, strength: 4000, state: 'marching' }); ar.naval = true; break; }
+    }
+  }
+  const besieged = liveSettlements(world).find((s) => s.civId === b.id && s.id !== b.capitalId);
+  if (besieged) {
+    const sg = createArmy(world, { civId: a.id, x: besieged.x - 1, y: besieged.y, strength: 6400, warId: war.id, targetId: besieged.id, state: 'sieging' });
+    besieged.siege = { armyId: sg.id, civId: a.id, progress: 0.4 };
+  }
+}
+
+function fakeFaiths() {
+  if (!world.plagues.some((p) => p && p.active)) {
+    const towns = liveSettlements(world);
+    const pid = world.plagues.length;
+    world.plagues.push({ id: pid, name: 'the Grey Cough', originSid: towns[0]?.id, startDay: 0, endDay: null, active: true, infectivity: 0.3, lethality: 0.1, duration: 300, deaths: 0, color: [150, 170, 70] });
+    for (const s of towns.slice(0, 8)) s.disease = { pid, I: 0.05 + (s.id % 4) * 0.06, R: 0.1 };
+  }
+  if (world.religions.some((r) => r && r.alive !== false)) return;
+  const names = ['the Way of Embers', 'the Starlit Covenant', 'the Old Grove', 'the Twin Suns'];
+  const cols = [[214, 120, 60], [110, 130, 210], [90, 160, 90], [200, 180, 80]];
+  const base = world.religions.length;
+  names.forEach((name, k) => world.religions.push({ id: base + k, name, color: cols[k], colorHex: '#000', alive: true, foundedDay: 0, holyCityId: null, followers: 1000 * (k + 1), tenets: [], fervor: 0.5, parentId: null }));
+  const towns = liveSettlements(world);
+  for (const s of towns) {
+    const k = (s.civId * 7 + (s.id % 3 === 0 ? 1 : 0)) % 5;
+    s.dominantReligion = k < 4 ? base + k : null;
+  }
+}
+
+function fakeWeather() {
+  const { W, H, f } = world;
+  if (!world.storms.length) {
+    addEntity(world, 'storms', { kind: 'cyclone', name: 'Arashi', x: W * 0.62, y: H * 0.36, vx: -0.3, vy: -0.1, intensity: 0.85, radius: 6, age: 10, maxAge: 40, hemisphere: 1 }, 'storm');
+    addEntity(world, 'storms', { kind: 'blizzard', name: 'the Long White', x: W * 0.3, y: H * 0.12, vx: 0.2, vy: 0, intensity: 0.7, radius: 5, age: 10, maxAge: 40, hemisphere: 1 }, 'storm');
+    addEntity(world, 'storms', { kind: 'thunderstorm', name: null, x: W * 0.45, y: H * 0.45, vx: 0.1, vy: 0, intensity: 0.7, radius: 3, age: 10, maxAge: 40, hemisphere: 1 }, 'storm');
+    addEntity(world, 'storms', { kind: 'sandstorm', name: null, x: W * 0.5, y: H * 0.3, vx: 0.4, vy: 0.1, intensity: 0.6, radius: 4, age: 10, maxAge: 40, hemisphere: 1 }, 'storm');
+  }
+  let lit = 0;
+  for (let i = 0; i < world.N && lit < 1; i += 997) {
+    if (f.water[i] === WATER.LAND && f.veg[i] > 0.1 && BIOMES[f.biome[i]].fire > 0.4) {
+      const x = i % W, y = (i / W) | 0;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -4; dx <= 4; dx++) {
+        const j = (y + dy) * W + x + dx;
+        if (j < 0 || j >= world.N || f.water[j] !== WATER.LAND) continue;
+        const d = Math.hypot(dx, dy);
+        if (d < 2.5) f.fire[j] = 0.6; else if (d < 4.5) f.burnScar[j] = 0.8;
+      }
+      world.fires.push({ id: 900, name: 'the Great Burning', x, y, startDay: world.time.day, tiles: 30, active: true });
+      lit++;
+    }
+  }
+  if (world.volcanoes.length) { world.volcanoes[0].erupting = 30; world.volcanoes[0].activity = 1; if (world.volcanoes[1]) world.volcanoes[1].activity = 0.8; }
+}
+
+function boostTowns() {
+  // dev only: inflate the biggest towns so every settlement tier appears on screen
+  const towns = liveSettlements(world).slice().sort((a, b) => b.population - a.population);
+  const targets = [400000, 180000, 90000, 60000, 30000, 22000, 14000, 12000, 6000, 4000, 3000, 2500];
+  towns.forEach((s, k) => { const t = targets[k] ?? s.population * 3; s.population = Math.max(s.population, t); s.tier = tierForPop(s.population); });
+  bumpVersion(world, 'settlements');
+}
+const hasRoads = () => { for (let i = 0; i < world.N; i++) if (world.f.road[i]) return true; return false; };
+const wantFakes = q.get('fake') !== '0';
+if (wantFakes) {
+  if (liveCivs(world).length === 0) fakeCivs(num('civs', 9));
+  else {
+    if (q.get('boost') === '1') boostTowns();
+    if (!hasRoads()) fakeRoads();
+    if (!world.tradeRoutes.some((r) => r && r.active)) fakeTrade();
+    if (!world.armies.length) fakeArmies();
+    fakeFaiths();
+    bumpVersion(world, 'roads');
+  }
+  fakeWeather();
+}
+
+// ---------------------------------------------------------------------------
+// renderer
+
+const canvas = document.getElementById('map');
+const r = createRenderer(canvas, world);
+r.resize();
+if (q.has('mode')) r.setMapMode(q.get('mode'));
+for (const k of ['borders', 'labels', 'rivers', 'roads', 'clouds', 'units', 'routes', 'features', 'grid']) if (q.has('o.' + k)) r.setOverlay(k, q.get('o.' + k) === '1');
+const focus = () => {
+  const z = num('zoom', null);
+  if (q.has('x') && q.has('y')) { r.camera.x = num('x', 0); r.camera.y = num('y', 0); r.camera.zoom = z || r.camera.zoom; r.camera.clampPosition(); }
+  else if (q.get('focus') === 'capital') {
+    const c = liveCivs(world).slice().sort((a, b) => b.population - a.population)[0];
+    const s = c && world.settlements[c.capitalId];
+    if (s) { r.camera.x = s.x + 0.5; r.camera.y = s.y + 0.5; r.camera.zoom = z || 24; r.camera.clampPosition(); }
+  } else if (z) { r.camera.zoom = z; r.camera.clampPosition(); }
+};
+focus();
+if (q.get('select')) { const [kind, id] = q.get('select').split(':'); r.setSelection({ kind, id: Number(id) }); }
+
+// pan / zoom
+let drag = null;
+canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; canvas.setPointerCapture(e.pointerId); });
+canvas.addEventListener('pointermove', (e) => {
+  if (drag) { r.pan(e.clientX - drag.x, e.clientY - drag.y); drag = { x: e.clientX, y: e.clientY }; }
+  const t = r.screenToTile(e.clientX, e.clientY);
+  if (q.get('brush') === '1' && t) r.setBrush({ x: t.x, y: t.y, radius: 3 });
+});
+canvas.addEventListener('pointerup', (e) => {
+  if (drag && Math.abs(e.clientX - drag.x) < 3) {
+    const p = r.pickEntity(e.clientX, e.clientY);
+    if (p) r.setSelection(p); else { const t = r.screenToTile(e.clientX, e.clientY); if (t) r.setSelection({ kind: 'tile', id: t.i, x: t.x, y: t.y }); }
+  }
+  drag = null;
+});
+canvas.addEventListener('wheel', (e) => { e.preventDefault(); r.zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0016)); }, { passive: false });
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'm') { const k = MAP_MODES.findIndex((m) => m.id === r.mapMode); r.setMapMode(MAP_MODES[(k + 1) % MAP_MODES.length].id); legend(); }
+  if (e.key === 'f') r.fitWorld();
+  if (e.key === 'x') dev.emitAll();
+});
+
+const mini = document.getElementById('mini');
+const mctx = mini.getContext('2d');
+function legend() {
+  const lg = r.getLegend();
+  const el = document.getElementById('legend');
+  let h = `<b>${lg.title}</b><br>`;
+  if (lg.type === 'gradient') h += `<div class="grad" style="background:linear-gradient(90deg,${lg.stops.map(([t, c]) => `${c} ${(t * 100).toFixed(1)}%`).join(',')})"></div><span>${lg.minLabel || ''}</span><span style="float:right">${lg.maxLabel || ''}</span>`;
+  else h += (lg.items || []).map((it) => `<div><span class="sw" style="background:${it.color}"></span>${it.label}</div>`).join('');
+  el.innerHTML = h;
+}
+legend();
+
+let running = q.get('run') === '1';
+let lastT = performance.now();
+function frame(t) {
+  if (running) { simulation.advance((t - lastT) / 1000, 10); }
+  lastT = t;
+  r.render(t);
+  if (q.get('clean') !== '1') {
+    mctx.setTransform(1, 0, 0, 1, 0, 0); mctx.fillStyle = '#0b1219'; mctx.fillRect(0, 0, mini.width, mini.height);
+    r.drawMinimap(mctx, mini.width, mini.height);
+    const s = r.stats;
+    hud.textContent = `${world.name} · ${dateString(world)}${fromCache ? ' (cached)' : ''}\nmode ${r.mapMode} · zoom ${r.camera.zoom.toFixed(2)} · cam ${r.camera.x.toFixed(1)},${r.camera.y.toFixed(1)}\nframe ${s.frameMs.toFixed(1)} ms · fps ${s.fps.toFixed(0)} · terrain ${s.terrainMs.toFixed(1)} · lod k${r.lod.stats.k} ${r.lod.stats.chunks} chunks ${r.lod.stats.mb.toFixed(0)} MB · plans ${s.plans || 0} · labels ${s.labels}\ncivs ${liveCivs(world).length} · towns ${liveSettlements(world).length} · armies ${world.armies.length} · storms ${world.storms.length}`;
+  }
+  requestAnimationFrame(frame);
+}
+
+// ---------------------------------------------------------------------------
+// dev API for scripted screenshots
+
+const FX_TYPES = ['meteor', 'quake', 'tsunami', 'eruption', 'lightning', 'landfall', 'battle', 'siege', 'capture', 'plague', 'faith', 'wonder', 'founding', 'newcivs', 'rebellion', 'fire', 'flood', 'divine', 'famine', 'discovery'];
+const dev = window.dev = {
+  world, r, sim: simulation, MAP_MODES,
+  setView({ mode, zoom, x, y, select } = {}) {
+    if (mode) r.setMapMode(mode);
+    if (Number.isFinite(x)) r.camera.x = x;
+    if (Number.isFinite(y)) r.camera.y = y;
+    if (Number.isFinite(zoom)) r.camera.zoom = zoom;
+    r.camera._flight = null; r.camera._zoomAnim = null;
+    r.camera.clampPosition();
+    if (select !== undefined) r.setSelection(select);
+    legend();
+    return dev.settle();
+  },
+  /** Render frames until the terrain raster has caught up (style switches sweep in). */
+  settle(n = 40) {
+    for (let k = 0; k < n; k++) { r.render(performance.now()); if (!r.terrain.urgent && k > 3) break; }
+    r.render(performance.now());
+    return { urgent: r.terrain.urgent, mode: r.mapMode, zoom: r.camera.zoom };
+  },
+  /** Render each mode and tile the frames into an overlay canvas (for one-shot review). */
+  contactSheet(modes = MAP_MODES.map((m) => m.id), cols = 3, view = null) {
+    const W = canvas.width, H = canvas.height;
+    const rows = Math.ceil(modes.length / cols);
+    const sheet = document.createElement('canvas');
+    sheet.width = W; sheet.height = H;
+    sheet.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:10;background:#0b1219';
+    const g = sheet.getContext('2d');
+    g.fillStyle = '#0b1219'; g.fillRect(0, 0, W, H);
+    const cw = W / cols, chh = H / rows;
+    const prev = r.mapMode;
+    modes.forEach((m, k) => {
+      dev.setView({ mode: m, ...(view || {}) });
+      const cx = (k % cols) * cw, cy = Math.floor(k / cols) * chh;
+      const sc = Math.min(cw / W, chh / H);
+      g.drawImage(canvas, cx + (cw - W * sc) / 2, cy + (chh - H * sc) / 2, W * sc, H * sc);
+      g.fillStyle = 'rgba(11,18,25,0.8)'; g.fillRect(cx + 4, cy + 4, 120, 18);
+      g.fillStyle = '#e8dcc0'; g.font = '13px IBM Plex Mono, monospace'; g.fillText(m, cx + 9, cy + 17);
+    });
+    dev.setView({ mode: prev });
+    document.querySelectorAll('canvas.sheet').forEach((c) => c.remove());
+    sheet.className = 'sheet';
+    document.body.appendChild(sheet);
+    return modes.length;
+  },
+  clearSheet() { document.querySelectorAll('canvas.sheet').forEach((c) => c.remove()); },
+  /** Show a raw tile field full-screen (nearest-neighbour, grey ramp lo..hi) for inspection. */
+  showField(name, lo = 0, hi = 1) {
+    const a = typeof name === 'string' ? (world.f[name] || r.terrain.sm[name] || r.terrain[name]) : name;
+    if (!a) return 'no field ' + name;
+    const W = world.W, H = world.H;
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d'), im = g.createImageData(W, H);
+    for (let i = 0; i < W * H; i++) { const v = Math.max(0, Math.min(255, ((a[i] - lo) / (hi - lo)) * 255)); im.data[i * 4] = v; im.data[i * 4 + 1] = v; im.data[i * 4 + 2] = world.f.water[i] ? Math.min(255, v + 40) : v; im.data[i * 4 + 3] = 255; }
+    g.putImageData(im, 0, 0);
+    document.querySelectorAll('canvas.sheet').forEach((q) => q.remove());
+    c.className = 'sheet';
+    c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:10;image-rendering:pixelated;background:#000;object-fit:contain';
+    document.body.appendChild(c);
+    return typeof name === 'string' ? name : 'array';
+  },
+  capital(k = 0) { const c = liveCivs(world).slice().sort((a, b) => b.population - a.population)[k]; return c ? world.settlements[c.capitalId] : null; },
+  step(days) { simulation.run(days); return dateString(world); },
+  emitAll(cx = r.camera.x - 0.5, cy = r.camera.y - 0.5, spacing = 6) {
+    FX_TYPES.forEach((type, k) => {
+      const gx = (k % 5) - 2, gy = Math.floor(k / 5) - 1.5;
+      emitFx(world, { type, x: cx + gx * spacing, y: cy + gy * spacing, r: 3, intensity: 0.8, civId: liveCivs(world)[k % Math.max(1, liveCivs(world).length)]?.id ?? null, color: [180, 90, 200] });
+    });
+  },
+  /** Draw n frames in a tight loop; returns timing stats (ms). flush: force raster with getImageData. */
+  bench(n = 120, opts = {}) {
+    const times = [];
+    const ctx = canvas.getContext('2d');
+    const c0 = { x: r.camera.x, y: r.camera.y };
+    let t = performance.now();
+    for (let k = 0; k < n; k++) {
+      if (opts.pan) { r.camera.x = c0.x + Math.sin(k * 0.05) * opts.pan; r.camera.y = c0.y + Math.cos(k * 0.04) * opts.pan * 0.5; }
+      if (opts.simDays) simulation.run(opts.simDays);
+      const a = performance.now();
+      t += 16.7;
+      r.render(t);
+      if (opts.flush !== false) ctx.getImageData(0, 0, 1, 1);
+      times.push(performance.now() - a);
+    }
+    r.camera.x = c0.x; r.camera.y = c0.y;
+    times.sort((a, b) => a - b);
+    const avg = times.reduce((a, b) => a + b, 0) / n;
+    const res = { avg: +avg.toFixed(2), p50: +times[n >> 1].toFixed(2), p95: +times[Math.floor(n * 0.95)].toFixed(2), max: +times[n - 1].toFixed(2), fps: +(1000 / avg).toFixed(1) };
+    document.title = `bench ${JSON.stringify(res)}`;
+    console.log('[bench]', JSON.stringify(res));
+    return res;
+  },
+  /** Measure real rAF cadence for n frames. */
+  rafBench(n = 120) {
+    return new Promise((res) => {
+      const ts = [];
+      const step = (t) => { ts.push(t); if (ts.length < n) requestAnimationFrame(step); else { const d = []; for (let k = 1; k < ts.length; k++) d.push(ts[k] - ts[k - 1]); d.sort((a, b) => a - b); const avg = d.reduce((a, b) => a + b, 0) / d.length; res({ avg: +avg.toFixed(2), p95: +d[Math.floor(d.length * 0.95)].toFixed(2), fps: +(1000 / avg).toFixed(1) }); } };
+      requestAnimationFrame(step);
+    });
+  },
+};
+await document.fonts.ready;
+try { await Promise.all(['16px "IM Fell English"', 'italic 16px "IM Fell English"', '16px "IM Fell English SC"'].map((f) => document.fonts.load(f))); } catch (e) {}
+r.labeler.cache.clear();
+dev.settle();
+requestAnimationFrame(frame);
+say(`${world.name} ready`);
+window.devReady = true;
+}
+</script>
+</body>
+</html>
