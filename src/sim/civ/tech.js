@@ -24,9 +24,9 @@
 //   soilCare       0..1 reduces soil exhaustion    irrigation 0/1 irrigated farming near water
 // Registered keys (core/ext.js registerModKeys, e.g. arcana, wards, taming, forestFarm,
 // deepHalls, mortality in Mythic worlds) join with their own default, limit and kind; a
-// registered key is stored on civ.mods only while it differs from its default, so a
-// Historical world's saved mods never depend on which modules were loaded. Read them with
-// modValue(mods, key).
+// registered key is stored on civ.mods only while it differs from its default (else it is
+// undefined, which is never saved), so a Historical world's saved mods never depend on which
+// modules were loaded. Read them with modValue(mods, key).
 //
 // computeMods order (contracts §6, §7): techs, government, ruler, temperament, golden / dark
 // age, wonders, great figures; then the civ's timed effects (core/effects.js, applyFx
@@ -370,8 +370,10 @@ export function computeMods(world, civ) {
   m.navigation = Math.round(m.navigation);
   m.farming = m.farming >= 0.5 ? 1 : 0;
   m.irrigation = m.irrigation >= 0.5 ? 1 : 0;
-  // registered keys are kept only while they matter (a Historical save never carries them)
-  if (extra) for (const k in extra) if (m[k] === extra[k]) delete m[k];
+  // registered keys are kept only while they matter (a Historical save never carries them):
+  // one at its default is left undefined, which is never saved, rather than deleted (a delete
+  // turns the object into a slow dictionary, and civ.mods is read everywhere)
+  if (extra) for (const k in extra) if (m[k] === extra[k]) m[k] = undefined;
   m._v = MODS_VERSION;
   m._e = civ ? fin(civ.effectsV, 0) | 0 : 0;
   return m;

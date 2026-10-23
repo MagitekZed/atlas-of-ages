@@ -167,7 +167,7 @@ function pruneFallen(world) {
     const fl = c.flags || (c.flags = {});
     for (const k of ['stab', 'figureCounts', 'capacity', 'levyRaised', 'tacc', 'twhy', 'tctx', 'tlast', 'tmix', 'tmixN', 'tmet', 'tpeace']) delete fl[k];
     fl.shed = 1;
-    if (c.arcane) delete c.arcane;
+    if (c.arcane) c.arcane = undefined;   // (not saved; a delete would leave the record a slow dictionary)
     if (Array.isArray(c.effects) && c.effects.length) { c.effects = []; c.effectsV = (c.effectsV || 0) + 1; }
   }
   for (const s of world.settlements) {

@@ -126,6 +126,12 @@ now and then, and then runs interpreted until on-stack replacement catches up. N
 that only grows (world.wars, tradeRoutes, settlements, civs) per query: use the cached active
 indexes (kernel `activeWars` / `areAtWar` / `enemiesOf`, geo `activeWarList` / `activeRouteList`).
 Headless prints these with ok/!! marks in its Balance block.
+Keep hot records in one hidden class: `createCiv` / `createSettlement` declare every field, the
+late ones `undefined` until set (never saved), and `normalizeWorld` rebuilds loaded records in
+that shape (`CIV_SHAPE` / `SETTLEMENT_SHAPE`, core/world.js): a new field that every civ or town
+gets goes at the end of both, in the order it arrives. Avoid `delete` on an object read in hot
+code (set the property `undefined`), and filling a large object by computed key from `{}` (copy
+a template, `{ ...DEFAULTS }`): either leaves a slow dictionary object.
 
 Browser budgets (contracts §2): LOD chunk blits ≤ 1 ms and chunk builds ≤ 3 ms per frame;
 LOD memory ≤ 48 MB desktop / ≤ 24 MB phone; the keyframe ring ≤ 64 MB desktop / ≤ 24 MB
