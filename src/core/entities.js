@@ -111,6 +111,11 @@ export function createCiv(world, opts = {}) {
     style: null,            // architecture style (WP3 style.js)
     claims: {},             // dynastic claims { [civId]: 0..1 } (WP3)
     flags: {},
+    // fields other modules add, declared here in the order they arrive so every civ keeps one
+    // hidden class (undefined until set, and never saved; keep in step with CIV_SHAPE, world.js)
+    culture: undefined,     // civ module (ensureCivFields), as the civ is created
+    temperLog: undefined,   // temper.js (ensureTemper), as the civ is created
+    arcane: undefined,      // Mythic arcana (myth/mana.js), at birth or its first monthly sample
   };
   addIndexed(world, 'civs', civ);
   invalidate(world);
@@ -209,6 +214,13 @@ export function createSettlement(world, civId, x, y, opts = {}) {
     hist: { sieges: 0, held: 0, fires: 0, quakes: 0, plagues: 0, conquered: 0, riots: 0 }, // WP1 counters
     own: [],                // owner chain [[day, civId, code]] ≤ 16 (WP6)
     flags: {},
+    // fields other modules add, declared here in the order they arrive so every settlement keeps
+    // one hidden class (undefined until set, and never saved; keep in step with SETTLEMENT_SHAPE,
+    // world.js): the civ module's (ensureSettlementFields) as the town is founded, then in Mythic
+    // worlds its mix of peoples (myth/peoples.js) and, a decade on, that mix's history
+    project: undefined, farmland: undefined, growth: undefined, capacity: undefined,
+    foodImport: undefined, emigrants: undefined, taxes: undefined,
+    peoples: undefined, peoplesPast: undefined,
   };
   addIndexed(world, 'settlements', s);
   // the name set holds exactly the names of every settlement ever founded — what a reload

@@ -64,7 +64,9 @@ export function modsOf(world, civ) {
   }
   const alt = civ.mods || {};
   if (!src || typeof src !== 'object') src = alt;
-  const m = {};
+  // filled from a copy of the defaults (same keys, same order): built key by key from {} it
+  // would turn into a slow dictionary object, and every geo system reads it
+  const m = { ...DEFAULT_MODS };
   for (const k in DEFAULT_MODS) {
     let v = src[k];
     if (!finite(v)) v = finite(alt[k]) ? alt[k] : DEFAULT_MODS[k];
@@ -84,7 +86,7 @@ export function modsOf(world, civ) {
  */
 export function peekMods(civ) {
   const src = (civ && civ.mods) || {};
-  const m = {};
+  const m = { ...DEFAULT_MODS };   // (as modsOf)
   for (const k in DEFAULT_MODS) {
     let v = src[k];
     if (!finite(v)) v = DEFAULT_MODS[k];

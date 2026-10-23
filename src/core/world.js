@@ -146,6 +146,48 @@ const arr = (v) => (Array.isArray(v) ? v : []);
 const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 function maxId(list) { let m = 0; for (const o of list) if (o && Number.isFinite(o.id) && o.id > m) m = o.id; return m; }
 
+// Hidden classes. createCiv and createSettlement (core/entities.js) declare every field of the
+// record, the late ones undefined until another module sets them, so new records share one V8
+// hidden class and the code that walks them stays monomorphic. A record from a save (or a
+// keyframe) lacks the fields that were undefined when it was saved; normalizeWorld rebuilds it
+// through these literals — the same keys in the same order, hence the same class — but only
+// when its keys are a prefix of that order, so its saved key order and the place of every field
+// set later stay exactly what they were (undefined is never saved). Keep in step with entities.js.
+const CIV_SHAPE = (c) => ({
+  id: c.id, alive: c.alive, name: c.name, baseName: c.baseName, adjective: c.adjective, language: c.language, race: c.race,
+  hue: c.hue, color: c.color, colorHex: c.colorHex, foundedDay: c.foundedDay, fallenDay: c.fallenDay, fallCause: c.fallCause,
+  parentId: c.parentId, originX: c.originX, originY: c.originY, capitalId: c.capitalId, settlementIds: c.settlementIds,
+  government: c.government, ruler: c.ruler, rulerHistory: c.rulerHistory, dynasty: c.dynasty, traits: c.traits, tech: c.tech,
+  mods: c.mods, treasury: c.treasury, taxRate: c.taxRate, income: c.income, expenses: c.expenses,
+  stability: c.stability, legitimacy: c.legitimacy, warWeariness: c.warWeariness, prestige: c.prestige, military: c.military,
+  relations: c.relations, allies: c.allies, vassalOf: c.vassalOf, stateReligion: c.stateReligion, goldenAge: c.goldenAge,
+  darkAge: c.darkAge, population: c.population, territory: c.territory, wealth: c.wealth, peakPopulation: c.peakPopulation,
+  peakTerritory: c.peakTerritory, effects: c.effects, effectsV: c.effectsV, style: c.style, claims: c.claims, flags: c.flags,
+  culture: c.culture, temperLog: c.temperLog, arcane: c.arcane,
+});
+const SETTLEMENT_SHAPE = (s) => ({
+  id: s.id, name: s.name, civId: s.civId, originCivId: s.originCivId, alive: s.alive, x: s.x, y: s.y, i: s.i,
+  foundedDay: s.foundedDay, destroyedDay: s.destroyedDay, destroyCause: s.destroyCause,
+  population: s.population, peakPopulation: s.peakPopulation, tier: s.tier, food: s.food, foodProd: s.foodProd, foodNeed: s.foodNeed,
+  wealth: s.wealth, production: s.production, tradeIncome: s.tradeIncome, housing: s.housing,
+  health: s.health, happiness: s.happiness, unrest: s.unrest, loyalty: s.loyalty, culture: s.culture,
+  defense: s.defense, garrison: s.garrison, buildings: s.buildings, religion: s.religion, dominantReligion: s.dominantReligion,
+  disease: s.disease, immunity: s.immunity, coastal: s.coastal, harbor: s.harbor, siege: s.siege, famine: s.famine, radius: s.radius,
+  race: s.race, effects: s.effects, effectsV: s.effectsV, traits: s.traits, epithet: s.epithet, legend: s.legend,
+  hist: s.hist, own: s.own, flags: s.flags,
+  project: s.project, farmland: s.farmland, growth: s.growth, capacity: s.capacity,
+  foodImport: s.foodImport, emigrants: s.emigrants, taxes: s.taxes,
+  peoples: s.peoples, peoplesPast: s.peoplesPast,
+});
+const CIV_KEYS = Object.keys(CIV_SHAPE({})), SETTLEMENT_KEYS = Object.keys(SETTLEMENT_SHAPE({}));
+/** rec through shape when its own keys are a prefix of keys, else rec itself. */
+function reshape(rec, keys, shape) {
+  const ks = Object.keys(rec);
+  if (ks.length > keys.length) return rec;
+  for (let j = 0; j < ks.length; j++) if (ks[j] !== keys[j]) return rec;
+  return shape(rec);
+}
+
 /**
  * Fill every kernel default (docs/design/expansion-contracts.md §3) without touching values that are
  * already present. Idempotent; never draws rng. Called by createWorld, deserializeWorld and
@@ -188,15 +230,19 @@ export function normalizeWorld(world) {
   world.stats = obj(world.stats);
   if (!world.cache || typeof world.cache !== 'object') world.cache = {};
   if (!Array.isArray(world.fx)) world.fx = [];
-  for (const c of arr(world.civs)) {
+  const civs = arr(world.civs), settlements = arr(world.settlements);
+  for (let n = 0; n < civs.length; n++) {
+    const c = civs[n];
     if (!c) continue;
     if (!('race' in c)) c.race = null;
     if (!Array.isArray(c.effects)) c.effects = [];
     if (!Number.isFinite(c.effectsV)) c.effectsV = 0;
     if (!('style' in c)) c.style = null;
     if (!c.claims || typeof c.claims !== 'object') c.claims = {};
+    civs[n] = reshape(c, CIV_KEYS, CIV_SHAPE);
   }
-  for (const s of arr(world.settlements)) {
+  for (let n = 0; n < settlements.length; n++) {
+    const s = settlements[n];
     if (!s) continue;
     if (!('race' in s)) s.race = null;
     if (!Array.isArray(s.effects)) s.effects = [];
@@ -207,6 +253,7 @@ export function normalizeWorld(world) {
     const h = (s.hist = obj(s.hist));
     for (const k of SETTLEMENT_HIST) if (!Number.isFinite(h[k])) h[k] = 0;
     if (!Array.isArray(s.own)) s.own = [];
+    settlements[n] = reshape(s, SETTLEMENT_KEYS, SETTLEMENT_SHAPE);
   }
   return world;
 }
