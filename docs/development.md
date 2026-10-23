@@ -74,6 +74,28 @@ node tools/headless.mjs --trial          # random acts of every kind; save/load 
 
 Run `--trial` at both `--set mythLevel=0` and `--set mythLevel=2` after any change to simulation state, caches, tools or the kernel. `--keyframe-check` checks that keyframes share closed records correctly over a long run. SPEC §10 describes each gate in full.
 
+## Checking speed work
+
+A change made only for speed must leave every result bit-identical: the same `worldChecksum` and `fullHash` as `main` for every world. `tools/hashcheck.mjs` runs 12 headless sims (five seeds, myth levels 0 to 2, 400 to 1,000 years, and two save → load → continue runs) and compares their hashes with a baseline. Record the baseline on `main`, then check the branch:
+
+```bash
+git switch main      && node tools/hashcheck.mjs --write-baseline    # writes .perf/baseline.json
+git switch my-branch && node tools/hashcheck.mjs                     # PASS, or FAIL and the cases that differ
+```
+
+To record it from another checkout of `main`, pass its path: `node tools/hashcheck.mjs --write-baseline ../atlas-main`. `--quick` checks only the three atlas cases, `--jobs N` sets how many sims run at once (default 3), and the exit code is 1 on any FAIL. Run the correctness gates as well.
+
+`tools/timeab.mjs` times two checkouts on the same saved worlds, one sim at a time, A and B in turn. Make the two Year-900 saves once, then compare:
+
+```bash
+mkdir -p .perf/saves
+node tools/headless.mjs --years 900 --set mythLevel=0 --chronicle 0 --save .perf/saves/hist-y900.json
+node tools/headless.mjs --years 900 --set mythLevel=2 --chronicle 0 --save .perf/saves/myth-y900.json
+node tools/timeab.mjs ../atlas-main    # A = that checkout, B = this one; 3 rounds of 100 years per save
+```
+
+It prints the medians in ms per simulated year (the whole day loop, the sum of the systems, and each system), B against A, each side's spread, and whether every run ended on the same state. On a busy machine 3 rounds cannot tell a change under about 5% from noise: use `--rounds 5` or more, and trust the system you changed more than the total. Unless `--baseline` or `--out` say otherwise, these tools write to `.perf/`, which git ignores. [design/perf-cheap-wins.md](design/perf-cheap-wins.md) is a worked example.
+
 ## Reports
 
 | Tool | What it checks |

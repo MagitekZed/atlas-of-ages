@@ -4,5 +4,6 @@ Atlas of Ages.html
 
 # Local tooling
 node_modules/
+.perf/
 .claude/settings.local.json
 .DS_Store
