@@ -12,8 +12,9 @@
 
 import { DAYS_PER_YEAR } from '../core/constants.js';
 import { SITE_KINDS } from '../core/sites.js';
-import { h, clear, debounce, setText } from './dom.js';
-import { tip } from './widgets.js';
+import { h, clear, debounce, setText, svgEl } from './dom.js';
+import { tip, openPopover, closePopover } from './widgets.js';
+import { glyph } from './icons.js';
 import * as F from './format.js';
 import { fitCanvas, chartTheme } from './charts.js';
 import { registerTab, registerIcon } from './registry.js';
@@ -140,14 +141,31 @@ function almanacPane(app) {
   let q = '';
   let limit = 120;
   const search = h('input.field', { id: 'almanac-search', type: 'search', placeholder: 'Search the almanac', autocomplete: 'off', 'aria-label': 'Search the almanac' });
-  const chipRow = h('div.chip-row.is-scroll', { role: 'group', 'aria-label': 'What to list' });
-  const chips = new Map();
-  for (const [k, label, icon] of CATS) {
-    const b = h('button.chip', { type: 'button', 'aria-pressed': String(k === cat) }, icon16(icon), label, h('span.count'));
-    b.addEventListener('click', () => { cat = k; setPref('records.almanacCat', k); for (const [kk, bb] of chips) bb.setAttribute('aria-pressed', String(kk === k)); limit = 120; render(); });
-    chips.set(k, b);
-    chipRow.appendChild(b);
+  // what to list: one chooser the width of the pane, opening on every kind of record there is
+  let counts = new Map();
+  const pickIco = h('span.alm-ico');
+  const pickName = h('span.alm-name');
+  const pickCount = h('span.alm-count');
+  const picker = h('button.alm-pick', { type: 'button', 'aria-haspopup': 'listbox', 'aria-label': 'What to list' }, pickIco, pickName, pickCount, svgEl(glyph('chevron', 14)));
+  function syncPicker() {
+    const [, label, icon] = CATS.find((c) => c[0] === cat) || CATS[0];
+    clear(pickIco); pickIco.append(icon16(icon));
+    setText(pickName, label);
+    setText(pickCount, counts.get(cat) ? F.int(counts.get(cat)) : '');
   }
+  picker.addEventListener('click', () => {
+    // the list is as wide as the chooser (less the popover's padding and border)
+    const menu = h('div.alm-list', { role: 'listbox', 'aria-label': 'What to list', style: { width: Math.max(200, picker.offsetWidth - 14) + 'px' } });
+    for (const [k, label, icon] of CATS) {
+      if (!counts.get(k) && k !== cat) continue;
+      const b = h('button.menu-item', { type: 'button', role: 'option', 'aria-selected': String(k === cat), class: k === cat ? 'is-on' : '' },
+        icon16(icon), h('span.t', { text: label }), h('span.hint', { text: counts.get(k) ? F.int(counts.get(k)) : '' }));
+      b.addEventListener('click', () => { closePopover(); cat = k; setPref('records.almanacCat', k); syncPicker(); limit = 120; render(); picker.focus(); });
+      menu.appendChild(b);
+    }
+    if (openPopover(picker, menu, { cls: 'menu alm-pop' })) setTimeout(() => menu.querySelector('.is-on')?.focus({ preventScroll: true }), 0);
+  });
+  syncPicker();
   const sortSel = h('select.field', { id: 'almanac-sort', 'aria-label': 'Sort by' }, SORTS.map(([k, label]) => h('option', { value: k, text: label, selected: k === sort ? true : null })));
   sortSel.addEventListener('change', () => { sort = sortSel.value; setPref('records.almanacSort', sort); limit = 120; render(); });
   const liveSeg = h('div.seg', { role: 'group', 'aria-label': 'Living or ended' });
@@ -162,7 +180,7 @@ function almanacPane(app) {
   more.addEventListener('click', () => { limit += 200; render(); });
   search.addEventListener('input', debounce(() => { q = search.value.trim().toLowerCase(); limit = 120; render(); }, 160));
   const el = h('div.annals-pane', null,
-    h('div.chron-search', null, icon16('search'), search), chipRow,
+    h('div.chron-search', null, icon16('search'), search), picker,
     h('div.almanac-filters', null, liveSeg, h('label.sr-only', { for: 'almanac-sort', text: 'Sort by' }), sortSel), count, list, more);
   let index = [], key = '';
 
@@ -173,9 +191,9 @@ function almanacPane(app) {
     if (k === key && !force) return;
     key = k;
     index = almanacIndex(w);
-    const counts = new Map();
+    counts = new Map();
     for (const it of index) counts.set(it.cat, (counts.get(it.cat) || 0) + 1);
-    for (const [kk, b] of chips) { setText(b.querySelector('.count'), counts.get(kk) ? ' ' + F.int(counts.get(kk)) : ''); b.hidden = !counts.get(kk) && kk !== cat; }
+    syncPicker();
     render();
   }
   function render() {

@@ -2023,3 +2023,21 @@ button.ct-name:hover { color: var(--brass-hi); }
 .aim-row .aim-go[hidden] { display: none; }
 .head-acts { display: flex; gap: 2px; }
 .head-acts .icon-btn[aria-pressed="true"] { color: var(--brass-hi); border-color: var(--brass); }
+
+/* the Almanac's chooser of what to list: a bar the width of the pane, and its list under it */
+.alm-pick {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 42px; padding: 0 12px;
+  background: none; border: 1px solid var(--rule-2); box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--hair-2);
+  color: var(--ink); text-align: left; cursor: pointer;
+}
+.alm-pick:hover { border-color: var(--ink-2); }
+.alm-pick:focus-visible { outline: 1px solid var(--brass-hi); outline-offset: 2px; }
+.alm-ico { display: inline-grid; color: var(--brass); }
+.alm-name { flex: 1; min-width: 0; font: 400 17px/22px var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alm-count { font-size: 13px; color: var(--ink-3); }
+.alm-pick > .glyph { width: 14px; height: 14px; color: var(--ink-3); }
+.popover.alm-pop { max-width: calc(100vw - 16px); }
+.alm-list { max-height: min(440px, 60vh); overflow-y: auto; }
+.alm-list .menu-item { display: flex; align-items: center; gap: 10px; }
+.alm-list .menu-item .t { flex: 1; font: 400 16px/20px var(--font-display); }
+.alm-list .menu-item.is-on .t { color: var(--brass-hi); }
