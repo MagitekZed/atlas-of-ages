@@ -619,6 +619,8 @@ genesis = mountGenesis(app, {
   onBegin: (params, o = {}) => beginWorld(params, { years: o.years || 0 }),
   onLoad: () => openSaves(app),
   onReturn: () => app.returnToWorld(),
+  // leaving the rite: back to the world if one is open, else to the title
+  onClose: () => { if (app.world) app.returnToWorld(); else title?.show(); },
 });
 
 // the title screen stands over the Genesis screen until something is chosen

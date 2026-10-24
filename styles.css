@@ -1282,6 +1282,91 @@ button.ct-name:hover { color: var(--brass-hi); }
   .ts-skip { grid-column: 2 / 5; margin-top: 6px; }
 }
 
+/* ------------------------------------------------------------------ the New World rite */
+.genesis:has(.rite) { overflow: hidden; background: var(--ground); }
+.genesis:has(.rite) .genesis-frame { max-width: none; padding: 0; height: 100%; min-height: 0; }
+.genesis-body.rite { position: relative; display: block; height: 100vh; height: 100dvh; padding: 0; gap: 0; }
+.rite-map { position: absolute; inset: 0 calc(16px + 400px) 0 0; overflow: hidden; background: #0b1219; }
+.rite-canvas { position: absolute; inset: 16px; width: calc(100% - 32px); height: calc(100% - 32px); display: block; }
+.rite-map .busy { position: absolute; left: 50%; bottom: 36px; transform: translateX(-50%); padding: 4px 12px; background: var(--plate); border: 1px solid var(--rule); font: italic 400 14px var(--font-display); color: var(--ink-2); }
+.rite-neat { position: absolute; inset: 0; pointer-events: none; border: 16px solid var(--ground); box-shadow: inset 0 0 0 1.5px rgba(237, 227, 203, .85); }
+/* the step scale hangs from the top neatline */
+.rite-top {
+  position: absolute; z-index: 2; top: 16px; left: 32px; right: calc(16px + 400px + 16px);
+  display: flex; align-items: center; gap: 18px; padding: 10px 18px 12px;
+}
+.rite-scale { flex: 1; display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); position: relative; border-bottom: 1px solid var(--rule-2); }
+.rite-step { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 2px 2px 9px; background: none; border: 0; color: var(--ink-3); cursor: pointer; min-width: 0; }
+.rite-step::before { content: ""; position: absolute; left: 50%; bottom: 0; width: 1px; height: 6px; background: var(--rule-2); }
+.rs-n { font: 400 15px/18px var(--font-sc); letter-spacing: .08em; }
+.rs-name { font: italic 400 12.5px/16px var(--font-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.rite-step:hover { color: var(--ink); }
+.rite-step.is-past { color: var(--ink-2); }
+.rite-step.is-on { color: var(--brass-hi); }
+.rite-step.is-on::after { content: ""; position: absolute; left: 50%; bottom: -8px; width: 9px; height: 6px; margin-left: -4.5px; background: var(--brass-hi); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.rite-skip { flex: none; display: flex; align-items: center; gap: 6px; padding-left: 16px; border-left: 1px solid var(--hair-2); }
+.rs-k { font: 500 11px/14px var(--font-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-right: 4px; white-space: nowrap; }
+/* the leaf: a folio on the right */
+.rite-folio {
+  position: absolute; z-index: 2; top: 16px; right: 16px; bottom: 16px; width: 400px;
+  display: flex; flex-direction: column; background: var(--plate); border-left: 1px solid var(--rule-2); box-shadow: 0 0 0 1px var(--ground);
+}
+.rite-folio::before { content: ""; position: absolute; left: 3px; top: 0; bottom: 0; width: 1px; background: var(--hair-2); pointer-events: none; }
+.rite-folio .rh { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px 0 22px; flex: none; }
+.rite-folio .rh-kind { font: 500 11px/14px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.rite-folio .rh-rule { flex: 1; height: 1px; background: var(--hair-2); }
+.rite-folio .rh-folio { font: italic 400 15px/1 var(--font-display); color: var(--ink-3); }
+.rite-body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 22px 20px; display: flex; flex-direction: column; gap: 14px; scrollbar-width: thin; scrollbar-color: var(--rule) transparent; }
+.rite-title { font: 400 34px/38px var(--font-display); color: var(--ink); margin: 0; }
+.rite-lead { margin: -6px 0 2px; font: italic 400 15.5px/21px var(--font-display); color: var(--ink-2); }
+.rite-leaf { display: flex; flex-direction: column; gap: 16px; }
+.rite-leaf[hidden] { display: none; }
+.rite-foot { flex: none; display: flex; align-items: center; gap: 8px; min-height: 60px; padding: 8px 12px 8px 18px; border-top: 1px solid var(--rule-2); position: relative; }
+.rite-foot::before { content: ""; position: absolute; left: 0; right: 0; top: 2px; height: 1px; background: var(--hair-2); }
+.rite-gap { flex: 1; }
+.rite-foot .btn-brass { min-height: 40px; min-width: 0; padding-inline: 14px; font-size: 18px; }
+.rite-next-to { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the controls inside a leaf */
+.rite .gen-ages { grid-template-columns: minmax(0, 1fr); }
+.rite .presets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rite .pgroup.in-rite { border: 0; background: none; padding: 0; }
+.rite .pgroup.in-rite > summary { display: none; }
+.rite .pgroup.in-rite .params { padding: 0; }
+.rite-summary { margin: 4px 0 10px; }
+.rite-summary .ct { padding: 7px 0 8px; grid-template-columns: 30px auto minmax(12px, 1fr) auto; text-align: left; background: none; border: 0; width: 100%; cursor: pointer; color: inherit; }
+.rite-summary .ct-name { font-size: 18px; line-height: 22px; }
+.rite-summary .ct-val { font-size: 14px; }
+.rite-summary .ct:hover .ct-name { color: var(--brass-hi); }
+.rite-end { display: flex; flex-direction: column; gap: 10px; }
+/* the world so far: a card at the foot of the left */
+.rite-card { position: absolute; z-index: 2; left: 32px; bottom: 32px; width: 336px; }
+.rite-card-in { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px 14px; }
+.rite-card .wn { font: 400 24px/28px var(--font-sc); letter-spacing: .14em; color: var(--ink); }
+.rite-card .wn.is-chosen { color: var(--brass-hi); }
+.rite-age { font: italic 400 15px/20px var(--font-display); color: var(--brass-hi); }
+.rite-card .plate-facts { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; padding-top: 8px; border-top: 1px solid var(--hair-2); font-size: 12px; color: var(--ink-3); }
+.rite-card .plate-facts b { font-weight: 500; color: var(--ink); }
+.rite-card .pl { margin-top: 4px; font: 400 12px/16px var(--font-sc); letter-spacing: .1em; color: var(--ink-3); }
+@media (max-width: 1180px) {
+  .rite-top { right: calc(16px + 360px + 16px); }
+  .rite-map { right: calc(16px + 360px); }
+  .rite-folio { width: 360px; }
+  .rs-name, .rite-next-to { display: none; }
+}
+@media (max-width: 900px) {
+  .rite-top { left: 8px; right: 8px; top: 8px; flex-wrap: wrap; gap: 8px; padding: 8px 10px 10px; }
+  .rite-skip { width: 100%; border-left: 0; padding-left: 0; justify-content: flex-end; }
+  .rite-folio { left: 0; right: 0; top: auto; bottom: 0; width: auto; height: 60%; border-left: 0; border-top: 1px solid var(--rule-2); }
+  .rite-folio::before { display: none; }
+  .rite-card { display: none; }
+  .rite-map { right: 0; bottom: 60%; }
+  /* the plate starts below the step scale */
+  .rite-canvas { inset: 96px 6px 6px; width: calc(100% - 12px); height: calc(100% - 102px); }
+  .rite-neat { border-width: 6px; }
+  .rite-title { font-size: 28px; line-height: 32px; }
+  .rite-foot .btn-brass { flex: 1; }
+}
+
 /* ------------------------------------------------------------------ the forging */
 .forging { position: fixed; inset: 0; z-index: 40; background: var(--ground); cursor: progress; }
 /* the plate melts into the living map; the fixture beside it slips away */

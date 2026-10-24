@@ -9,9 +9,10 @@ import { createWorld, elevationMeters } from '../core/world.js';
 import { WATER, MAP_SIZES, RACE_META } from '../core/constants.js';
 import { h, clear, svgEl, debounce, nextFrame } from './dom.js';
 import { glyph } from './icons.js';
-import { paramControl, tip, graduationSVG } from './widgets.js';
+import { paramControl, tip } from './widgets.js';
 import { int, pct, listing } from './format.js';
 import { getPref, setPref } from './prefs.js';
+import { fixtureFrame } from './frame.js';
 
 // the myth module's DOM-free parts (guarded: Genesis works without them)
 let mythPrev = null, folklore = null, mythRaces = null;
@@ -193,18 +194,11 @@ export function mountGenesis(app, opts) {
     if (o) { o.disabled = true; o.textContent = 'Legendary (coming)'; }
   }
 
-  const controlsCol = h('div.gen-controls', null,
-    h('div', null, h('span.gen-label', { text: 'Age of the world' }), ageBox),
-    seedRow, nameRow, sizeRow,
-    h('div', null, h('span.gen-label', { text: 'Presets' }), presetBox),
-    h('div', null, h('span.gen-label', { text: 'Conditions' }), groupsBox),
-  );
-
-  // --- right column: preview plate --------------------------------------------------
-  const canvas = h('canvas', { width: 640, height: 400, 'aria-label': 'Preview of the world map' });
+  // --- the rite: eight steps over the preview, one leaf at a time -------------------------
+  // the preview fills the screen behind it all
+  const canvas = h('canvas.rite-canvas', { width: 640, height: 400, 'aria-label': 'Preview of the world map' });
   const busy = h('span.busy', { text: 'Surveying…', hidden: true });
-  const grads = h('div.grads', { html: graduationSVG() });
-  const plate = h('div.plate-frame.ticked', null, h('div.neat', null, canvas, grads), busy);
+  const plate = h('div.rite-map', null, canvas, busy, h('div.rite-neat', { 'aria-hidden': 'true' }));
   const plateNo = h('span.pl', { text: 'Plate I · Preview' });
   const worldName = h('span.wn', { text: '' });
   const facts = h('div.plate-facts');
@@ -221,26 +215,150 @@ export function mountGenesis(app, opts) {
   tip(startSel, 'Let the first centuries run at full speed before you take the helm. Every day is still simulated; you can stop early.');
   const syncBeginLabel = () => { beginBtn.textContent = Number(startSel.value) > 0 ? 'Begin and leap ahead' : ageOf(params.mythLevel).begin; };
   startSel.addEventListener('change', () => { setPref('genesisStart', Number(startSel.value)); syncBeginLabel(); });
-  const loadBtn = h('button.btn.btn-lg', { type: 'button', id: 'gen-load' }, svgEl(glyph('open', 18)), 'Load a saved world');
-  const returnBtn = h('button.btn.btn-lg.btn-quiet', { type: 'button', id: 'gen-return', hidden: true });
+  const loadBtn = h('button.btn.btn-quiet', { type: 'button', id: 'gen-load' }, 'Load a world');
+  const returnBtn = h('button.btn.btn-quiet', { type: 'button', id: 'gen-return', hidden: true });
   returnBtn.addEventListener('click', () => opts.onReturn?.());
-  beginBtn.addEventListener('click', () => { flushPreview.cancel?.(); opts.onBegin({ ...params }, { years: Number(startSel.value) || 0 }); });
+  const begin = () => { flushPreview.cancel?.(); opts.onBegin({ ...params }, { years: Number(startSel.value) || 0 }); };
+  beginBtn.addEventListener('click', begin);
   loadBtn.addEventListener('click', () => opts.onLoad?.());
   const beginNote = h('p.gen-note');
-  const plateCol = h('div.gen-plate', null,
-    plate,
-    h('div.plate-caption', null, worldName, plateNo),
-    facts, featureLine, mythLine, genWarn,
-    startRow,
-    h('div.begin-row.is-dock', null, beginBtn, loadBtn, returnBtn),
-    beginNote,
-  );
+
+  // the steps, and what each sets
+  const groupStep = (id) => { const m = groupMeta.get(id); if (!m) return []; m.det.open = true; m.det.classList.add('in-rite'); return [m.det]; };
+  const summary = h('ol.contents.rite-summary');
+  const STEPS = [
+    { id: 'age', name: 'The age', title: 'The age of the world', body: [ageBox] },
+    { id: 'seed', name: 'Seed and name', title: 'Seed and name', body: [seedRow, nameRow, sizeRow] },
+    { id: 'land', name: 'Land and sea', title: 'Land and sea', groups: ['world'], body: [h('div', null, h('span.gen-label', { text: 'Presets' }), presetBox), ...groupStep('world')] },
+    { id: 'climate', name: 'Climate', title: 'Climate', groups: ['climate'], body: groupStep('climate') },
+    { id: 'life', name: 'Life', title: 'Life', groups: ['life'], body: groupStep('life') },
+    { id: 'peoples', name: 'Peoples', title: 'Peoples', groups: ['civ'], body: groupStep('civ') },
+    { id: 'catastrophe', name: 'Catastrophe', title: 'Catastrophe', groups: ['catastrophe'], body: groupStep('catastrophe') },
+    { id: 'myth', name: 'Myth and magic', title: 'Myth and magic', groups: ['myth'], body: [...groupStep('myth'), h('div.rite-end', null, h('span.gen-label', { text: 'The rite' }), summary, startRow, featureLine, mythLine, genWarn, beginNote)] },
+  ];
+  const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+  const leaves = STEPS.map((st) => h('div.rite-leaf', { hidden: true }, ...st.body));
+  const leafTitle = h('h2.rite-title');
+  const leafLead = h('p.rite-lead');
+  const leafNo = h('span.rh-folio');
+  const close = h('button.icon-btn', { type: 'button', 'aria-label': 'Leave the rite' }, svgEl(glyph('close', 18)));
+  close.addEventListener('click', () => opts.onClose?.());
+  const back = h('button.btn', { type: 'button', text: 'Back' });
+  const next = h('button.btn.btn-brass', { type: 'button' });
+  const folioBody = h('div.rite-body', null, leafTitle, leafLead, ...leaves);
+  const folio = h('section.rite-folio', { 'aria-label': 'The rite of a new world' },
+    h('header.rh', null, h('span.rh-kind', { text: 'New world' }), h('span.rh-rule'), leafNo, close),
+    folioBody,
+    h('footer.rite-foot', null, back, returnBtn, loadBtn, h('span.rite-gap'), next, beginBtn));
+
+  // the step scale across the top, and the two ways to skip the rest of the rite
+  const scale = h('nav.rite-scale', { 'aria-label': 'Steps of the rite' });
+  const stepBtns = STEPS.map((st, k) => {
+    const b = h('button.rite-step', { type: 'button' }, h('span.rs-n', { text: ROMAN[k] }), h('span.rs-name', { text: st.name }));
+    b.addEventListener('click', () => go(k));
+    scale.appendChild(b);
+    return b;
+  });
+  const skipDefault = h('button.btn', { type: 'button', text: 'Default' });
+  const skipRandom = h('button.btn', { type: 'button', text: 'Random' });
+  tip(skipDefault, 'Begin now: the rest of the rite at its defaults.', 'Skip the rest');
+  tip(skipRandom, 'Begin now: the rest of the rite left to chance.', 'Skip the rest');
+  const skip = h('div.rite-skip', null, h('span.rs-k', { text: 'Or skip the rite' }), skipDefault, skipRandom);
+  const scaleBox = h('div.rite-top', null, scale, skip);
+
+  // the world as the rite has it so far
+  const card = h('section.rite-card', { 'aria-label': 'The world so far' }, h('div.rite-card-in', null, worldName, h('p.rite-age'), facts, plateNo));
 
   const head = root.querySelector('.genesis-head');
-  if (head) controlsCol.prepend(head);
+  if (head) head.hidden = true;
   const kickerEl = head?.querySelector('.genesis-kicker'), subEl = head?.querySelector('.genesis-sub');
-  body.appendChild(controlsCol);
-  body.appendChild(plateCol);
+  body.classList.add('rite');
+  body.append(plate, scaleBox, card, folio);
+  fixtureFrame(scaleBox, { open: 'top' });
+  fixtureFrame(card);
+
+  let step = 0;
+  const stepVisible = (k) => !STEPS[k].groups || STEPS[k].id === 'myth' || STEPS[k].groups.some((g) => groupMeta.get(g) && !groupMeta.get(g).det.hidden);
+  function go(k) {
+    step = Math.max(0, Math.min(STEPS.length - 1, k));
+    while (step < STEPS.length - 1 && !stepVisible(step)) step++;
+    const st = STEPS[step];
+    const last = step === STEPS.length - 1;
+    const mythic = Number(params.mythLevel) >= 1 && groupMeta.get('myth') && !groupMeta.get('myth').det.hidden;
+    leaves.forEach((l, j) => { l.hidden = j !== step; });
+    stepBtns.forEach((b, j) => { b.classList.toggle('is-on', j === step); b.classList.toggle('is-past', j < step); b.setAttribute('aria-current', j === step ? 'step' : 'false'); });
+    leafTitle.textContent = last && !mythic ? 'The beginning' : st.title;
+    stepBtns[STEPS.length - 1].querySelector('.rs-name').textContent = mythic ? 'Myth and magic' : 'Begin';
+    const g = st.groups && PARAM_GROUPS.find((q) => q.id === st.groups[0]);
+    leafLead.textContent = step === 0 ? ageOf(params.mythLevel).sub : last && !mythic ? 'The rite is done. Look it over, choose when to start watching, and begin.' : g ? g.desc : st.id === 'seed' ? 'The seed draws the land; the name is the world’s own, unless you give it one.' : '';
+    leafNo.textContent = `${ROMAN[step]} of VIII`;
+    back.disabled = step === 0;
+    next.hidden = last; beginBtn.hidden = !last;
+    if (!last) { let n = step + 1; while (n < STEPS.length - 1 && !stepVisible(n)) n++; clear(next); next.append('Next', h('span.rite-next-to', null, `· ${n === STEPS.length - 1 && !mythic ? 'Begin' : STEPS[n].name}`)); }
+    if (last) refreshSummary();
+    folioBody.scrollTop = 0;
+  }
+  back.addEventListener('click', () => { let k = step - 1; while (k > 0 && !stepVisible(k)) k--; go(k); });
+  next.addEventListener('click', () => go(step + 1));
+
+  /** The rite so far as a Contents: each step and what it set. */
+  function refreshSummary() {
+    clear(summary);
+    const d = defaultParams();
+    const changed = (gid) => { const m = groupMeta.get(gid); if (!m || m.det.hidden) return null; return m.list.filter((q) => paramVisible(q, params) && String(params[q.key]) !== String(d[q.key])).length; };
+    const preset = PRESETS.find((q) => q.id === presetId);
+    const rows = [
+      ['The age', ageOf(params.mythLevel).label],
+      ['Seed and name', params.worldName || genName || params.seed],
+      ['Land and sea', preset ? (presetDirty ? `${preset.label}, adjusted` : preset.label) : (changed('world') ? `${changed('world')} changed` : 'Default')],
+      ['Climate', changed('climate') ? `${changed('climate')} changed` : 'Default'],
+      ['Life', changed('life') ? `${changed('life')} changed` : 'Default'],
+      ['Peoples', changed('civ') ? `${changed('civ')} changed` : 'Default'],
+      ['Catastrophe', changed('catastrophe') ? `${changed('catastrophe')} changed` : 'Default'],
+    ];
+    const my = changed('myth');
+    if (my != null) rows.push(['Myth and magic', my ? `${my} changed` : 'Default']);
+    rows.forEach(([n, v], k) => {
+      const row = h('button.ct', { type: 'button' }, h('span.ct-n', { text: ROMAN[k] }), h('span.ct-name', { text: n }), h('span.ct-lead'), h('span.ct-val', { text: v }));
+      row.addEventListener('click', () => go(k));
+      summary.appendChild(h('li', null, row));
+    });
+  }
+
+  /** Skip the rest of the rite: the steps after this one at their defaults, or left to chance. */
+  function skipRest(random) {
+    const later = STEPS.slice(step + 1).flatMap((st) => st.groups || []);
+    const d = defaultParams();
+    if (!random) {
+      for (const gid of later) for (const q of groupMeta.get(gid)?.list || []) if (q.key !== 'mythLevel') params[q.key] = d[q.key];
+    } else {
+      if (step < 2) {
+        // a land of chance, and a new seed for it (the age chosen stays)
+        const lands = PRESETS.filter((q) => !q.mode);
+        const p = lands[Math.floor(Math.random() * lands.length)];
+        for (const [k2, v] of Object.entries(p.params || {})) if (!MYTH_KEYS.has(k2)) params[k2] = v;
+        if (step < 1) params.seed = randomSeed();
+      }
+      for (const gid of later) {
+        if (gid === 'world' && step < 2) continue;
+        for (const q of groupMeta.get(gid)?.list || []) {
+          if (q.key === 'mythLevel' || q.type !== 'range') continue;
+          const span = (q.max - q.min) * 0.25, v = Number(params[q.key]) + (Math.random() * 2 - 1) * span;
+          const st2 = q.step || 0.01;
+          params[q.key] = coerceParam(q.key, Math.max(q.min, Math.min(q.max, Math.round(v / st2) * st2)));
+        }
+      }
+    }
+    for (const [k2, c] of controls) c.set(params[k2]);
+    persist();
+    begin();
+  }
+  skipDefault.addEventListener('click', () => skipRest(false));
+  skipRandom.addEventListener('click', () => skipRest(true));
+  window.addEventListener('keydown', (e) => {
+    if (root.hidden || e.defaultPrevented) return;
+    if (e.key === 'Escape') { e.preventDefault(); opts.onClose?.(); }
+  });
 
   // --- behaviour ----------------------------------------------------------------------
   function persist() {
@@ -318,11 +436,14 @@ export function mountGenesis(app, opts) {
       b.tabIndex = on ? 0 : -1;
     }
     root.dataset.myth = String(lv);
+    const ageLine = body.querySelector('.rite-age');
+    if (ageLine) ageLine.textContent = a.kicker;
     if (kickerEl) kickerEl.textContent = a.kicker;
     if (subEl) subEl.textContent = a.sub;
     plateNo.textContent = lv === 2 ? 'Plate I · Preview · ley lines and likely homelands' : 'Plate I · Preview';
     syncBeginLabel();
     layoutPresets();
+    go(step);   // the steps a world of this age has, and the words on them
   }
 
   function refreshVisible() {
@@ -376,11 +497,12 @@ export function mountGenesis(app, opts) {
 
   /** Back the preview canvas at its displayed size × device pixel ratio, so the plate is sharp. */
   function fitPreviewCanvas() {
-    const cssW = canvas.clientWidth;
-    if (!(cssW > 0)) return false;
+    const cssW = canvas.clientWidth, cssH = canvas.clientHeight;
+    if (!(cssW > 0 && cssH > 0)) return false;
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-    const wpx = Math.min(2048, Math.round(cssW * dpr));
-    const hpx = Math.round(wpx * 5 / 8);
+    // the plate fills the open map beside the folio; the world is fitted inside it
+    const wpx = Math.min(2800, Math.round(cssW * dpr));
+    const hpx = Math.round((wpx * cssH) / cssW);
     if (canvas.width === wpx && canvas.height === hpx) return false;
     canvas.width = wpx; canvas.height = hpx;
     return true;
@@ -551,6 +673,7 @@ export function mountGenesis(app, opts) {
   refreshVisible();
   refreshPresetMarks();
   refreshGroupCounts();
+  go(0);
   runPreview();
 
   return {
@@ -561,11 +684,12 @@ export function mountGenesis(app, opts) {
       root.scrollTop = 0;
       document.getElementById('app').dataset.mode = 'genesis';
       runPreview();
-      setTimeout(() => beginBtn.focus({ preventScroll: true }), 50);
+      go(0);
+      setTimeout(() => next.focus({ preventScroll: true }), 50);
     },
     hide() { root.hidden = true; },
     get params() { return { ...params }; },
-    setBusy(b) { beginBtn.disabled = b; loadBtn.disabled = b; },
+    setBusy(b) { beginBtn.disabled = b; loadBtn.disabled = b; skipDefault.disabled = b; skipRandom.disabled = b; },
   };
 }
 
