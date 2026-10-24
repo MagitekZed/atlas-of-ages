@@ -44,7 +44,6 @@ export function mountHud(app) {
     plagues: stat('Plagues', 'chronicle', 'Active outbreaks.'),
     era: stat('Era', 'nations', 'The most advanced age any nation has reached.'),
   };
-  stats.era.el.classList.add('is-era');   // wraps rather than being cut (styles.css)
   const headline = h('div.headline', null, Object.values(stats).map((s) => s.el));
   const cartIn = h('div.cart-in', null, h('div.cart-name', null, dial.el, name), ages, h('div.date-line', null, date, season),
     h('div.rule-loz', { 'aria-hidden': 'true' }, h('span.loz')), headline);
@@ -195,12 +194,7 @@ export function mountHud(app) {
     setText(stats.faiths.v, String(s.faiths));
     setText(stats.plagues.v, String(s.plagues));
     stats.plagues.v.classList.toggle('is-alert', s.plagues > 0);
-    stats.plagues.el.hidden = s.plagues === 0;
-    headline.classList.toggle('has-plague', s.plagues > 0);
-    // a soft hyphen in a long single word (Renaissance) lets it break rather than leave the row
-    setText(stats.era.v, eraName(s.era).replace(/\b([A-Za-z]{6})([A-Za-z]{5,})\b/g, '$1\u00ad$2'));
-    // an era that had to leave the row starts its own line flush left
-    stats.era.el.classList.toggle('is-alone', stats.era.el.offsetTop > stats.pop.el.offsetTop + 4);
+    setText(stats.era.v, eraName(s.era));
     refreshRate();
     const offline = app.loadErrors.length;
     status.hidden = offline === 0 && !app.renderInfo.fallback;
