@@ -9,7 +9,7 @@ import { SPEEDS, MONTH_NAMES, DAYS_PER_YEAR, DAYS_PER_MONTH } from '../core/cons
 import { dateString, seasonName, yearOf } from '../core/world.js';
 import { h, clear, svgEl, setText, svgNode } from './dom.js';
 import { glyph } from './icons.js';
-import { tip, openModal, msText } from './widgets.js';
+import { tip, openModal, msText, openPopover, closePopover } from './widgets.js';
 import { people, eraName, int } from './format.js';
 import { summarize } from '../sim/stats.js';
 import { openContents } from './contents.js';
@@ -73,8 +73,22 @@ export function mountHud(app) {
     notches.appendChild(b);
     notchBtns.push(b);
   }
-  const cycle = h('button.icon-btn.speed-cycle', { type: 'button', 'aria-label': 'Change speed' });
-  cycle.addEventListener('click', () => app.setSpeed(app.speed >= SPEEDS.length - 1 ? 1 : app.speed + 1));
+  // on a phone the governor folds to the speed's name over a small rule; a tap lists the speeds
+  const cycleName = h('span.sc-name');
+  const cycle = h('button.speed-cycle', { type: 'button', 'aria-label': 'Change speed', 'aria-haspopup': 'true' },
+    h('span.sc-top', null, cycleName, svgEl(glyph('chevron', 12))), h('span.sc-rule', { 'aria-hidden': 'true' }));
+  cycle.addEventListener('click', () => {
+    const list = h('div.speed-list', { role: 'listbox', 'aria-label': 'Speed' });
+    for (let k = 1; k < SPEEDS.length; k++) {
+      const s = SPEEDS[k];
+      const on = k === (app.speed || app.lastSpeed || 2);
+      const b = h('button.menu-item', { type: 'button', role: 'option', 'aria-selected': String(on), class: on ? 'is-on' : '' },
+        h('span.t', { text: s.label }), h('span.hint', { text: s.dps === Infinity ? 'as fast as it goes' : `${s.dps} days a second` }));
+      b.addEventListener('click', () => { closePopover(); app.setSpeed(k); });
+      list.appendChild(b);
+    }
+    openPopover(cycle, list, { align: 'end', cls: 'menu' });
+  });
   const speedName = h('b.name');
   const speedRate = h('span.rate');
   const speedLabel = h('p.speed-label', null, speedName, h('span.sep-dot', { text: ' · ' }), speedRate);
@@ -105,6 +119,16 @@ export function mountHud(app) {
   const gov = h('div.gov', null, notches, speedLabel);
   const leaps = h('nav.leaps', { 'aria-label': 'Leaps in time' }, leapBtn, untilBtn, storyBtn);
   drive.append(gov, volvelle.el, play, leaps, cycle, findBtn, status, layersBtn, menuBtn);
+  // on a phone: the map mode and the finder stand over the tab bar
+  const modeName = h('span.mc-name');
+  const modeChip = h('button.chip-btn.mode-chip', { type: 'button', 'aria-label': 'Map mode, legend and minimap' }, modeName, svgEl(glyph('chevronRight', 14)));
+  modeChip.addEventListener('click', () => app.emit('toggleDockPhone'));
+  const findChip = h('button.chip-btn.find-chip', { type: 'button', 'aria-label': 'Find anything' }, svgEl(glyph('search', 15)), h('span', { text: 'Find' }));
+  findChip.addEventListener('click', () => app.openCommand?.(''));
+  const syncMode = () => setText(modeName, app.mapModes?.().find((m) => m.id === (app.renderer?.mapMode || 'terrain'))?.label || 'Terrain');
+  app.on('mapmode', syncMode);
+  app.on('world', syncMode);
+  document.querySelector('.hud-bottom')?.prepend(h('div.phone-chips', null, modeChip, findChip));
   fixtureFrame(drive, { open: 'top' });
   const syncStory = () => {
     storyBtn.hidden = !app.director;
@@ -131,8 +155,8 @@ export function mountHud(app) {
     const s = SPEEDS[k];
     setText(speedName, k === 0 ? 'Paused' : s ? s.label : '');
     drive.classList.toggle('is-paused', k === 0);
-    setText(cycle, '×' + (k === 0 ? app.lastSpeed || 2 : k));
-    tip(cycle, `${SPEEDS[k === 0 ? app.lastSpeed || 2 : k].label}. Tap for the next speed.`, 'Speed');
+    setText(cycleName, k === 0 ? 'Paused' : SPEEDS[at].label);
+    cycle.style.setProperty('--at', String(at - 1));
     refreshRate();
   }
 

@@ -127,4 +127,4 @@ The Contents (Esc with nothing to step back from, or the Menu handle) stops time
 | Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z | Undo, redo |
 | Ctrl/Cmd+S | Quick save |
 | ? | The keyboard sheet |
-| Touch | Drag to pan, pinch to zoom, tap to inspect, long-press for the context menu |
+| Touch | Drag to pan, pinch to zoom, tap to inspect, long-press for the context menu. On a phone, the tab bar along the foot opens the Dossier, Chronicle, Nations and Annals (More holds the other folios) and the god tools; the chips above it change the map mode and open Find |

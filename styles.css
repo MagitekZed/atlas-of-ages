@@ -1476,7 +1476,7 @@ button.ct-name:hover { color: var(--brass-hi); }
 @keyframes ts-dim { from { opacity: 0; } }
 @media (max-width: 900px) {
   .title-screen { grid-template-columns: minmax(0, 1fr); padding: 24px 16px; overflow-y: auto; align-content: start; }
-  .astrolabe { display: none; }
+  .ts-page-in .astrolabe { display: block; width: min(260px, 66vw); margin: 2px auto 6px; }
   .ts-big { font-size: 56px; line-height: 54px; }
   .ct-name { font-size: 22px; white-space: nowrap; }
   .ct-val { font-size: 13px; }
@@ -1893,4 +1893,114 @@ button.ct-name:hover { color: var(--brass-hi); }
   .tool-card .hint { display: none; }
   .tool-card .sliders { margin-top: 0; }
   .gen-plate { position: static; }   /* a sticky plate column would leave its last rows under the Begin dock */
+}
+
+/* ------------------------------------------------------------------ the table in the hand (phones)
+   A bar across the top (the Contents, the world and its date, the speed, the bob), letters as
+   one-line slips under it, the map mode and Find over a tab bar along the foot; the folio and
+   the god tools rise as sheets over the bar. */
+.phone-chips, .rail .phone-slot, .panel-head .sheet-x { display: none; }
+@media (max-width: 900px), (max-height: 520px) {
+  :root { --bar-h: 54px; --sheet-peek: 58px; }
+  /* the top bar */
+  .hud-top {
+    top: 0; left: 0; right: 0; height: calc(var(--bar-h) + env(safe-area-inset-top, 0px)); align-items: center; gap: 8px;
+    padding: env(safe-area-inset-top, 0px) max(10px, env(safe-area-inset-right, 0px)) 0 max(50px, calc(env(safe-area-inset-left, 0px) + 46px));
+    background: var(--plate); border-bottom: 1px solid var(--rule-2); box-shadow: 0 2px 0 var(--plate), 0 3px 0 var(--hair-2), 0 4px 0 var(--ground);
+  }
+  .cartouche .fx-frame, .drive .fx-frame { display: none; }
+  .hud-col { align-self: stretch; align-items: center; }
+  .hud-col .cartouche { max-width: none; background: none; }
+  .cart-in { padding: 0; gap: 0; }
+  .cartouche .dial { display: none; }
+  .cartouche .world-name { font-size: 21px; line-height: 24px; letter-spacing: .14em; }
+  .cartouche .date { font-size: 13px; line-height: 16px; color: var(--ink-2); }
+  .cartouche .season, .cartouche .headline, .cartouche .rule-loz, .cartouche .age-chip { display: none; }
+  .drive { position: static; align-self: stretch; align-items: center; gap: 10px; padding: 0; background: none; }
+  .drive .menu-btn { position: absolute; left: max(4px, env(safe-area-inset-left, 0px)); top: calc(env(safe-area-inset-top, 0px) + (var(--bar-h) - 40px) / 2); width: 40px; height: 40px; }
+  .drive .find-btn, .drive .layers-phone, .drive .leaps { display: none !important; }
+  .drive .speed-cycle {
+    display: inline-flex; flex-direction: column; align-items: center; gap: 4px; width: auto; height: auto; padding: 4px 2px 8px;
+    background: none; border: 0; color: var(--ink); cursor: pointer;
+  }
+  .sc-top { display: inline-flex; align-items: center; gap: 3px; font: 500 13px/16px var(--font-ui); }
+  .sc-top .glyph { width: 12px; height: 12px; color: var(--ink-3); }
+  .sc-rule {
+    position: relative; width: 50px; height: 5px;
+    background: linear-gradient(var(--rule-2), var(--rule-2)) 0 100% / 100% 1px no-repeat,
+      repeating-linear-gradient(90deg, var(--rule-2) 0 1px, transparent 1px 10px) 0 0 / 51px 4px no-repeat;
+  }
+  .sc-rule::after { content: ""; position: absolute; top: 6px; left: calc(var(--at, 1) * 10px - 3.5px); width: 8px; height: 5px; background: var(--brass-hi); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+  .drive .play.bob { width: 40px; height: 40px; order: 2; }
+  .drive .speed-cycle { order: 1; }
+  .speed-list .menu-item { display: flex; gap: 14px; justify-content: space-between; }
+  .speed-list .menu-item.is-on .t { color: var(--brass-hi); }
+  /* letters hang under the bar */
+  .toasts { top: calc(var(--bar-h) + env(safe-area-inset-top, 0px) + 10px); left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); width: auto; max-width: 460px; transform: none; }
+  /* the map mode and Find, over the tab bar */
+  .hud-bottom { left: max(8px, env(safe-area-inset-left, 0px)); right: max(8px, env(safe-area-inset-right, 0px)); bottom: calc(var(--sheet-peek) + env(safe-area-inset-bottom, 0px) + 10px); }
+  .phone-chips { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; pointer-events: none; }
+  .chip-btn {
+    pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 12px 0 14px;
+    background: var(--plate); border: 1px solid var(--rule-2); box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--hair-2), 0 0 0 1px var(--ground);
+    color: var(--ink); font: 400 15px/1 var(--font-sc); letter-spacing: .1em; cursor: pointer;
+  }
+  .chip-btn .glyph { width: 15px; height: 15px; color: var(--ink-2); }
+  .app.is-tools .phone-chips, .app:has(.panel.is-open) .phone-chips { display: none; }
+  .mapdock.is-open-phone { top: auto; right: auto; left: max(8px, env(safe-area-inset-left, 0px)); bottom: calc(var(--sheet-peek) + env(safe-area-inset-bottom, 0px) + 62px); max-height: calc(100% - var(--sheet-peek) - var(--bar-h) - 90px); overflow-y: auto; }
+  /* the god tools: a sheet over the tab bar */
+  .palette-wrap { display: none; }
+  .app.is-tools .palette-wrap {
+    display: flex; flex-direction: column-reverse; gap: 10px; position: fixed; z-index: 14; left: 0; right: 0;
+    bottom: calc(var(--sheet-peek) + env(safe-area-inset-bottom, 0px)); max-height: calc(100% - var(--sheet-peek) - var(--bar-h) - 24px); overflow-y: auto;
+    padding: 12px max(12px, env(safe-area-inset-right, 0px)) 12px max(12px, env(safe-area-inset-left, 0px));
+    background: var(--plate); border-top: 1px solid var(--rule-2); box-shadow: 0 -1px 0 var(--ground), inset 0 2px 0 var(--plate), inset 0 3px 0 var(--hair-2);
+  }
+  .app.is-tools .belt { background: none; padding: 0; }
+  .app.is-tools .belt .fx-frame, .app.is-tools .case-name { display: none; }
+  .app.is-tools .tool-card { border: 0; border-top: 1px solid var(--hair-2); box-shadow: none; padding: 10px 0 0; background: none; }
+  .app.is-tools .tool-card .desc { display: block; }
+  /* the tab bar along the foot, with the sheet over it */
+  .panel { grid-template-rows: auto minmax(0, 1fr) auto; background: var(--plate); }
+  .sheet-grip { grid-row: 1; }
+  .panel-body { grid-row: 2; }
+  .panel:not(.is-open) .sheet-grip, .panel:not(.is-open) .panel-body { display: none; }
+  .rail {
+    grid-row: 3; height: var(--sheet-peek); overflow: visible; align-items: stretch; gap: 0;
+    padding: 0 max(2px, env(safe-area-inset-right, 0px)) 0 max(2px, env(safe-area-inset-left, 0px));
+    background: var(--plate); border-top: 1px solid var(--rule-2); box-shadow: inset 0 2px 0 var(--plate), inset 0 3px 0 var(--hair-2);
+  }
+  .rail .tab.off-bar { display: none; }
+  .rail .phone-slot { display: flex; }
+  .rail .tab { flex: 1 1 0; min-width: 0; padding: 9px 2px 6px; gap: 3px; border: 0; background: none; font: 400 11px/13px var(--font-sc); letter-spacing: .06em; color: var(--ink-2); }
+  .rail .tab > span:not(.badge) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rail .tab .glyph { width: 22px; height: 22px; }
+  .rail .tab:hover { background: none; color: var(--ink); }
+  .rail .tab[aria-selected="true"] { background: none; color: var(--ink-2); }
+  .panel.is-open .rail .tab:not(.tools-slot)[aria-selected="true"], .rail .tools-slot[aria-selected="true"] { color: var(--brass-hi); }
+  .panel.is-open .rail .tab:not(.tools-slot)[aria-selected="true"]::before, .rail .tools-slot[aria-selected="true"]::before {
+    content: ""; position: absolute; left: 50%; top: 1px; width: 9px; height: 6px; margin-left: -4.5px; background: var(--brass-hi); clip-path: polygon(0 0, 100% 0, 50% 100%);
+  }
+  .rail .badge { top: 4px; left: calc(50% + 8px); min-width: 17px; height: 17px; padding: 0 3px; border: 1px solid var(--vermilion); border-radius: 50%; background: var(--plate); color: var(--vermilion); font: 500 10px/15px var(--font-ui); }
+  .panel-head .sheet-x { display: inline-grid; }
+}
+
+/* phones: a letter is a one-line slip (the whole of it a tap away); a red-letter day stands open */
+@media (max-width: 600px) {
+  .toast:is(.imp-2, .imp-3, .imp-4) { grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 0 10px; padding: 6px 6px 6px 10px; }
+  .toast:is(.imp-2, .imp-3, .imp-4) .ico { grid-column: 1; grid-row: 1; width: 24px; height: 24px; }
+  .toast:is(.imp-2, .imp-3, .imp-4) .meta { grid-column: 2; grid-row: 1; }
+  .toast:is(.imp-2, .imp-3, .imp-4) .meta .cat { display: none; }
+  .toast:is(.imp-2, .imp-3, .imp-4) .text { grid-column: 3; grid-row: 1; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; line-height: 18px; }
+  .toast:is(.imp-2, .imp-3, .imp-4) .x { grid-column: 4; grid-row: 1; }
+  .toast.is-status { padding: 6px 10px; align-items: center; }
+  .toast.is-status .ico { width: 24px; height: 24px; }
+  .toast.is-status .text { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; line-height: 18px; }
+  .toast.imp-5 { padding: 12px 10px 12px 14px; }
+  .toast.imp-5 .meta .cat { color: var(--vermilion); }
+  .toast.imp-5 .meta .cat::before { content: "A red-letter day · "; }
+  .toast.imp-5 .text { grid-column: 1 / 4; display: block; max-height: 110px; overflow: hidden; font: 400 16px/22px var(--font-display); }
+  .toast.imp-5 .text::first-letter { float: left; padding: 3px 6px 0 0; font: 400 48px/40px var(--font-display); color: var(--vermilion); }
+  /* when time stopped for it, the pause card already tells it, with Resume */
+  .toasts:has(.toast.is-arrived) .toast.imp-5 { display: none; }
 }

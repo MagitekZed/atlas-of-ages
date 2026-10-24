@@ -2,14 +2,16 @@
 // edge of a leaf that slides out over the map, and the active tab's body under a running head.
 // Only the visible tab refreshes (≤ 4 Hz). On desktop the folio stands inside the neatline on
 // the right and can widen or fold away to its tabs, with the Menu and Find handles above them;
-// on phones it is a bottom sheet with a grip and three heights. Tabs other packages register (src/ui/registry.js
+// on phones the rail is a tab bar along the foot (Dossier, Chronicle, Nations, Annals, More for the
+// other folios, and Tools for the god tools' sheet), and the folio a sheet over it with a grip and
+// three heights. Tabs other packages register (src/ui/registry.js
 // registerTab) join the rail by their order, whenever they register, and hide while their
 // when(app) is false. The Chronicle's unread badge starts afresh after a leap, a run until…
 // or an undo (Notices › badgeAfterLeap).
 
 import { h, clear, svgEl, setText, isCompact } from './dom.js';
 import { glyph, iconEl } from './icons.js';
-import { tip, iconButton } from './widgets.js';
+import { tip, iconButton, openPopover, closePopover } from './widgets.js';
 import { getPref, setPref, getNotices } from './prefs.js';
 import { createInspector } from './inspector.js';
 import { createChronicle } from './chronicle.js';
@@ -21,6 +23,8 @@ import { TABS, selectionPoint } from './app.js';
 import { openContents } from './contents.js';
 import { BUILTIN_TABS, getTabs, onRegistryChange } from './registry.js';
 
+// the folios a phone's tab bar shows; the rest wait under More
+const PHONE_BAR = new Set(['inspector', 'chronicle', 'nations', 'annals']);
 const KEYS = { inspector: 'I', chronicle: 'C', nations: 'N', statistics: 'T', world: 'P', atlas: 'L' };
 const DESCS = {
   inspector: 'The record of whatever you select on the map.',
@@ -46,7 +50,7 @@ export function mountPanel(app) {
   const badges = new Map();
   function tabButton(t) {
     const badge = h('span.badge');
-    const b = h('button.tab', { type: 'button', role: 'tab', id: `tab-${t.id}`, 'aria-controls': `pane-${t.id}`, 'aria-selected': 'false' },
+    const b = h('button.tab', { type: 'button', role: 'tab', id: `tab-${t.id}`, 'aria-controls': `pane-${t.id}`, 'aria-selected': 'false', class: PHONE_BAR.has(t.id) ? '' : 'off-bar' },
       t.def ? iconEl(t.icon, { size: 22, label: t.label }) : svgEl(glyph(t.icon, 22)), h('span', { text: t.label }), badge);
     tip(b, t.def ? t.def.desc || '' : DESCS[t.id], t.title, t.def ? t.def.key || '' : KEYS[t.id]);
     b.addEventListener('click', () => onTabClick(t.id));
@@ -67,9 +71,37 @@ export function mountPanel(app) {
   const foldBtn = iconButton('back', 'Fold the panel', () => setCollapsed(!panel.classList.contains('is-collapsed')), { key: '\\' });
   const railSpacer = h('span.spacer');
   rail.append(railSpacer, h('div.rail-extra', null, foldBtn));
+  // on a phone the rail is the tab bar: four folios, More for the rest, and the Tools sheet
+  const moreBtn = h('button.tab.phone-slot.more-slot', { type: 'button', 'aria-haspopup': 'true', 'aria-selected': 'false' });
+  moreBtn.addEventListener('click', () => {
+    const list = h('div.more-list');
+    for (const t of tabs) {
+      if (PHONE_BAR.has(t.id) || tabBtns.get(t.id)?.hidden) continue;
+      const item = h('button.menu-item', { type: 'button', class: t.id === active ? 'is-on' : '' }, t.def ? iconEl(t.icon, { size: 18, label: t.label }) : svgEl(glyph(t.icon, 18)), h('span', { text: t.label }));
+      item.addEventListener('click', () => { closePopover(); onTabClick(t.id); });
+      list.append(item);
+    }
+    openPopover(moreBtn, list, { side: 'above', align: 'end', cls: 'menu' });
+  });
+  function syncMore() {
+    const t = active && !PHONE_BAR.has(active) ? byId.get(active) : null;
+    clear(moreBtn);
+    moreBtn.append(t ? (t.def ? iconEl(t.icon, { size: 22, label: t.label }) : svgEl(glyph(t.icon, 22))) : iconEl('more', { size: 22, label: 'More' }), h('span', { text: t ? t.label : 'More' }));
+    moreBtn.setAttribute('aria-selected', String(Boolean(t)));
+  }
+  const toolsBtn = h('button.tab.phone-slot.tools-slot', { type: 'button', 'aria-selected': 'false' }, iconEl('brush', { size: 22, label: 'Tools' }), h('span', { text: 'Tools' }));
+  toolsBtn.addEventListener('click', () => setTools(!appEl.classList.contains('is-tools')));
+  /** The god tools as a sheet over the tab bar (phones); the folio's sheet folds while it is up. */
+  function setTools(on) {
+    appEl.classList.toggle('is-tools', on);
+    toolsBtn.setAttribute('aria-selected', String(on));
+    if (on && isCompact() && panel.classList.contains('is-open')) setSheet('closed');
+  }
+  rail.append(moreBtn, toolsBtn);
 
   const headTitle = h('h2');
-  const headActions = h('div', { style: { display: 'flex', gap: '2px' } }, wideBtn);
+  const sheetX = iconButton('close', 'Close the sheet', () => setSheet('closed'), { cls: 'sheet-x' });
+  const headActions = h('div', { style: { display: 'flex', gap: '2px' } }, wideBtn, sheetX);
   const head = h('div.panel-head', null, headTitle, headActions);
   const scroll = h('div.panel-scroll');
   const panes = new Map();
@@ -156,6 +188,7 @@ export function mountPanel(app) {
     scroll.classList.toggle('is-flush', Boolean(t.flush));
     setText(headTitle, t.headTitle ? t.headTitle() : t.title);
     if (t.id === 'chronicle') { unread = 0; setText(badges.get('chronicle'), ''); }
+    syncMore();
     if (app.world) { try { t.show(); } catch (e) { app.reportError(`panel.${t.id}.show`, e); } }
     scroll.scrollTop = scrollPos.get(t.id) || 0;
   }
@@ -168,6 +201,7 @@ export function mountPanel(app) {
 
   function onTabClick(id) {
     if (isCompact()) {
+      setTools(false);
       if (panel.classList.contains('is-open') && active === id) { setSheet('closed'); return; }
       setSheet(panel.classList.contains('is-tall') ? 'tall' : 'open');
     } else if (panel.classList.contains('is-collapsed')) setCollapsed(false);
@@ -219,6 +253,7 @@ export function mountPanel(app) {
     if (px == null) panel.style.removeProperty('--sheet-h'); else panel.style.setProperty('--sheet-h', px + 'px');
   }
   function setSheet(state) {
+    if (state !== 'closed' && appEl.classList.contains('is-tools')) setTools(false);
     panel.classList.toggle('is-open', state !== 'closed');
     panel.classList.toggle('is-tall', state === 'tall');
     applySheetHeight();

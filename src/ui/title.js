@@ -63,6 +63,13 @@ export function mountTitle(app, hooks = {}) {
     h('div.ts-page-in', null, h('p.ts-kicker', { text: 'A world simulator that runs by itself' }), lockup, h('div.dbl'), contents, foot));
   const astro = buildAstrolabe();
   root.append(backdrop, neat, page, astro.el);
+  // on a narrow screen the astrolabe stands between the title and the contents
+  try {
+    const narrow = window.matchMedia('(max-width: 900px)');
+    const placeAstro = () => { if (narrow.matches) lockup.after(astro.el); else root.append(astro.el); };
+    narrow.addEventListener('change', placeAstro);
+    placeAstro();
+  } catch (e) { /* no media queries: it stays beside the page */ }
   document.body.appendChild(root);
   fixtureFrame(page);
 

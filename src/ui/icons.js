@@ -66,6 +66,7 @@ export const GLYPHS = {
   back: `<path d="M14.5 5.5L8 12l6.5 6.5"/>`,
   chevron: `<path d="M6.5 9.5L12 15l5.5-5.5"/>`,
   chevronUp: `<path d="M6.5 14.5L12 9l5.5 5.5"/>`,
+  chevronRight: `<path d="M9.5 6.5L15 12l-5.5 5.5"/>`,
   search: `<circle cx="10.5" cy="10.5" r="5.5"/><path d="M14.6 14.6l5 5"/>`,
   target: `<circle cx="12" cy="12" r="6.5"/><path d="M12 2.8v4.4M12 16.8v4.4M2.8 12h4.4M16.8 12h4.4"/>${DOT(12, 12, 1.2)}`,
   follow: `<circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="2.6"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6"/>`,
