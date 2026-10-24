@@ -197,13 +197,15 @@ export function createApp() {
         const band = clearBand();
         if (band) { strip = band.h; bias = band.bias; }
       }
-      const vw = r.viewW, vh = Number.isFinite(strip) && strip > 0 ? strip : r.viewH;
+      // desktop: the folio covers the right of the map; frame in what is left open
+      const open = openWidth(app, r.viewW);
+      const vw = open.w, vh = Number.isFinite(strip) && strip > 0 ? strip : r.viewH;
       const p = Math.max(0, Math.min(Number.isFinite(pad) ? pad : 48, Math.min(vw, vh) / 3));
       const bw = Math.abs(b.x1 - b.x0) + 1, bh = Math.abs(b.y1 - b.y0) + 1;
       let z = Math.min((vw - 2 * p) / bw, (vh - 2 * p) / bh);
       z = Math.max(cam.minZoom || 0.25, Math.min(cam.maxZoom || 80, z));
       const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
-      app.r('focusOn', cx + 0.5, cy + 0.5 - (Number.isFinite(bias) ? bias : 0) / Math.max(1e-6, z), z);
+      app.r('focusOn', cx + 0.5 - open.bias / Math.max(1e-6, z), cy + 0.5 - (Number.isFinite(bias) ? bias : 0) / Math.max(1e-6, z), z);
     },
     /** Where the followed entity is now (tile coords), or null. */
     followPoint() { return follow ? selectionPoint(app, follow) : null; },
@@ -221,7 +223,8 @@ export function createApp() {
       const z = zoom ?? Math.max(app.renderer?.camera?.zoom || 6, 7);
       // on a phone with the sheet open, frame the target in the strip of map above the sheet
       const bias = (typeof app.viewBias === 'function' && app.viewBias()) || 0;
-      app.r('focusOn', x + 0.5, y + 0.5 - (Number.isFinite(bias) ? bias : 0) / Math.max(1e-6, z), z);
+      const bx = openWidth(app, app.renderer?.viewW || 0).bias;
+      app.r('focusOn', x + 0.5 - bx / Math.max(1e-6, z), y + 0.5 - (Number.isFinite(bias) ? bias : 0) / Math.max(1e-6, z), z);
     },
 
     // --- tabs & panels -------------------------------------------------------------------
@@ -521,6 +524,16 @@ export function describeSel(app, sel) {
 
 /** The selection a chronicle reference ({ k, id }) opens, or null when no view knows the kind. */
 /** The part of the map not under the top instruments and the tool belt (desktop): { h, bias } in CSS px, or null. */
+/**
+ * The width of map the folio leaves open on the left (CSS px) and how far its middle sits from the
+ * canvas's middle (negative: to the left). With no folio open, or on a phone, the whole width.
+ */
+function openWidth(app, viewW) {
+  const cover = typeof app.folioCover === 'function' ? app.folioCover() : 0;
+  if (!(viewW > 0) || !(cover > 0) || cover > viewW * 0.6) return { w: viewW, bias: 0 };
+  return { w: viewW - cover, bias: -cover / 2 };
+}
+
 function clearBand() {
   if (typeof document === 'undefined') return null;
   const map = document.getElementById('map');

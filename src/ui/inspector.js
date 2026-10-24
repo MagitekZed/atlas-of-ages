@@ -1739,8 +1739,8 @@ export function createInspector(app) {
   onRegistryChange((kind) => { if (kind === 'view' || kind === 'section' || kind === 'titleAction') dirty = true; });
 
   return {
-    id: 'inspector', label: 'Inspect', title: 'Inspector', icon: 'inspect', el,
-    headTitle() { const s = app.selection; return s ? KIND_LABEL[s.kind] || getView(s.kind)?.label || 'Inspector' : 'Inspector'; },
+    id: 'inspector', label: 'Dossier', title: 'Dossier', icon: 'inspect', el,
+    headTitle() { const s = app.selection; return s ? `Dossier · ${KIND_LABEL[s.kind] || getView(s.kind)?.label || 'Record'}` : 'Dossier'; },
     show() { const s = app.selection; const key = s ? `${s.kind}:${s.id}` : 'welcome'; if (key !== built || dirty) build(); else binder?.update(); },
     refresh() { if (dirty && app.world) build(); else binder?.update(); },
     onSelect() { build(); (el.closest('.panel-scroll') || el.parentElement)?.scrollTo?.({ top: 0 }); },   // the scroller is the panel's, not the pane

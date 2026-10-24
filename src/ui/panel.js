@@ -1,7 +1,8 @@
-// The side panel: a rail of six tabs (Inspector, Chronicle, Nations, Statistics, World,
-// Atlas) and the active tab's body. Only the visible tab refreshes (≤ 4 Hz). On desktop
-// it docks to the right and can widen or fold to its rail; on phones it is a bottom sheet
-// with a grip and three heights. Tabs other packages register (src/ui/registry.js
+// The folio: thumb-index tabs (Dossier, Chronicle, Nations, Statistics, World, Atlas) on the
+// edge of a leaf that slides out over the map, and the active tab's body under a running head.
+// Only the visible tab refreshes (≤ 4 Hz). On desktop the folio stands inside the neatline on
+// the right and can widen or fold away to its tabs, with the Menu and Find handles above them;
+// on phones it is a bottom sheet with a grip and three heights. Tabs other packages register (src/ui/registry.js
 // registerTab) join the rail by their order, whenever they register, and hide while their
 // when(app) is false. The Chronicle's unread badge starts afresh after a leap, a run until…
 // or an undo (Notices › badgeAfterLeap).
@@ -17,6 +18,7 @@ import { createStatistics } from './statistics.js';
 import { createWorldTab } from './worldtab.js';
 import { createAtlas } from './atlas.js';
 import { TABS, selectionPoint } from './app.js';
+import { openMenu } from './hud.js';
 import { BUILTIN_TABS, getTabs, onRegistryChange } from './registry.js';
 
 const KEYS = { inspector: 'I', chronicle: 'C', nations: 'N', statistics: 'T', world: 'P', atlas: 'L' };
@@ -52,6 +54,14 @@ export function mountPanel(app) {
     badges.set(t.id, badge);
     return b;
   }
+  // the handles above the tabs: the menu and the finder
+  const menuHandle = h('button.ehandle', { type: 'button', 'aria-label': 'Menu', 'aria-haspopup': 'true' }, svgEl(glyph('menu', 18)));
+  tip(menuHandle, 'New world, saving, notices and shortcuts.', 'Menu');
+  menuHandle.addEventListener('click', () => openMenu(app, menuHandle));
+  const findHandle = h('button.ehandle', { type: 'button', 'aria-label': 'Find anything' }, svgEl(glyph('search', 18)));
+  tip(findHandle, 'Find any place, people, war or command.', 'Find', '/');
+  findHandle.addEventListener('click', () => app.openCommand?.(''));
+  rail.append(menuHandle, findHandle, h('span.handle-gap'));
   for (const t of tabs) rail.appendChild(tabButton(t));
   const wideBtn = iconButton('fit', 'Widen the panel', () => setWide(!panel.classList.contains('is-wide')), { cls: 'wide-btn' });
   const foldBtn = iconButton('back', 'Fold the panel', () => setCollapsed(!panel.classList.contains('is-collapsed')), { key: '\\' });
@@ -165,8 +175,19 @@ export function mountPanel(app) {
     app.setTab(id);
   }
 
+  /** How much of the map's right side the folio covers (CSS px), for the HUD and the camera. */
+  function syncCover() {
+    const r = panel.getBoundingClientRect();
+    const cover = isCompact() ? 0 : Math.max(0, (window.innerWidth || 0) - r.left);
+    appEl.style.setProperty('--folio-cover', Math.round(cover) + 'px');
+  }
+  app.folioCover = () => { if (isCompact()) return 0; const r = panel.getBoundingClientRect(); return Math.max(0, (window.innerWidth || 0) - r.left); };
+  window.addEventListener('resize', syncCover);
+  panel.addEventListener('transitionend', syncCover);
+
   function setCollapsed(on) {
     panel.classList.toggle('is-collapsed', on);
+    requestAnimationFrame(syncCover);
     setPref('panelCollapsed', on);
     clear(foldBtn);
     foldBtn.appendChild(svgEl(glyph('back', 18)));
@@ -178,6 +199,7 @@ export function mountPanel(app) {
   }
   function setWide(on) {
     panel.classList.toggle('is-wide', on);
+    requestAnimationFrame(syncCover);
     setPref('panelWide', on);
     tip(wideBtn, on ? 'Narrow the panel' : 'Widen the panel');
     setTimeout(() => { app.r('resize'); if (active) byId.get(active)?.show(); }, 240);

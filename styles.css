@@ -142,6 +142,8 @@ p { margin: 0; }
 .warn-text { color: var(--warn); }
 
 .glyph { display: block; flex: none; }
+/* the engraved set: one 1.5 line on the 24 grid; a little heavier on a 1x screen */
+@media (max-resolution: 1.49dppx) { .glyph.kit { stroke-width: 1.8; } }
 
 /* Plates. Every panel is an opaque plate: square corners, an outer rule, a 3px gap and an
    inner hairline, and a 1px ground keyline against the map. No blur, no shadow. */
@@ -989,6 +991,218 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
 .fatal-msg { font-family: var(--font-mono); font-size: 12.5px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); max-height: 40vh; overflow: auto; }
 .fatal-list { margin: 0; padding-left: 18px; font-size: var(--t-small); color: var(--ink-2); }
 
+/* ------------------------------------------------------------------ the table: fixtures, bridge, letters, folio */
+
+/* Fixture frames (src/ui/frame.js): the plate with cut-in corners is an SVG behind the content. */
+.fixture { position: relative; isolation: isolate; background: none; border: 0; border-radius: 0; box-shadow: none; }
+.fixture > .fx-frame { position: absolute; left: 0; top: 0; z-index: -1; pointer-events: none; overflow: visible; }
+.fx-fill { fill: var(--plate); stroke: var(--ground); stroke-width: 3; }
+.fx-rule { fill: none; stroke: var(--rule-2); stroke-width: 1; }
+.fx-hair { fill: none; stroke: var(--hair-2); stroke-width: 1; }
+.rule-loz { display: flex; align-items: center; gap: 9px; }
+.rule-loz::before, .rule-loz::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+
+/* the cartouche: the world's name in Fell capitals, the age it lives in, its numbers */
+.cartouche { padding: 0; display: block; max-width: none; }
+.cart-in { display: flex; flex-direction: column; padding: 18px 20px 16px; min-width: 0; }
+.cart-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cartouche .world-name {
+  margin: 0; font: 400 26px/30px var(--font-sc); letter-spacing: .14em; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cartouche .dial { flex: none; width: 34px; height: 34px; color: var(--ink-2); }
+.cartouche .date-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; margin-top: 2px; }
+.cartouche .date { font: italic 400 15px/20px var(--font-display); color: var(--ink); }
+.cartouche .season { font-size: 12px; line-height: 16px; color: var(--ink-3); white-space: nowrap; }
+.cartouche .rule-loz { margin: 10px 0 8px; }
+.cartouche .headline { display: flex; flex-wrap: nowrap; gap: 0; margin: 0; padding: 0; border: 0; }
+.cartouche .stat { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 0 8px; border-left: 1px solid var(--hair-2); }
+.cartouche .stat:first-child { padding-left: 0; border-left: 0; }
+.cartouche .stat:last-child { flex: 1; min-width: 0; }
+.cartouche .stat .v { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.cartouche .stat .k { font: 500 11px/14px var(--font-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.cartouche .stat .v { font: 500 17px/22px var(--font-ui); color: var(--ink); white-space: nowrap; }
+.cartouche .stat .v.is-alert { color: var(--vermilion); }
+.cartouche .stat-btn:hover .k { color: var(--brass-hi); }
+
+/* letters: the newest notice open, older ones folded to slips under it */
+.toast { background: var(--plate); border: 1px solid var(--rule-2); box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--hair-2), 0 0 0 1px var(--ground); }
+.toast:hover { border-color: var(--ink-2); }
+.toast .ico { width: 28px; height: 28px; border-width: 1px; }
+.toast .meta .cat { font: 500 11px/14px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--c, var(--ink-3)); }
+.toast .meta > span:not(.cat) { font: italic 400 13.5px/18px var(--font-display); color: var(--ink-2); }
+.toast .text { font-size: 14px; line-height: 20px; }
+.toast.imp-4 .text, .toast.imp-5 .text { font-family: var(--font-ui); font-size: 14.5px; line-height: 20px; }
+.toast.imp-5 { border-color: var(--vermilion); }
+
+/* the bob: the pause button that hangs under the volvelle (and the phone's play button) */
+.drive .play { width: 36px; height: 36px; border-radius: 50%; }
+.drive .play.bob { color: var(--ink); border-color: var(--rule-2); box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--hair-2), 0 0 0 1.5px var(--ground); }
+.drive .play.bob:hover { border-color: var(--ink); }
+.drive.is-paused .play.bob { color: var(--brass-hi); border-color: var(--brass); box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--brass-lo), 0 0 0 1.5px var(--ground); }
+
+/* the volvelle */
+.volvelle { display: block; overflow: visible; }
+.vv-case { stroke: var(--ground); stroke-width: 3; }
+.vv-face { fill: var(--plate); stroke: rgba(237, 227, 203, 0.75); stroke-width: var(--l3); }
+.vv-hair { stroke: rgba(237, 227, 203, 0.5); stroke-width: 0.6; }
+.vv-days { stroke: rgba(237, 227, 203, 0.42); }
+.vv-fives { stroke: rgba(237, 227, 203, 0.6); }
+.vv-months { stroke: rgba(237, 227, 203, 0.8); }
+.vv-inner { stroke: rgba(237, 227, 203, 0.7); stroke-width: 0.9; }
+.vv-arc { fill: none; stroke: var(--brass-hi); stroke-width: var(--l3); }
+.vv-month { font: italic 400 13.5px var(--font-display); fill: var(--ink-2); }
+.vv-month.is-now { fill: var(--brass-hi); }
+.vv-day { font: 400 15px var(--font-sc); letter-spacing: .12em; fill: var(--ink-2); }
+.vv-year { font: 400 28px var(--font-display); fill: var(--ink); }
+.vv-stem { stroke: var(--brass-hi); stroke-width: var(--l3); }
+.vv-index { fill: var(--brass-hi); stroke: var(--ground); stroke-width: 1; }
+.vv-stem2 { stroke: var(--rule-2); stroke-width: 1; }
+.vv-turn { transform-box: view-box; transform-origin: 0 0; transition: transform .25s linear; }
+.volvelle.is-fast .vv-turn, .volvelle.is-jump .vv-turn { transition: none; }
+@media (max-resolution: 1.49dppx) { .dayticks { display: none; } }
+
+/* leaps: an icon over a small label */
+.leap-btn {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-width: 54px; height: 46px; padding: 3px 6px; color: var(--ink-2); border: 1px solid transparent;
+  font: 400 12.5px/1 var(--font-ui); background: none;
+}
+.leap-btn:hover { color: var(--ink); border-color: var(--rule); }
+.leap-btn.is-on, .leap-btn[aria-pressed="true"] { color: var(--brass-hi); border-color: var(--brass-lo); background: repeating-linear-gradient(-45deg, var(--brass-hatch) 0 1px, transparent 1px var(--hatch)); }
+.drive .speed-label { margin: 0; font-size: 12.5px; line-height: 16px; color: var(--ink-3); white-space: nowrap; }
+.drive .speed-label { min-width: 0; padding: 0; }
+.drive .speed-label .name { display: inline; font: 500 12.5px/16px var(--font-ui); letter-spacing: 0; color: var(--ink); }
+.drive .speed-label .rate { display: inline; font: 400 12.5px/16px var(--font-ui); color: var(--ink-3); }
+.drive .menu-btn, .drive .find-btn { display: none; }
+
+/* edge handles (the folio's tab strip) */
+.ehandle { display: none; }
+
+/* legend and instrument case: fixtures */
+.mapdock.fixture { padding: 12px 14px; }
+.mode-btn { background: transparent; border: 0; border-bottom: 1px dotted var(--rule-2); padding: 4px 2px; }
+.mode-btn:hover { border-color: var(--ink-2); background: transparent; }
+.mode-btn .lbl { font: 500 11px/14px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+.mode-btn .val { font: 400 17px/22px var(--font-sc); letter-spacing: .12em; }
+.belt.fixture { padding: 14px 6px 4px; }
+.belt .case-name {
+  position: absolute; top: -9px; left: 50%; transform: translateX(-50%); z-index: 1;
+  padding: 1px 12px 0; background: var(--ground); border: 1px solid var(--rule-2);
+  font: 400 12px/16px var(--font-sc); letter-spacing: .2em; color: var(--ink-2); white-space: nowrap;
+}
+.belt .inspect-slot { border-right: 1px solid var(--hair-2); }
+.group-tabs { border-bottom: 1px solid var(--rule-2); }
+.group-tabs button { border-bottom: 0; font: 400 14px/1 var(--font-sc); letter-spacing: .08em; padding: 4px 9px 7px; position: relative; }
+.group-tabs button.is-on { color: var(--brass-hi); }
+.group-tabs button.is-on::after { content: ""; position: absolute; left: 50%; bottom: -1px; width: 9px; height: 6px; margin-left: -4.5px; background: var(--brass-hi); clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+.group-tabs button .n { font: 500 11px/1 var(--font-ui); color: var(--ink-3); margin-left: 4px; vertical-align: 4px; }
+.tool-card.instrument { margin-bottom: 4px; }
+
+@media (min-width: 901px) and (min-height: 521px) {
+  /* map first: the map fills the window; everything else stands on it */
+  .app { display: block; }
+  .stage { position: absolute; inset: 0; }
+  .hud-top { position: absolute; inset: 0; display: block; z-index: 5; pointer-events: none; }
+  /* the left column: cartouche, letters, and the legend at its foot */
+  .hud-col {
+    position: absolute; left: calc(var(--neat) + 16px); top: calc(var(--neat) + 16px); bottom: calc(var(--neat) + 16px); width: var(--col-w, 336px);
+    display: flex; flex-direction: column; gap: 12px; pointer-events: none;
+  }
+  .hud-col .cartouche, .hud-col .mapdock { flex: none; }
+  .hud-col .mapdock { margin-top: auto; width: auto; }
+  .hud-col .toasts .toast:first-child { flex: none; }
+  .hud-col > * { pointer-events: auto; }
+  .cartouche .dial, .cartouche .date { display: none; }
+  .toasts { position: static; flex: 0 1 auto; width: 100%; top: auto; right: auto; gap: 0; min-height: 0; overflow: hidden; }
+  .toast + .toast { margin-top: -1px; }
+  .toasts .toast + .toast { display: flex; align-items: center; gap: 10px; padding: 6px 12px; animation: none; }
+  .toasts .toast + .toast .ico { width: 18px; height: 18px; }
+  .toasts .toast + .toast .ico svg { width: 11px; height: 11px; }
+  .toasts .toast + .toast .meta .cat, .toasts .toast + .toast .x { display: none; }
+  .toasts .toast + .toast .meta { flex: none; width: 86px; }
+  .toasts .toast + .toast .text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; color: var(--ink-2); }
+
+  /* the time bridge hangs from the top neatline, in the middle of the window */
+  .drive {
+    position: absolute; top: var(--neat); left: 50%; transform: translateX(-50%);
+    width: 628px; height: 56px; padding: 0 14px 0 16px;
+    display: grid; grid-template-columns: minmax(0, 1fr) 224px minmax(0, 1fr); align-items: center; gap: 0;
+    pointer-events: auto;
+  }
+  .drive .gov { grid-column: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; padding-top: 2px; }
+  .drive .governor > button { min-width: 30px; min-height: 26px; padding: 0 9px; font-size: 13px; }
+  .drive .volvelle { position: absolute; left: 50%; top: 0; width: 224px; height: 126px; margin-left: -112px; pointer-events: none; }
+  .drive .play.bob { position: absolute; left: 50%; top: 126px; margin-left: -18px; z-index: 1; }
+  .drive .leaps { grid-column: 3; display: flex; justify-content: flex-end; gap: 2px; }
+  .drive .speed-cycle, .drive .layers-phone { display: none; }
+  .drive .warn-chip { position: absolute; right: -40px; top: 10px; }
+
+  /* the folio slides out over the map inside the neatline; its tabs stand on its edge */
+  .panel {
+    position: absolute; z-index: 8; top: var(--neat); right: var(--neat); bottom: var(--neat); height: auto;
+    width: calc(var(--tab-w, 38px) + var(--folio-w, 360px));
+    grid-template-columns: var(--tab-w, 38px) minmax(0, 1fr);
+    background: transparent; border-left: 0;
+    transition: width var(--t4) var(--ease);
+  }
+  .panel.is-wide { --folio-w: 640px; }
+  .panel.is-collapsed { width: var(--tab-w, 38px); }
+  .panel-body { position: relative; z-index: 1; background: var(--plate); border-left: 1px solid var(--rule-2); box-shadow: 0 0 0 1px var(--ground); }
+  .panel-body::before { content: ""; position: absolute; left: 3px; top: 0; bottom: 0; width: 1px; background: var(--hair-2); pointer-events: none; }
+  .rail { position: relative; z-index: 2; padding: 60px 0 0; gap: 4px; background: transparent; border-right: 0; align-items: stretch; }
+  .rail .ehandle {
+    display: grid; place-items: center; width: var(--tab-w, 38px); height: 36px; padding: 0;
+    color: var(--ink-2); background: var(--ground); border: 1px solid var(--rule); border-right: 0;
+  }
+  .rail .ehandle:hover { color: var(--ink); border-color: var(--rule-2); }
+  .rail .handle-gap { height: 8px; flex: none; }
+  .rail .tab {
+    writing-mode: vertical-rl; flex-direction: row; justify-content: center; align-items: center;
+    width: var(--tab-w, 38px); padding: 12px 0; gap: 8px;
+    font: 400 15px/1 var(--font-sc); letter-spacing: .12em; color: var(--ink-2);
+    background: var(--ground); border: 1px solid var(--rule); border-right: 0; border-radius: 0;
+  }
+  .rail .tab .glyph { display: none; }
+  .rail .tab:hover { color: var(--ink); background: var(--ground); border-color: var(--rule-2); }
+  .rail .tab[aria-selected="true"] { width: calc(var(--tab-w, 38px) + 5px); margin-right: -5px; color: var(--brass-hi); background: var(--plate); border-color: var(--rule-2); }
+  .panel.is-collapsed .rail .tab[aria-selected="true"] { width: var(--tab-w, 38px); margin-right: 0; color: var(--ink-2); background: var(--ground); border-color: var(--rule); }
+  .rail .badge {
+    position: static; writing-mode: horizontal-tb; display: grid; place-items: center;
+    width: 19px; height: 19px; min-width: 0; padding: 0; border: 1px solid var(--vermilion); border-radius: 50%;
+    background: transparent; color: var(--ink); font: 500 11px/1 var(--font-ui);
+  }
+  .rail .rail-extra .icon-btn { width: var(--tab-w, 38px); height: 36px; background: var(--ground); border: 1px solid var(--rule); border-right: 0; }
+  .panel-head { height: 44px; padding: 0 10px 0 20px; border-bottom: 0; gap: 10px; }
+  .panel-head h2 { flex: 1; display: flex; align-items: center; gap: 10px; min-width: 0; font: 500 11px/14px var(--font-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); white-space: nowrap; }
+  .panel-head h2::after { content: ""; flex: 1; height: 1px; background: var(--hair-2); }
+  .panel-scroll { padding: 4px 20px 24px; }
+
+  /* legend at the foot of the left column; the case stands on the bottom neatline */
+  /* the case stands on the bottom neatline, centred in the map between the left column and the folio */
+  .hud-bottom { left: calc(var(--neat) + 16px + var(--col-w, 336px) + 16px); right: calc(var(--folio-cover, 0px) + 16px); bottom: var(--neat); align-items: flex-end; }
+}
+@media (min-width: 901px) and (min-height: 521px) and (max-height: 940px) {
+  /* a shorter screen keeps room for the letters: the minimap waits in the legend's fold */
+  .hud-col .minimap-wrap { display: none; }
+}
+@media (min-width: 901px) and (min-height: 521px) and (max-width: 1366px) {
+  :root { --col-w: 312px; }
+  .cartouche .stat { padding: 0 6px; }
+  .cartouche .stat .v { font-size: 16px; }
+  .cartouche .world-name { font-size: 22px; }
+  .drive { width: 560px; }
+  .drive .leaps .leap-btn { min-width: 40px; }
+  .drive .leaps .leap-btn span { display: none; }
+  .drive .speed-label .rate, .drive .speed-label .sep-dot { display: none; }
+}
+@media (min-width: 901px) and (min-height: 521px) and (max-width: 1180px) {
+  .drive { width: 400px; grid-template-columns: 76px 224px minmax(0, 1fr); }
+  .drive .governor { display: none; }
+  .drive .speed-cycle { display: inline-grid; }
+  .drive .gov { flex-direction: row; }
+}
+
 /* ------------------------------------------------------------------ medium widths */
 
 @media (max-width: 1180px) {
@@ -1094,6 +1308,20 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
   .kv-3 .cell .v { font-size: 18px; }
   .kv-3 { gap: 6px; }
   .kv-3 .cell { padding: 7px 8px; }
+  /* until the phone's own pass: the bridge folds to the compact drive, the cartouche to one line */
+  .hud-col { flex: 1; min-width: 0; display: flex; }
+  .hud-col .cartouche { flex: 1; min-width: 0; }
+  .cart-in { padding: 6px 10px 6px 8px; }
+  .cartouche .world-name { font-size: 17px; line-height: 22px; letter-spacing: .1em; }
+  .cartouche .rule-loz, .cartouche .age-chip { display: none; }
+  .drive { display: flex; align-items: center; gap: 2px; padding: 4px; }
+  .drive .volvelle, .drive .gov, .drive .leaps .leap-btn:not(.story-btn) { display: none; }
+  .drive .leaps { display: flex; }
+  .drive .play.bob { position: static; margin: 0; width: 36px; height: 36px; }
+  .drive .menu-btn, .drive .find-btn { display: inline-grid; }
+  .drive .find-btn[hidden] { display: none; }
+  .drive .story-btn { min-width: 36px; height: 36px; padding: 0; }
+  .drive .story-btn span { display: none; }
 }
 
 

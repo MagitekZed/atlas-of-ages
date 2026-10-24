@@ -14,6 +14,7 @@ import { iconEl } from './icons.js';
 import { tip, rangeInput } from './widgets.js';
 import { getPref, setPref } from './prefs.js';
 import { registerKey } from './registry.js';
+import { fixtureFrame } from './frame.js';
 
 /** The tools the belt offers for the current world. */
 function beltTools(app) {
@@ -46,8 +47,11 @@ export function mountPalette(app) {
   wrap.id = 'palette';
 
   const card = h('div.tool-card.instrument', { hidden: true });
-  const belt = h('div.belt.instrument', { role: 'toolbar', 'aria-label': 'God tools' });
+  const belt = h('div.belt', { role: 'toolbar', 'aria-label': 'God tools' });
+  const caseName = h('p.case-name', { text: 'Instruments' });
   wrap.append(card, belt);
+  fixtureFrame(belt, { open: 'bottom' });
+  belt.append(caseName);
 
   const inspectBtn = h('button.tool-btn.is-inspect', { type: 'button', 'aria-label': 'Inspect', 'aria-pressed': 'true' }, iconEl('inspect', { size: 24 }));
   tip(inspectBtn, 'Click anything on the map to read its record. Drag to pan.', 'Inspect', 'Esc');

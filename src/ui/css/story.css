@@ -365,8 +365,12 @@
 }
 
 /* World ages beside the date (WP1 currentAges) */
-.cartouche .age-chip { font: inherit; font-size: var(--t-small); color: var(--ink-2); background: transparent; border: 1px solid var(--hair-2); border-radius: 0; padding: 0 8px; line-height: 1.5; cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.cartouche .age-chip:hover, .cartouche .age-chip:focus-visible { color: var(--ink); border-color: var(--brass); }
+.cartouche .age-chip {
+  align-self: flex-start; max-width: 100%; margin-top: 1px; padding: 0; border: 0; background: transparent; cursor: pointer;
+  font: italic 400 17px/22px var(--font-display); color: var(--ink-2); text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cartouche .age-chip:hover, .cartouche .age-chip:focus-visible { color: var(--ink); text-decoration: underline dotted var(--rule-2); text-underline-offset: 4px; }
 .cartouche .age-chip.is-dark { color: var(--warn); }
 .cartouche .age-chip.is-bright { color: var(--brass-hi); }
 @media (max-width: 640px) { .cartouche .age-chip { display: none; } }

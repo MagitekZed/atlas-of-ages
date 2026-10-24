@@ -23,12 +23,14 @@
     <canvas id="map" class="map" tabindex="0" aria-label="World map. Drag to pan, scroll or pinch to zoom, click to inspect."></canvas>
     <div id="atlas-banner" class="atlas-banner" hidden></div>
     <header class="hud-top">
-      <div id="cartouche" class="cartouche instrument ticked"></div>
-      <div id="drive" class="drive instrument"></div>
+      <div class="hud-col">
+        <div id="cartouche" class="cartouche"></div>
+        <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+        <div id="mapdock" class="mapdock"></div>
+      </div>
+      <div id="drive" class="drive"></div>
     </header>
-    <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
     <div class="hud-bottom">
-      <div id="mapdock" class="mapdock"></div>
       <div id="palette" class="palette"></div>
     </div>
     <div id="readout" class="readout" aria-hidden="true"></div>

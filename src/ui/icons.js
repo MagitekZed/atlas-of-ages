@@ -7,6 +7,7 @@
 
 import { getIcon, hasIcons } from './registry.js';
 import { svgEl } from './dom.js';
+import { KIT_ICONS } from './kit-icons.js';
 
 const DOT = (x, y, r = 0.9) => `<circle cx="${x}" cy="${y}" r="${r}" fill="currentColor" stroke="none"/>`;
 const WAVES = (y) => `<path d="M2.5 ${y}c1.5 1 3 1 4.4 0s3-1 4.4 0 3 1 4.4 0 3-1 4.4 0"/>`;
@@ -148,11 +149,37 @@ const ALIASES = {
   trade: 'ship', caravan: 'ship', route: 'ship', commerce: 'ship',
 };
 
+/**
+ * Keys drawn from the Copperplate set (src/ui/kit-icons.js) instead of the older hand-drawn
+ * glyphs: an exact key or a resolved one maps to a kit id. Kit ids themselves ('family-land',
+ * 'mode-terrain') work too. Keys not listed keep their older glyph until the kit covers them.
+ */
+const KIT = {
+  inspect: 'inspect', play: 'play', pause: 'pause', leap: 'leap', hourglass: 'run-until', undo: 'undo', redo: 'redo', rewind: 'rewind',
+  menu: 'menu', close: 'close', back: 'back', search: 'find', target: 'locate', follow: 'follow', pin: 'pin', star: 'watch',
+  save: 'save', open: 'load', help: 'help', keyboard: 'keys', eye: 'story', world: 'settings',
+  chronicle: 'chronicle', nations: 'nations', statistics: 'figures', atlas: 'atlas', annals: 'annals', codex: 'codex', legends: 'codex', timeline: 'timeline',
+  raise: 'tool-raise-land', sink: 'tool-drown-land', forest: 'tool-plant-forest', rain: 'tool-rain', drought: 'tool-drought',
+  lightning: 'tool-lightning', quake: 'tool-earthquake', tsunami: 'tool-tsunami', settle: 'tool-found-town',
+  discord: 'tool-incite-war', harmony: 'tool-forge-alliance', prosper: 'tool-bless',
+  storm: 'storm', volcano: 'volcano', ruin: 'ruin', plague: 'plague', town: 'town', army: 'army', ship: 'fleet', caravan: 'caravan',
+};
+function kitId(key) {
+  if (!key) return null;
+  const raw = String(key);
+  if (KIT[raw]) return KIT[raw];
+  if (KIT_ICONS[raw]) return raw;
+  const g = resolveGlyph(key);
+  return g && KIT[g] ? KIT[g] : null;
+}
+const KIT_OPEN = (size, cls) => `<svg class="glyph kit${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="butt" stroke-linejoin="miter" aria-hidden="true" focusable="false">`;
+
 const SVG_OPEN = (size, cls) => `<svg class="glyph${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">`;
 
 /** Resolve an icon key (exact, alias, or a known key inside a compound like "tool-quake"). */
 export function resolveGlyph(key) {
   if (!key) return null;
+  if (KIT_ICONS[key]) return key;
   const k = String(key).toLowerCase().replace(/[\s_-]+/g, '');
   if (GLYPHS[key]) return key;
   const reg = hasIcons();
@@ -172,6 +199,8 @@ export function resolveGlyph(key) {
 
 /** SVG markup for a glyph; null when unknown. */
 export function glyph(key, size = 20, cls = '') {
+  const k = kitId(key);
+  if (k) return KIT_OPEN(size, cls) + KIT_ICONS[k] + '</svg>';
   const g = resolveGlyph(key);
   if (!g) return null;
   const inner = GLYPHS[g] ?? getIcon(g);

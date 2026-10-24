@@ -13,6 +13,7 @@ import { tip, openPopover, closePopover, graduationSVG } from './widgets.js';
 import { latLon, temp, int, biomeName } from './format.js';
 import { getPref, setPref } from './prefs.js';
 import { getOverlays, onRegistryChange } from './registry.js';
+import { fixtureFrame } from './frame.js';
 
 export const OVERLAYS = [
   ['borders', 'Borders', 'National borders.'],
@@ -30,8 +31,8 @@ const allOverlays = () => [...OVERLAYS, ...getOverlays().map((o) => [o.id, o.lab
 
 export function mountMapDock(app) {
   const dock = document.getElementById('mapdock');
-  dock.classList.add('instrument');
   clear(dock);
+  fixtureFrame(dock);
 
   const modeVal = h('span.val', { text: 'Terrain' });
   const modeBtn = h('button.mode-btn', { type: 'button', 'aria-haspopup': 'true', 'aria-label': 'Map mode' },

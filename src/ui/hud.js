@@ -1,6 +1,7 @@
-// The HUD: the cartouche (world name, year-dial, date and seasons, headline numbers) and
-// the drive (pause, six speed notches, measured pace, the Story button that starts the
-// Director, the finder that opens the command palette, instrument menu). The menu holds the
+// The HUD: the cartouche (world name, the age it lives in, seasons, the world's numbers) and
+// the time bridge that hangs from the top neatline (the speed governor, the volvelle that turns
+// one day a degree under a fixed brass index, the bob that pauses, and the leaps: Leap, Run
+// until, Story). On a phone the bridge folds to a compact drive (bob, speed, finder, menu). The menu holds the
 // Chronoscope (undo names the act it would take back), Notices, and registered commands that
 // ask for it; the Leap dialog offers "run until…" beside its fixed spans; the keyboard sheet
 // lists the built-in keys, then every registered key and tab key (src/ui/registry.js).
@@ -16,6 +17,7 @@ import { setPref } from './prefs.js';
 import { openSaves, quickSave } from './saves.js';
 import { getCommands, runCommand, listKeys, getTabs, describeKey } from './registry.js';
 import { tabOpen } from './app.js';
+import { fixtureFrame } from './frame.js';
 
 // WP1's world ages (pure readers), shown beside the date. Loaded lazily, never as a top-level
 // await: the single-file bundle must not wait on the sim modules while the UI mounts.
@@ -28,8 +30,8 @@ export function mountHud(app) {
   clear(cart); clear(drive);
 
   // --- cartouche --------------------------------------------------------------------
-  const dial = buildDial();
-  const name = h('div.world-name', { text: '' });
+  const dial = buildDial();    // the phone's small year-dial; the desktop reads the volvelle
+  const name = h('h1.world-name', { text: '' });
   // the year keeps its place on a narrow screen: the month and day give way first
   const dateMD = h('span.date-md', { text: '' });
   const dateY = h('span.date-y', { text: '' });
@@ -47,7 +49,10 @@ export function mountHud(app) {
     era: stat('Era', 'nations', 'The most advanced age any nation has reached.'),
   };
   const headline = h('div.headline', null, Object.values(stats).map((s) => s.el));
-  cart.append(dial.el, name, h('div.date-line', null, date, season, ages), headline);
+  const cartIn = h('div.cart-in', null, h('div.cart-name', null, dial.el, name), ages, h('div.date-line', null, date, season),
+    h('div.rule-loz', { 'aria-hidden': 'true' }, h('span.loz')), headline);
+  cart.append(cartIn);
+  fixtureFrame(cart);
 
   function stat(label, tab, desc) {
     const v = h('span.v', { text: '—' });
@@ -57,15 +62,16 @@ export function mountHud(app) {
     return { el, v };
   }
 
-  // --- drive --------------------------------------------------------------------------
-  const play = h('button.play', { type: 'button', 'aria-label': 'Pause' });
+  // --- the time bridge ------------------------------------------------------------------
+  const play = h('button.play.bob', { type: 'button', 'aria-label': 'Pause' });
   tip(play, 'Pause or resume time.', 'Pause', 'Space');
   play.addEventListener('click', () => app.togglePause());
-  const notches = h('div.speed-notches', { role: 'group', 'aria-label': 'Speed' });
+  // the governor: six detents on one graduated rule, the index under the speed it runs at
+  const notches = h('div.seg.governor', { role: 'group', 'aria-label': 'Speed' });
   const notchBtns = [];
   for (let k = 1; k < SPEEDS.length; k++) {
     const s = SPEEDS[k];
-    const b = h('button', { type: 'button', 'aria-label': `${s.label} speed`, style: { '--h': (8 + k * 4) + 'px' } });
+    const b = h('button', { type: 'button', text: String(k), 'aria-label': `${s.label} speed` });
     tip(b, s.dps === Infinity ? 'As fast as this device allows.' : `${s.dps} days each second.`, s.label, String(k));
     b.addEventListener('click', () => app.setSpeed(k));
     notches.appendChild(b);
@@ -73,29 +79,40 @@ export function mountHud(app) {
   }
   const cycle = h('button.icon-btn.speed-cycle', { type: 'button', 'aria-label': 'Change speed' });
   cycle.addEventListener('click', () => app.setSpeed(app.speed >= SPEEDS.length - 1 ? 1 : app.speed + 1));
-  const speedName = h('span.name');
+  const speedName = h('b.name');
   const speedRate = h('span.rate');
-  const speedLabel = h('div.speed-label', null, speedName, speedRate);
+  const speedLabel = h('p.speed-label', null, speedName, h('span.sep-dot', { text: ' · ' }), speedRate);
   const status = h('button.icon-btn.warn-chip', { type: 'button', hidden: true });
   status.appendChild(svgEl(glyph('help', 18)));
   status.addEventListener('click', () => { app.setTab('world'); app.emit('layout', 'open-panel'); app.emit('engineRoom'); });
-  const menuBtn = h('button.icon-btn', { type: 'button', 'aria-label': 'Menu', 'aria-haspopup': 'true' });
+  const menuBtn = h('button.icon-btn.menu-btn', { type: 'button', 'aria-label': 'Menu', 'aria-haspopup': 'true' });
   menuBtn.appendChild(svgEl(glyph('menu', 20)));
-  tip(menuBtn, 'New world, saving, theme and shortcuts.', 'Menu');
+  tip(menuBtn, 'New world, saving and shortcuts.', 'Menu');
   menuBtn.addEventListener('click', () => openMenu(app, menuBtn));
   const layersBtn = h('button.icon-btn.layers-phone', { type: 'button', 'aria-label': 'Map layers' });
   layersBtn.appendChild(svgEl(glyph('layers', 18)));
   layersBtn.addEventListener('click', () => app.emit('toggleDockPhone'));
   // the Director (story mode) and the finder (command palette), when their modules are here
-  const storyBtn = h('button.icon-btn.story-btn', { type: 'button', 'aria-label': 'Story mode', 'aria-pressed': 'false', hidden: true }, svgEl(glyph('eye', 18)), h('span.story-label', { text: 'Story' }));
+  const storyBtn = h('button.leap-btn.story-btn', { type: 'button', 'aria-label': 'Story mode', 'aria-pressed': 'false', hidden: true }, svgEl(glyph('eye', 20)), h('span.story-label', { text: 'Story' }));
   tip(storyBtn, 'The Director flies to great events as they happen and tells them.', 'Story mode', 'G');
   storyBtn.addEventListener('click', () => app.director?.toggle());
   const findBtn = h('button.icon-btn.find-btn', { type: 'button', 'aria-label': 'Find anything', hidden: true }, svgEl(glyph('search', 18)));
   tip(findBtn, 'Find any place, people, war or command.', 'Find', '/');
   findBtn.addEventListener('click', () => app.openCommand?.(''));
-  drive.append(play, notches, cycle, speedLabel, h('span.sep'), storyBtn, findBtn, status, layersBtn, menuBtn);
+  const leapBtn = h('button.leap-btn', { type: 'button', 'aria-label': 'Leap ahead' }, svgEl(glyph('leap', 20)), h('span', { text: 'Leap' }));
+  tip(leapBtn, 'Leap years ahead at full speed.', 'Leap ahead', 'J');
+  leapBtn.addEventListener('click', () => openLeap(app));
+  const untilBtn = h('button.leap-btn', { type: 'button', 'aria-label': 'Run until', hidden: true }, svgEl(glyph('hourglass', 20)), h('span', { text: 'Run until' }));
+  tip(untilBtn, 'Run time on until something happens.', 'Run until', 'U');
+  untilBtn.addEventListener('click', () => app.openUntil?.());
+  const volvelle = buildVolvelle();
+  const gov = h('div.gov', null, notches, speedLabel);
+  const leaps = h('nav.leaps', { 'aria-label': 'Leaps in time' }, leapBtn, untilBtn, storyBtn);
+  drive.append(gov, volvelle.el, play, leaps, cycle, findBtn, status, layersBtn, menuBtn);
+  fixtureFrame(drive, { open: 'top' });
   const syncStory = () => {
     storyBtn.hidden = !app.director;
+    untilBtn.hidden = !app.openUntil;
     findBtn.hidden = !app.openCommand;
     const on = Boolean(app.director?.on);
     storyBtn.classList.toggle('is-on', on);
@@ -109,13 +126,15 @@ export function mountHud(app) {
     clear(play);
     play.appendChild(svgEl(glyph(k === 0 ? 'play' : 'pause', 20)));
     play.setAttribute('aria-label', k === 0 ? 'Resume' : 'Pause');
+    // paused, the index stays on the speed time will resume at
+    const at = k === 0 ? app.lastSpeed || 2 : k;
     notchBtns.forEach((b, j) => {
-      b.classList.toggle('is-on', j + 1 === k);
-      b.classList.toggle('is-lit', j + 1 < k && k !== 0);
-      b.setAttribute('aria-pressed', j + 1 === k ? 'true' : 'false');
+      b.classList.toggle('is-on', j + 1 === at);
+      b.setAttribute('aria-pressed', j + 1 === at ? 'true' : 'false');
     });
     const s = SPEEDS[k];
-    setText(speedName, s ? s.label : '');
+    setText(speedName, k === 0 ? 'Paused' : s ? s.label : '');
+    drive.classList.toggle('is-paused', k === 0);
     setText(cycle, '×' + (k === 0 ? app.lastSpeed || 2 : k));
     tip(cycle, `${SPEEDS[k === 0 ? app.lastSpeed || 2 : k].label}. Tap for the next speed.`, 'Speed');
     refreshRate();
@@ -125,11 +144,12 @@ export function mountHud(app) {
     const k = app.speed;
     if (!app.world) { setText(speedRate, ''); return; }
     if (k === 0) { setText(speedRate, 'time stands still'); return; }
+    volvelle.setPace(k);
     const dps = app.measured.dps || SPEEDS[k].dps;
     if (!Number.isFinite(dps)) { setText(speedRate, 'measuring…'); return; }   // Max, before its first second
     const ypm = (dps / DAYS_PER_YEAR) * 60;
     const days = Math.round(dps);
-    setText(speedRate, dps >= DAYS_PER_YEAR / 2 ? `${ypm >= 100 ? int(ypm) : ypm.toFixed(1)} years / min` : `${days} ${days === 1 ? 'day' : 'days'} / s`);
+    setText(speedRate, dps >= DAYS_PER_YEAR / 2 ? `${ypm >= 100 ? int(ypm) : ypm.toFixed(1)} years a minute` : `${days} ${days === 1 ? 'day' : 'days'} a second`);
   }
 
   function refresh() {
@@ -144,6 +164,7 @@ export function mountHud(app) {
     if (Number.isFinite(tilt) && tilt < 3) setText(season, 'No seasons: the world stands upright');
     else setText(season, `${seasonName(w, 0)} in the north · ${seasonName(w, w.H - 1)} in the south`);
     dial.set(w.time.day);
+    volvelle.set(w.time.day, yearOf(w));
     refreshAges(w);
     const s = summarize(w);
     setText(stats.pop.v, people(s.pop));
@@ -174,7 +195,8 @@ export function mountHud(app) {
     const a = list[0];
     ages.dataset.key = a.key;
     ages.className = `age-chip is-${a.tone || 'neutral'}`;
-    setText(ages, list.map((x) => x.short || x.name).join(' · '));
+    const ageName = (n) => (/^the\b/i.test(n) ? n.replace(/^The\b/, 'the') : `the ${n}`);
+    setText(ages, `in ${list.map((x) => ageName(x.short || x.name)).join(' · ')}`);
     tip(ages, `${list.map((x) => `${x.name}: ${x.desc || ''}${x.why ? ` (${x.why})` : ''}`).join(' ')} Open its record.`, a.name);
   }
 
@@ -223,10 +245,75 @@ function buildDial() {
   };
 }
 
+/**
+ * The volvelle: a dial hung from the top neatline whose rings turn one day a degree under a
+ * fixed brass index (360 days, twelve months of thirty). Day ticks, five-day ticks and month
+ * ticks are dashes on circles (pathLength 360); today's month is lettered in brass between its
+ * neighbours, and its arc on the inner ring is drawn in brass. The day and the year are lettered
+ * upright in the dial's open lower half. Below the index hangs the bob (the pause button).
+ */
+function buildVolvelle() {
+  const R = 108;
+  const svg = svgNode('svg', { class: 'volvelle', viewBox: `${-R - 4} 0 ${2 * R + 8} ${R + 18}`, 'aria-hidden': 'true' });
+  const ring = (r, w, dash, off, cls, extra = {}) => svgNode('circle', { r, fill: 'none', 'stroke-width': w, pathLength: 360, 'stroke-dasharray': dash, 'stroke-dashoffset': off, class: cls, ...extra });
+  svg.appendChild(svgNode('circle', { r: R + 2.5, fill: 'none', class: 'vv-case' }));
+  svg.appendChild(svgNode('circle', { r: R, class: 'vv-face' }));
+  svg.appendChild(svgNode('circle', { r: R - 3, fill: 'none', class: 'vv-hair' }));
+  const turn = svgNode('g', { class: 'vv-turn' });
+  turn.appendChild(ring(R - 5.5, 5, '0.22 0.78', 0.11, 'vv-days dayticks'));
+  turn.appendChild(ring(R - 7, 8, '0.3 4.7', 0.15, 'vv-fives'));
+  turn.appendChild(ring(R - 8, 10, '0.5 29.5', 0.25, 'vv-months'));
+  turn.appendChild(ring(84, 4, '0.5 29.5', 0.25, 'vv-months'));
+  turn.appendChild(svgNode('circle', { r: 82, fill: 'none', class: 'vv-inner' }));
+  const arc = svgNode('path', { class: 'vv-arc' });
+  turn.appendChild(arc);
+  const labels = [0, 1, 2].map(() => { const t = svgNode('text', { class: 'vv-month', 'text-anchor': 'middle' }); turn.appendChild(t); return t; });
+  svg.appendChild(turn);
+  const dayT = svgNode('text', { class: 'vv-day', x: 0, y: 34, 'text-anchor': 'middle' });
+  const yearT = svgNode('text', { class: 'vv-year', x: 0, y: 66, 'text-anchor': 'middle' });
+  svg.append(dayT, yearT);
+  // the fixed index at six o'clock, and the stem down to the bob
+  svg.appendChild(svgNode('path', { class: 'vv-stem', d: `M0 ${R - 8}V${R - 1}` }));
+  svg.appendChild(svgNode('path', { class: 'vv-index', d: `M0 ${R + 1.5}L5.5 ${R + 9}H-5.5Z` }));
+  svg.appendChild(svgNode('path', { class: 'vv-stem2', d: `M0 ${R + 9}V${R + 18}` }));
+  const pt = (deg, r) => { const t = (deg * Math.PI) / 180; return [r * Math.cos(t), r * Math.sin(t)]; };
+  let lastDay = -1, lastMonth = -1;
+  return {
+    el: svg,
+    /** Faster than Normal, the rings jump instead of easing from day to day. */
+    setPace(k) { svg.classList.toggle('is-fast', k > 2); },
+    set(day, year) {
+      if (day === lastDay) return;
+      // a leap, a load or a rewind jumps the rings; day to day they turn
+      svg.classList.toggle('is-jump', lastDay < 0 || Math.abs(day - lastDay) > 20);
+      lastDay = day;
+      const doy = ((day % DAYS_PER_YEAR) + DAYS_PER_YEAR) % DAYS_PER_YEAR;
+      const m = Math.floor(doy / DAYS_PER_MONTH);
+      // the days run anticlockwise round the rings (day d at −d°), so yesterday sits left of the
+      // index and tomorrow right of it; today's tick turns to 90°, under the index. The angle runs
+      // on with the days rather than wrapping, so the turn never spins back at the new year.
+      turn.style.transform = `rotate(${(90 + day).toFixed(1)}deg)`;
+      dayT.textContent = `${MONTH_NAMES[m]} ${doy % DAYS_PER_MONTH + 1}`;
+      yearT.textContent = `Year ${year}`;
+      if (m === lastMonth) return;
+      lastMonth = m;
+      const [x0, y0] = pt(-(m + 1) * DAYS_PER_MONTH, 82), [x1, y1] = pt(-m * DAYS_PER_MONTH, 82);
+      arc.setAttribute('d', `M${x0.toFixed(2)} ${y0.toFixed(2)}A82 82 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`);
+      [-1, 0, 1].forEach((d, i) => {
+        const mm = (m + d + 12) % 12, mid = mm * DAYS_PER_MONTH + DAYS_PER_MONTH / 2;
+        const [x, y] = pt(-mid, 91.5);
+        labels[i].textContent = MONTH_NAMES[mm];
+        labels[i].setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${(-mid - 90).toFixed(2)})`);
+        labels[i].classList.toggle('is-now', d === 0);
+      });
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Menu
 
-function openMenu(app, anchor) {
+export function openMenu(app, anchor) {
   const item = (icon, label, fn, hint = '') => {
     const b = h('button.menu-item', { type: 'button' }, svgEl(glyph(icon, 18)), h('span', { text: label }), hint ? h('span.hint', { text: hint }) : null);
     b.addEventListener('click', () => { closePopover(); fn(); });
