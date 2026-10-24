@@ -18,7 +18,7 @@ import { createStatistics } from './statistics.js';
 import { createWorldTab } from './worldtab.js';
 import { createAtlas } from './atlas.js';
 import { TABS, selectionPoint } from './app.js';
-import { openMenu } from './hud.js';
+import { openContents } from './contents.js';
 import { BUILTIN_TABS, getTabs, onRegistryChange } from './registry.js';
 
 const KEYS = { inspector: 'I', chronicle: 'C', nations: 'N', statistics: 'T', world: 'P', atlas: 'L' };
@@ -55,9 +55,9 @@ export function mountPanel(app) {
     return b;
   }
   // the handles above the tabs: the menu and the finder
-  const menuHandle = h('button.ehandle', { type: 'button', 'aria-label': 'Menu', 'aria-haspopup': 'true' }, svgEl(glyph('menu', 18)));
+  const menuHandle = h('button.ehandle', { type: 'button', 'aria-label': 'Menu', 'aria-haspopup': 'dialog' }, svgEl(glyph('menu', 18)));
   tip(menuHandle, 'New world, saving, notices and shortcuts.', 'Menu');
-  menuHandle.addEventListener('click', () => openMenu(app, menuHandle));
+  menuHandle.addEventListener('click', () => openContents(app));
   const findHandle = h('button.ehandle', { type: 'button', 'aria-label': 'Find anything' }, svgEl(glyph('search', 18)));
   tip(findHandle, 'Find any place, people, war or command.', 'Find', '/');
   findHandle.addEventListener('click', () => app.openCommand?.(''));

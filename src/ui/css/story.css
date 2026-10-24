@@ -196,15 +196,7 @@
 .until-quick { display: flex; flex-wrap: wrap; gap: 6px; }
 .until-quick .chip .glyph { color: var(--brass); }
 
-.notices { display: flex; flex-direction: column; gap: 10px; }
-.notice-cats { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 6px 12px; align-items: center; }
-.notice-cat { display: flex; align-items: center; gap: 8px; font-size: var(--t-small); color: var(--ink); }
-.notice-cats .field { min-width: 120px; padding-top: 4px; padding-bottom: 4px; }
-.notice-all { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0 10px; border-bottom: 1px solid var(--hair); }
-.notice-all .notice-cat { font-weight: 500; white-space: nowrap; }
-.notice-all .field { width: auto; flex: 0 0 auto; min-width: 120px; padding-top: 4px; padding-bottom: 4px; }
-.notice-rules { display: flex; flex-direction: column; }
-.notices .menu-item.switch, .dir-settings .menu-item.switch { padding-left: 0; }
+.dir-settings .menu-item.switch { padding-left: 0; }
 
 /* ------------------------------------------------------------------ saga, elegy, pins, rewind */
 
@@ -357,7 +349,6 @@
   .stage[data-sheet="tall"] .story-caption { display: none; }
   .resume-card { position: static; width: auto; margin: 4px 0 14px; }
   .acts-field { grid-template-columns: minmax(0, 1fr); }
-  .notice-cats { grid-template-columns: minmax(0, 1fr) auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

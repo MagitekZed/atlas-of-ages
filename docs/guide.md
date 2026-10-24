@@ -38,8 +38,8 @@ The size, the shape of the land, the first tribes, the starting era, the age and
 - **Leap ahead** (J) runs 10 to 1,000 years at full speed while the map keeps drawing. Esc or Stop ends the leap early.
 - **Run until** (U) runs at full speed, up to 1,000 years, until something happens: the next war, a historic or epochal event, a nation falling or rising, a plague, a great disaster, a new era, the selected town changing hands, being besieged or growing, the selected ruler dying, news of what you watch, or a year you choose. Then time stops, the map flies there and the record opens. Shift+U runs until the same thing happens again.
 - **Digests.** After a leap, or a run until that covers more than 20 years, a review card (for example "250 years in review") sums up what changed. Each line links to its record. The Annals keep one for every century.
-- **Notices** (menu › Notices and pauses…) set which kinds of news appear as toasts, and at what importance. They also set what pauses time on its own; by default that is epochal events.
-- **Sound** is off until you turn it on in the menu. Every sound is synthesised in the browser.
+- **Notices** (Contents › Options › Notices) set which kinds of news appear as letters, and at what importance. They also set what pauses time on its own; by default that is epochal events.
+- **Sound** is off until you turn it on (Contents › Options › Sound, or the switch on the title page). Every sound is synthesised in the browser.
 
 ## Finding things
 
@@ -84,13 +84,13 @@ Q and E step through the tools, and Esc returns to Inspect. Brushes keep working
 - **Pair tools** join two things, for example inciting a war, brokering peace or opening a trade route. Click the first, then the second. Esc lets go of the first pick.
 - **Divine acts** live in a record's dossier. You can bless, curse or smite a ruler, grant an heir, depose, gift a technology, commission a wonder, rename, or read a town's or realm's fate and nudge what comes next. You can also send a hero against a beast or tame it. Drag a selected army or storm to send it somewhere.
 - **Deed cards** report each act once, with Undo, Inspect and Watch.
-- **Undo and rewind.** Ctrl/Cmd+Z undoes your last act and Ctrl/Cmd+Shift+Z redoes it. Undo replays history from just before the act, without it. Rewind history… (menu, Atlas or timeline) returns to an earlier day. You can keep the future you left as a branch save. A dangerous act that cannot be undone asks for a second click.
+- **Undo and rewind.** Ctrl/Cmd+Z undoes your last act and Ctrl/Cmd+Shift+Z redoes it. Undo replays history from just before the act, without it. Rewind history (the Contents, the Atlas or the timeline) returns to an earlier day. You can keep the future you left as a branch save. A dangerous act that cannot be undone asks for a second click.
 
 ## Saving
 
-Menu › Save and load… keeps worlds in browser storage slots, each with a map thumbnail. Ctrl/Cmd+S quick-saves. The menu can also save automatically every century (off by default). The game also keeps a resume copy as you play, so the Genesis screen can offer Continue. Export writes a `.atlas.json` (or `.atlas.json.gz`) file, and Import reads one back. Private windows and some embedded views block storage or downloads; importing a file always works.
+Contents › Save and load opens the Archive: worlds kept in browser storage slots, each with a map of its world, branches under the save they left. Ctrl/Cmd+S quick-saves. Options › Worlds can also save automatically every century (off by default). The game also keeps a resume copy as you play, so the title page can offer Continue. Export writes a `.atlas.json` (or `.atlas.json.gz`) file, and Import reads one back. Private windows and some embedded views block storage or downloads; importing a file always works.
 
-The menu also has New world, the theme (System, Light or Dark), and the keyboard sheet.
+The Contents (Esc with nothing to step back from, or the Menu handle) stops time while it is open. It holds Resume, Save and load, Rewind history, New World (or skip the rite with Default or Random), Options, Every key, and Return to the title. Options › Worlds also turns the forging of a new world on or off.
 
 ## Keyboard and mouse
 
@@ -108,7 +108,7 @@ The menu also has New world, the theme (System, Light or Dark), and the keyboard
 | Z | Frame the selection |
 | M, Shift+M | Next or previous map mode |
 | Tab, Shift+Tab | With the map focused: step through the largest towns and armies in view |
-| Esc | One step back per press: drop a pair tool's first pick, return to Inspect, leave the Atlas's past view, clear the selection. During a leap, stop it |
+| Esc | One step back per press: drop a pair tool's first pick, return to Inspect, leave the Atlas's past view, clear the selection. With nothing to step back from, open the Contents. During a leap, stop it |
 | Q, E | Previous or next god tool |
 | [ and ], Shift+wheel | Brush radius |
 | Alt+wheel | Brush strength |

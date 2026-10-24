@@ -1371,8 +1371,8 @@ class Renderer {
   // ---------------------------------------------------------------------------
   // Minimap
 
-  /** Whole world small, with the viewport rectangle. (w, h) in the ctx's current units. */
-  drawMinimap(ctx, mw, mh) {
+  /** Whole world small, with the viewport rectangle (unless viewport: false). (w, h) in the ctx's current units. */
+  drawMinimap(ctx, mw, mh, { viewport = true } = {}) {
     const w = this.world;
     if (!ctx || !w || !this.terrain) return;
     mw = Math.max(1, mw || 1); mh = Math.max(1, mh || 1);
@@ -1392,6 +1392,7 @@ class Renderer {
     ctx.save();
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this._mini, ox, oy, dw, dh);
+    if (!viewport) { ctx.restore(); return; }
     // viewport rectangle
     const c = this.camera;
     const hw = this.viewW / 2 / c.zoom, hh = this.viewH / 2 / c.zoom;

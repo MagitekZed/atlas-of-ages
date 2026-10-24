@@ -27,6 +27,7 @@ import { mountTitle } from './ui/title.js';
 import { forgeWorld } from './ui/forging.js';
 import { getPref } from './ui/prefs.js';
 import { mountHud, showHelp } from './ui/hud.js';
+import { openOptions } from './ui/options.js';
 import { mountMapDock } from './ui/mapdock.js';
 import { mountPalette } from './ui/palette.js';
 import { mountInput } from './ui/input.js';
@@ -637,13 +638,22 @@ title = mountTitle(app, {
     canvas.width = Math.round(w.W * 6); canvas.height = Math.round(w.H * 6);
     drawPreview(w, canvas);
   },
-  onNew: () => {},
-  onDefault: () => beginWorld({ ...defaultParams(), seed: randomSeed() }),
-  onRandom: () => beginWorld(randomWorldParams()),
+  // at start-up the rite waits under the title; over a world, New World opens it
+  onNew: () => { if (app.world) app.newWorld(); },
+  onDefault: () => app.beginQuick(false),
+  onRandom: () => app.beginQuick(true),
   onLoad: () => openSaves(app),
+  onOptions: () => openOptions(app),
   onKeys: () => showHelp(app),
 });
-app.showTitle = () => title.show();
+/** Begin at once, skipping the rite: the defaults, or a world of chance. */
+app.beginQuick = (random) => beginWorld(random ? randomWorldParams() : { ...defaultParams(), seed: randomSeed() });
+/** The title page over the world (Return to the title): time stops and the table's keys rest. */
+app.showTitle = () => {
+  app.pause();
+  if (app.world) appEl.dataset.mode = 'title';
+  title.show();
+};
 
 requestAnimationFrame(frame);
 window.__atlasBooted = true;

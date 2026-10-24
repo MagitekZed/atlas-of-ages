@@ -13,13 +13,13 @@
 import { serializeWorld, compressJSON, decompressJSON } from '../core/serialize.js';
 import * as SER from '../core/serialize.js';
 import { yearOf } from '../core/world.js';
-import { SPEEDS } from '../core/constants.js';
+import { SPEEDS, MAP_SIZES } from '../core/constants.js';
 import { liveCivs, liveSettlements } from '../core/entities.js';
 import { h, clear, svgEl } from './dom.js';
 import { glyph } from './icons.js';
 import { openModal, confirmDialog, promptDialog } from './widgets.js';
 import { statusToast } from './toasts.js';
-import { people, int } from './format.js';
+import { people, int, monthYear } from './format.js';
 import { getPref } from './prefs.js';
 
 const DB_NAME = 'atlas-of-ages';
@@ -92,14 +92,15 @@ function metaFor(world, id, name, bytes, extra = {}) {
   };
 }
 
-/** A small picture of the world as the minimap draws it (webp data URL, about 8 KB), or null. */
+/** A small picture of the whole world as the minimap draws it (webp data URL, about 12 KB), or null. */
 export function thumbnail(app, world = app.world) {
   try {
     if (!world || !app.renderer || typeof app.renderer.drawMinimap !== 'function' || app.world !== world) return null;
     const c = document.createElement('canvas');
-    c.width = 160; c.height = Math.max(40, Math.round(160 * (world.H / world.W)));
+    // drawn twice the size the rows show it, so the Archive's large plate stays sharp
+    c.width = 320; c.height = Math.max(80, Math.round(320 * (world.H / world.W)));
     const ctx = c.getContext('2d');
-    app.renderer.drawMinimap(ctx, c.width, c.height);
+    app.renderer.drawMinimap(ctx, c.width, c.height, { viewport: false });
     let url = c.toDataURL('image/webp', 0.7);
     if (!url.startsWith('data:image/webp')) url = c.toDataURL('image/jpeg', 0.7);
     return url.length < 60000 ? url : null;
@@ -240,6 +241,13 @@ export function initSaves(app) {
   window.addEventListener('pagehide', () => { if (app.world) { noteLastWorld(app.world); writeResume(app, true); } });
 }
 
+/** Keep the world for Continue now, whatever the cadence (Return to the title). */
+export async function keepResume(app) {
+  if (!app.world) return;
+  noteLastWorld(app.world);
+  await writeResume(app, true);
+}
+
 /** When the slot is older than the world the viewer last had open (a session too short to be written, or its last minutes): say so. */
 function staleNote(m) {
   const last = lastWorld();
@@ -346,79 +354,127 @@ function whenText(ms) {
 // ---------------------------------------------------------------------------
 // The dialog
 
+/** The Archive: every world kept in this browser, grouped by world with its branches under it, the
+ * copies kept for you apart; the chosen save shown large on the right with what it holds. */
 export function openSaves(app) {
-  const body = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '14px' } });
-  const notice = h('div.notice', { hidden: true });
-  const slotsBox = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } });
+  const notice = h('p.arc-notice', { hidden: true });
+  const list = h('div.arc-list');
+  const detail = h('div.arc-detail');
   const fileInput = h('input', { type: 'file', accept: '.json,.gz,.atlas,application/json,application/gzip', id: 'import-file', hidden: true });
-
-  const current = app.world ? h('div.slot', null,
-    h('span.sn', { text: app.world.name }),
-    h('span.sm', { text: `Now: Year ${yearOf(app.world)} · ${liveCivs(app.world).length} nations · ${people(liveSettlements(app.world).reduce((a, s) => a + (s.population || 0), 0))} people` }),
-    h('span.sa', null,
-      h('button.btn.btn-brass.btn-sm', { type: 'button', text: 'Save to a new slot', onclick: () => saveNew() }),
-    ),
-  ) : h('p.muted', { text: 'Begin or open a world to save it.' });
-
-  const exportBtn = h('button.btn', { type: 'button', disabled: !app.world }, svgEl(glyph('exportFile', 16)), 'Export to a file');
   const importBtn = h('button.btn', { type: 'button' }, svgEl(glyph('importFile', 16)), 'Import a file');
-  exportBtn.addEventListener('click', () => doExport());
   importBtn.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', () => doImport(fileInput.files?.[0]));
+  const delBtn = h('button.btn.btn-quiet', { type: 'button', text: 'Delete' });
+  const overBtn = h('button.btn', { type: 'button', text: 'Overwrite' });
+  const openBtn = h('button.btn.btn-brass', { type: 'button', text: 'Open' });
+  delBtn.addEventListener('click', () => chosen && doDelete(chosen));
+  overBtn.addEventListener('click', () => chosen && doOverwrite(chosen));
+  openBtn.addEventListener('click', () => chosen && doLoad(chosen));
+  let rows = [], chosen = null;
 
-  body.append(
-    h('h3.rule-head', { text: 'This world' }), current,
-    h('h3.rule-head', { text: 'Saved in this browser' }), notice, slotsBox,
-    h('h3.rule-head', { text: 'Files' }),
-    h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } }, exportBtn, importBtn, fileInput),
-    h('p.gen-note', { text: 'Some embedded views block downloads. If no file appears after exporting, keep the world in a browser slot instead; importing a file always works.' }),
-  );
-
-  const modal = openModal({ title: 'Save and load', body, actions: [{ label: 'Close', onClick: (m) => m.close() }] });
-
-  async function refresh() {
-    clear(slotsBox);
-    let rows;
-    try { rows = await listSlots(); notice.hidden = true; }
-    catch (e) {
-      notice.hidden = false; notice.className = 'notice is-warn';
-      notice.textContent = `Browser storage is not available here (${e.message}). You can still export the world to a file and import it later.`;
-      return;
-    }
-    if (!rows.length) { slotsBox.appendChild(h('p.muted', { text: 'No saved worlds yet.' })); return; }
-    // branches sit under the newest slot of the world they split from
-    const parents = new Map();
-    for (const m of rows) if (!m.branchOf && m.key && !parents.has(m.key)) parents.set(m.key, m);
-    const under = new Map();
-    for (const m of rows) if (m.branchOf && parents.has(m.branchOf)) { if (!under.has(m.branchOf)) under.set(m.branchOf, []); under.get(m.branchOf).push(m); }
-    for (const m of rows) {
-      if (m.branchOf && parents.has(m.branchOf)) continue;
-      slotsBox.appendChild(slotRow(m, false));
-      if (!m.branchOf && m.key && parents.get(m.key) === m) for (const b of under.get(m.key) || []) slotsBox.appendChild(slotRow(b, true));
-    }
+  // this world, when one is open: save it to a slot or a file
+  let now = null;
+  if (app.world) {
+    const w = app.world;
+    const exportBtn = h('button.btn', { type: 'button' }, svgEl(glyph('exportFile', 16)), 'Export to a file');
+    exportBtn.addEventListener('click', () => doExport());
+    const pic = thumbnail(app);
+    now = h('div.arc-now', null,
+      pic ? h('img.arc-thumb', { src: pic, alt: '' }) : h('span.arc-thumb.is-empty'),
+      h('div.arc-text', null,
+        h('span.arc-name', { text: `${w.name}, Year ${int(yearOf(w))}` }),
+        h('i.arc-date', { text: 'Open now: not saved until you save it' }),
+        h('span.arc-meta', { text: `${liveCivs(w).length} nations · ${people(liveSettlements(w).reduce((a, s) => a + (s.population || 0), 0))} people · ${int(liveSettlements(w).length)} towns` })),
+      h('div.arc-acts', null, h('button.btn.btn-brass', { type: 'button', text: 'Save to a new slot', onclick: () => saveNew() }), exportBtn));
   }
 
-  function slotRow(m, nested) {
-    const open = h('button.btn.btn-sm', { type: 'button', text: 'Open' });
-    const over = h('button.btn.btn-sm', { type: 'button', text: 'Overwrite', disabled: !app.world || Boolean(m.resume) });
-    const del = h('button.btn.btn-sm.btn-quiet', { type: 'button', 'aria-label': `Delete ${m.name}` }, svgEl(glyph('trash', 15)));
-    open.addEventListener('click', () => doLoad(m));
-    over.addEventListener('click', () => doOverwrite(m));
-    del.addEventListener('click', () => doDelete(m));
-    const tag = m.branchOf ? h('span.tag', { text: m.branchDay != null ? `Branch · from Year ${int(Math.floor(m.branchDay / 360))}` : 'Branch' }) : m.resume ? h('span.tag', { text: 'Resume' }) : null;
-    return h('div.slot', { class: nested ? 'is-branch' : '' },
-      m.thumb ? h('img.slot-thumb', { src: m.thumb, alt: '' }) : h('span.slot-thumb.is-empty'),
-      h('span.sn', null, `${m.name} · ${m.worldName}`, tag ? ' ' : '', tag),
-      h('span.sm', { text: `Year ${m.year} · ${m.nations} nations · ${people(m.pop)} people · ${sizeText(m.bytes || 0)} · saved ${whenText(m.savedAt)}` }),
-      h('span.sa', null, open, over, del),
-    );
+  const modal = openModal({
+    kicker: 'The archive · kept in this browser', title: app.world ? 'Save and load' : 'Load a World', cls: 'is-archive',
+    lead: 'Each slot keeps a map of its world. A branch stands under the save it left.',
+    body: h('div.arc', null,
+      h('div.arc-left', null, now ? h('h3.arc-h', null, h('span', { text: 'This world' })) : null, now, notice, list),
+      detail),
+    actions: [delBtn, overBtn, h('span.arc-gap'), openBtn],
+  });
+  modal.box.querySelector('.modal-head').append(h('div.arc-import', null, importBtn, fileInput,
+    h('span.arc-import-note', { text: 'An .atlas.json from another browser. Importing always works.' })));
+
+  const kindOf = (m) => (m.resume ? 'Kept' : m.id === 'autosave' ? 'Autosave' : m.id === 'quick' ? 'Quick save' : m.branchOf ? 'Branch' : 'Saved');
+  const titleOf = (m) => (m.resume || m.id === 'autosave' || m.id === 'quick' ? `${m.worldName}, Year ${int(m.year)}` : m.name);
+  const metaLine = (m) => `${int(m.nations)} nations · ${people(m.pop)} people${m.towns != null ? ` · ${int(m.towns)} towns` : ''}`;
+
+  function row(m, cls = '') {
+    const b = h('button.arc-row', { type: 'button', class: cls, dataset: { id: m.id } },
+      m.thumb ? h('img.arc-thumb', { src: m.thumb, alt: '' }) : h('span.arc-thumb.is-empty'),
+      h('span.arc-text', null,
+        m.branchOf ? h('span.arc-kick', { text: m.branchDay != null ? `Branch · from Year ${int(Math.floor(m.branchDay / 360))}` : 'Branch' }) : null,
+        h('span.arc-name', { text: m.resume ? 'Where you left off' : m.id === 'autosave' ? 'Autosave' : titleOf(m) }),
+        h('i.arc-date', { text: m.resume ? `${m.worldName} · ${monthYear(m.day)} · the resume copy` : m.id === 'autosave' ? `${m.worldName} · Year ${int(m.year)} · written each time a century passes` : monthYear(m.day) }),
+        m.resume || m.id === 'autosave' ? null : h('span.arc-meta', { text: metaLine(m) })),
+      h('span.arc-when', null, h('span.arc-kind', { text: kindOf(m) }), h('span', { text: whenText(m.savedAt) }), h('span', { text: sizeText(m.bytes || 0) })));
+    b.addEventListener('click', () => choose(m));
+    b.addEventListener('dblclick', () => doLoad(m));
+    return b;
+  }
+
+  function choose(m) {
+    chosen = m;
+    for (const r of list.querySelectorAll('.arc-row')) r.classList.toggle('is-on', r.dataset.id === m?.id);
+    clear(detail);
+    delBtn.disabled = overBtn.disabled = openBtn.disabled = !m;
+    if (!m) { openBtn.textContent = 'Open'; detail.append(h('p.arc-empty', { text: 'Nothing is kept in this browser yet. Save the world you have open, or import a file.' })); return; }
+    overBtn.disabled = !app.world || Boolean(m.resume);
+    overBtn.hidden = !app.world;
+    openBtn.textContent = `Open ${m.worldName}`;
+    const stat = (k, v) => h('div.pm-stat', null, h('span.k', { text: k }), h('span.v', { text: v }));
+    detail.append(
+      m.thumb ? h('img.arc-big', { src: m.thumb, alt: `${m.worldName}, the whole world as it was saved in Year ${int(m.year)}` }) : h('div.arc-big.is-empty'),
+      h('div.arc-cap', null, h('i', { text: 'The whole world, as it was saved' }), h('span', { text: MAP_SIZES[m.size] ? `${MAP_SIZES[m.size].label} · ${MAP_SIZES[m.size].w} × ${MAP_SIZES[m.size].h}` : '' })),
+      h('h3.arc-world', { text: m.worldName }),
+      h('i.arc-date', { text: `${monthYear(m.day)}${m.branchOf ? ' · a branch' : ''}` }),
+      h('div.rule-loz', { 'aria-hidden': 'true' }, h('span.loz')),
+      h('div.pm-stats', null, stat('Pop.', people(m.pop)), stat('Nations', int(m.nations)), m.towns != null ? stat('Towns', int(m.towns)) : null, stat('Year', int(m.year))),
+      h('dl.arc-facts', null,
+        h('dt', { text: kindOf(m) === 'Kept' ? 'Kept' : 'Saved' }), h('dd', { text: whenText(m.savedAt) }),
+        h('dt', { text: 'Size' }), h('dd', { text: sizeText(m.bytes || 0) }),
+        h('dt', { text: 'Slot' }), h('dd', { text: m.resume ? 'Where you left off' : m.name })),
+      staleNote(m) || '');
+  }
+
+  async function refresh() {
+    clear(list);
+    try { rows = await listSlots(); }
+    catch (e) {
+      notice.hidden = false; notice.className = 'arc-notice is-warn';
+      notice.textContent = `Browser storage is not available here (${e.message}). You can still export the world to a file and import it later.`;
+      rows = [];
+    }
+    // the copies kept for you stand apart; the rest gather under their world, branches under the save they left
+    const kept = rows.filter((m) => m.resume || m.id === 'autosave');
+    const own = rows.filter((m) => !kept.includes(m));
+    const worlds = new Map();
+    for (const m of own) { const k = m.branchOf || m.key || m.worldName; if (!worlds.has(k)) worlds.set(k, []); worlds.get(k).push(m); }
+    for (const [, ms] of worlds) {
+      const mains = ms.filter((m) => !m.branchOf), branches = ms.filter((m) => m.branchOf);
+      const name = (mains[0] || ms[0]).worldName;
+      list.append(h('h3.arc-h', null, h('span', { text: name }), h('span.arc-h-note', { text: `${ms.length === 1 ? 'one save' : `${int(ms.length)} saves`}${branches.length ? ` · ${branches.length === 1 ? 'a branch' : `${branches.length} branches`}` : ''}` })));
+      for (const m of mains) list.append(row(m));
+      for (const m of branches) list.append(row(m, 'is-branch'));
+    }
+    if (kept.length) {
+      list.append(h('h3.arc-h', null, h('span', { text: 'Kept for you' }), h('span.arc-h-note', { text: 'Written as you play, each over the last' })));
+      for (const m of kept) list.append(row(m, 'is-kept'));
+    }
+    if (!rows.length && !now) list.append(h('p.muted', { text: 'No saved worlds yet.' }));
+    const pick = (chosen && rows.find((m) => m.id === chosen.id)) || own.find((m) => app.world && m.key === worldKey(app.world)) || own[0] || kept[0] || null;
+    choose(pick);
   }
 
   async function saveNew() {
     const name = await promptDialog({ title: 'Name this save', label: 'Slot name', value: `${app.world.name}, Year ${yearOf(app.world)}` });
     if (!name) return;
     const id = 'slot-' + Date.now().toString(36);
-    await run(`Saving “${name}”…`, async () => { await saveSlot(app, id, name); return `Saved “${name}”.`; });
+    await run(`Saving “${name}”…`, async () => { const m = await saveSlot(app, id, name); chosen = m; return `Saved “${name}”.`; });
   }
 
   async function doOverwrite(m) {
@@ -430,7 +486,7 @@ export function openSaves(app) {
   async function doDelete(m) {
     const ok = await confirmDialog({ title: 'Delete this save?', text: `“${m.name}” (${m.worldName}, Year ${m.year}) will be removed from this browser. This cannot be undone.`, confirmLabel: 'Delete', danger: true });
     if (!ok) return;
-    await run('Deleting…', async () => { await deleteSlot(m.id); return `Deleted “${m.name}”.`; });
+    await run('Deleting…', async () => { await deleteSlot(m.id); chosen = null; return `Deleted “${m.name}”.`; });
   }
 
   async function doLoad(m) {
@@ -467,7 +523,7 @@ export function openSaves(app) {
       const name = `${fileSafe(app.world.name)}-year-${yearOf(app.world)}.atlas${gz ? '.json.gz' : '.json'}`;
       try { download(bytes, name, gz ? 'application/gzip' : 'application/json'); }
       catch (e) { throw new Error(`the download was blocked (${e.message})`); }
-      return `Exported ${name} (${sizeText(bytes.length)}). If no download appeared, this view blocks downloads.`;
+      return `Exported ${name} (${sizeText(bytes.length)}). If no download appeared, this view blocks downloads; keep the world in a browser slot instead.`;
     }, false);
   }
 
@@ -483,7 +539,7 @@ export function openSaves(app) {
       modal.close();
       await app.loadWorldData(obj, 'imported world');
     } catch (e) {
-      notice.hidden = false; notice.className = 'notice is-error';
+      notice.hidden = false; notice.className = 'arc-notice is-error';
       const why = e instanceof SyntaxError || /JSON|gzip|decod|format/i.test(e.message || '')
         ? 'it is not an Atlas of Ages world file (exported files end in .atlas.json.gz or .atlas.json).'
         : e.message;
@@ -494,13 +550,13 @@ export function openSaves(app) {
   async function run(label, fn, reload = true) {
     if (busy) return;
     busy = true;
-    notice.hidden = false; notice.className = 'notice'; notice.textContent = label;
+    notice.hidden = false; notice.className = 'arc-notice'; notice.textContent = label;
     try {
       const msg = await fn();
       notice.textContent = msg;
       statusToast(app, msg, 'ok', { icon: 'save' });
     } catch (e) {
-      notice.className = 'notice is-error';
+      notice.className = 'arc-notice is-error';
       notice.textContent = `That did not work: ${e.message}`;
     } finally {
       busy = false;

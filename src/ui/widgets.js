@@ -142,15 +142,22 @@ document.addEventListener('keydown', (e) => {
 
 const modalStack = [];
 
-export function openModal({ title, body, actions = [], small = false, onClose = null }) {
+export function openModal({ title, body, actions = [], small = false, onClose = null, kicker = '', lead = '', cls = '' }) {
   const root = document.getElementById('modal-root') || document.body;
   const prevFocus = document.activeElement;
   const closeBtn = h('button.icon-btn', { type: 'button', 'aria-label': 'Close' });
   closeBtn.appendChild(svgEl(glyph('close', 18)));
   const titleId = 'modal-title-' + (modalStack.length + 1);
   const foot = h('div.modal-foot');
-  const box = h('div.modal', { class: small ? 'is-small' : '', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId },
-    h('div.modal-head', null, h('h2', { id: titleId, text: title }), closeBtn),
+  // a plate: a running head (kicker, rule, Esc), then the title and an italic lead
+  const head = kicker
+    ? h('div.modal-head.is-plate', null,
+      h('div.modal-rh', null, h('span.mh-kind', { text: kicker }), h('span.mh-rule'), h('kbd.kbd', { text: 'Esc' }), closeBtn),
+      h('h2', { id: titleId, text: title }),
+      lead ? h('p.modal-lead', { text: lead }) : null)
+    : h('div.modal-head', null, h('h2', { id: titleId, text: title }), closeBtn);
+  const box = h('div.modal', { class: `${small ? 'is-small' : ''} ${cls}`, role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId },
+    head,
     h('div.modal-body', null, body),
     foot,
   );
@@ -170,6 +177,7 @@ export function openModal({ title, body, actions = [], small = false, onClose = 
       clear(foot);
       foot.hidden = !list.length;
       for (const a of list) {
+        if (a instanceof Node) { foot.appendChild(a); continue; }   // a foot of the caller's own
         const b = h('button.btn', { type: 'button', class: a.cls || '', text: a.label, onclick: () => a.onClick?.(m) });
         if (a.disabled) b.disabled = true;
         foot.appendChild(b);

@@ -26,6 +26,7 @@ import { isTyping } from './dom.js';
 import { modalOpen } from './widgets.js';
 import { statusToast } from './toasts.js';
 import { showHelp, openLeap } from './hud.js';
+import { openContents } from './contents.js';
 import { quickSave } from './saves.js';
 import { tierName, people, int } from './format.js';
 import { describeSel, followMode, selectionFrame, tabOpen } from './app.js';
@@ -717,6 +718,7 @@ export function mountInput(app, canvas) {
       if (app.tool !== 'inspect') app.setTool('inspect');
       else if (app.atlasIndex != null) app.emit('atlasExit');
       else if (app.selection) app.select(null);
+      else openContents(app);         // nothing left to step back from: the Contents
       return;
     }
     if (k === 'Tab' && e.target === canvas) { if (tabCycle(e.shiftKey)) e.preventDefault(); return; }

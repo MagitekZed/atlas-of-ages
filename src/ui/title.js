@@ -16,7 +16,7 @@ const OBLIQUITY = 23.44;
 
 /**
  * Mount the title screen. hooks: { backdrop(canvas), onNew(), onDefault(), onRandom(), onLoad(),
- * onKeys() }. Returns { show(), hide(), get visible() }.
+ * onOptions(), onKeys() }. Returns { show(), hide(), get visible() }.
  */
 export function mountTitle(app, hooks = {}) {
   const root = h('section.title-screen', { id: 'title', 'aria-label': 'Atlas of Ages', hidden: true });
@@ -52,7 +52,8 @@ export function mountTitle(app, hooks = {}) {
     btn('Random', 'Begin at once with a world of chance', () => { hide(); hooks.onRandom?.(); }));
   entry('II', 'New World', { extra: skip, gloss: 'Set the world’s conditions step by step, or skip with the defaults or a world of chance', act: () => { hide(); hooks.onNew?.(); } });
   const load = entry('III', 'Load a World', { value: '', act: () => hooks.onLoad?.() });
-  entry('IV', 'Every key', { value: 'Keyboard and mouse', act: () => hooks.onKeys?.() });
+  entry('IV', 'Options', { value: 'Sound, notices, worlds', act: () => hooks.onOptions?.() });
+  entry('V', 'Every key', { value: 'Keyboard and mouse', act: () => hooks.onKeys?.() });
 
   const soundIn = h('input', { id: 'ts-sound', type: 'checkbox' });
   const sound = h('label.switch.ts-sound', { for: 'ts-sound' }, soundIn, h('span.track'), h('span', { text: 'Sound' }));

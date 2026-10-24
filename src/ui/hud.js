@@ -1,22 +1,18 @@
 // The HUD: the cartouche (world name, the age it lives in, seasons, the world's numbers) and
 // the time bridge that hangs from the top neatline (the speed governor, the volvelle that turns
 // one day a degree under a fixed brass index, the bob that pauses, and the leaps: Leap, Run
-// until, Story). On a phone the bridge folds to a compact drive (bob, speed, finder, menu). The menu holds the
-// Chronoscope (undo names the act it would take back), Notices, and registered commands that
-// ask for it; the Leap dialog offers "run until…" beside its fixed spans; the keyboard sheet
-// lists the built-in keys, then every registered key and tab key (src/ui/registry.js).
+// until, Story). On a phone the bridge folds to a compact drive (bob, speed, finder, menu); the
+// menu opens the Contents (src/ui/contents.js). The Leap dialog offers "run until…" beside its
+// fixed spans; the keyboard card lives in src/ui/keys.js.
 
 import { SPEEDS, MONTH_NAMES, DAYS_PER_YEAR, DAYS_PER_MONTH } from '../core/constants.js';
 import { dateString, seasonName, yearOf } from '../core/world.js';
 import { h, clear, svgEl, setText, svgNode } from './dom.js';
-import { glyph, iconEl } from './icons.js';
-import { tip, openPopover, closePopover, openModal, msText } from './widgets.js';
+import { glyph } from './icons.js';
+import { tip, openModal, msText } from './widgets.js';
 import { people, eraName, int } from './format.js';
 import { summarize } from '../sim/stats.js';
-import { setPref } from './prefs.js';
-import { openSaves, quickSave } from './saves.js';
-import { getCommands, runCommand, listKeys, getTabs, describeKey } from './registry.js';
-import { tabOpen } from './app.js';
+import { openContents } from './contents.js';
 import { fixtureFrame } from './frame.js';
 
 // WP1's world ages (pure readers), shown beside the date. Loaded lazily, never as a top-level
@@ -85,10 +81,10 @@ export function mountHud(app) {
   const status = h('button.icon-btn.warn-chip', { type: 'button', hidden: true });
   status.appendChild(svgEl(glyph('help', 18)));
   status.addEventListener('click', () => { app.setTab('world'); app.emit('layout', 'open-panel'); app.emit('engineRoom'); });
-  const menuBtn = h('button.icon-btn.menu-btn', { type: 'button', 'aria-label': 'Menu', 'aria-haspopup': 'true' });
+  const menuBtn = h('button.icon-btn.menu-btn', { type: 'button', 'aria-label': 'Menu', 'aria-haspopup': 'dialog' });
   menuBtn.appendChild(svgEl(glyph('menu', 20)));
-  tip(menuBtn, 'New world, saving and shortcuts.', 'Menu');
-  menuBtn.addEventListener('click', () => openMenu(app, menuBtn));
+  tip(menuBtn, 'Resume, save and load, a new world, options and every key.', 'Contents');
+  menuBtn.addEventListener('click', () => openContents(app));
   const layersBtn = h('button.icon-btn.layers-phone', { type: 'button', 'aria-label': 'Map layers' });
   layersBtn.appendChild(svgEl(glyph('layers', 18)));
   layersBtn.addEventListener('click', () => app.emit('toggleDockPhone'));
@@ -313,74 +309,6 @@ function buildVolvelle() {
 // ---------------------------------------------------------------------------
 // Menu
 
-export function openMenu(app, anchor) {
-  const item = (icon, label, fn, hint = '') => {
-    const b = h('button.menu-item', { type: 'button' }, svgEl(glyph(icon, 18)), h('span', { text: label }), hint ? h('span.hint', { text: hint }) : null);
-    b.addEventListener('click', () => { closePopover(); fn(); });
-    return b;
-  };
-  const toggle = (label, get, set) => {
-    const id = 'menu-' + label.replace(/\W+/g, '-').toLowerCase();
-    const input = h('input', { id, type: 'checkbox' });
-    input.checked = get();
-    input.addEventListener('change', () => set(input.checked));
-    return h('label.menu-item.switch', { for: id }, input, h('span.track'), h('span', { text: label }));
-  };
-  // the Chronoscope: undo names what it would take back
-  const chrono = app.chrono;
-  const last = chrono?.lastAct?.();
-  const chronoRows = chrono ? [
-    h('div.menu-sep'),
-    h('div.menu-label', { text: 'Chronoscope' }),
-    disabled(item('hourglass', last ? `Undo ${last.label}` : 'Nothing to undo', () => chrono.undo(), 'Ctrl Z'), !last),
-    chrono.canRedo() ? item('hourglass', 'Redo', () => chrono.redo(), 'Ctrl Shift Z') : null,
-    item('hourglass', 'Rewind history…', () => chrono.openRewind()),
-  ] : [];
-  const content = h('div', { style: { display: 'flex', flexDirection: 'column' } },
-    item('newWorld', 'New world…', () => app.newWorld()),
-    item('save', 'Save and load…', () => openSaves(app)),
-    item('save', 'Quick save', () => quickSave(app), 'Ctrl S'),
-    item('leap', 'Leap ahead…', () => openLeap(app), 'J'),
-    app.openUntil ? item('hourglass', 'Run until…', () => app.openUntil(), 'U') : null,
-    app.director ? item('eye', app.director.on ? 'Stop the Director' : 'The Director: story mode', () => app.director.toggle(), 'G') : null,
-    app.openCommand ? item('search', 'Find anything…', () => app.openCommand(''), '/') : null,
-    ...chronoRows,
-    h('div.menu-sep'),
-    item('fit', 'Show the whole world', () => app.r('fitWorld'), 'F'),
-    item('eyeOff', 'Hide instruments', () => app.emit('layout', 'hide-ui'), 'H'),
-    item('keyboard', 'Keyboard and mouse', () => showHelp(app), '?'),
-    ...menuCommands(app),
-    h('div.menu-sep'),
-    app.openNotices ? item('chronicle', 'Notices and pauses…', () => app.openNotices()) : toggle('Pause on epochal events', () => app.autoPause, (v) => { app.autoPause = v; setPref('autoPause', v); }),
-    toggle('Autosave every century', () => app.autosave, (v) => { app.autosave = v; setPref('autosave', v); }),
-    app.sound ? toggle('Sound', () => app.sound.on, (v) => app.sound.setOn(v)) : null,
-  );
-  openPopover(anchor, content, { align: 'end', cls: 'menu' });
-}
-
-function disabled(el, off) { if (off) { el.disabled = true; el.classList.add('is-off'); } return el; }
-
-/** Commands this menu shows itself (with live labels), so their registered menu rows are skipped. */
-const OWN_MENU = new Set(['chrono.undo', 'chrono.redo', 'chrono.rewind', 'until.open', 'director.toggle', 'notices.open', 'sound.toggle']);
-
-/** Menu rows for registered commands with `menu` set, under their headings (none: nothing at all). */
-function menuCommands(app) {
-  const list = getCommands(app).filter((c) => c.menu && !OWN_MENU.has(c.id));
-  if (!list.length) return [];
-  const out = [];
-  const groups = new Map();
-  for (const c of list) { const g = typeof c.menu === 'string' ? c.menu : ''; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(c); }
-  for (const [g, cs] of groups) {
-    out.push(h('div.menu-sep'));
-    if (g) out.push(h('div.menu-label', { text: g }));
-    for (const c of cs) {
-      const b = h('button.menu-item', { type: 'button' }, iconEl(c.icon || c.id, { size: 18, label: c.label }), h('span', { text: c.label }), c.keys ? h('span.hint', { text: c.keys }) : null);
-      b.addEventListener('click', () => { closePopover(); runCommand(app, c.id); });
-      out.push(b);
-    }
-  }
-  return out;
-}
 
 /** Measured cost of one simulated year on this device (ms), or null before there is enough to go on. */
 export function msPerSimYear(app) {
@@ -424,47 +352,4 @@ export function openLeap(app) {
   });
 }
 
-export function showHelp(app = null) {
-  const rows = [
-    ['Space', 'Pause or resume (hold and drag to pan)'],
-    ['1 – 6', 'Slow, Normal, Fast, Faster, Rapid, Max'],
-    ['0', 'Pause'],
-    ['Drag', 'Pan the map (right or middle button always pans)'],
-    ['Wheel, + / −', 'Zoom at the cursor'],
-    ['Double-click', 'Zoom in; on a town, dive down to it; on held ground, open its nation'],
-    ['Right-click', 'What can be done here (long-press on touch)'],
-    ['W A S D, arrows', 'Pan'],
-    ['Tab, Shift Tab', 'With the map focused: walk through the largest towns and armies in view (a dozen or so), then on out of the map'],
-    ['F', 'Show the whole world'],
-    ['M, Shift M', 'Next or previous map mode'],
-    ['Esc', 'Back to Inspect (or let go of a pair tool’s first pick); again to clear the selection'],
-    ['[ and ]', 'Shrink or grow the brush'],
-    ['Shift wheel, Alt wheel', 'With a brush: its radius, its strength'],
-    ['H', 'Hide or show the instruments'],
-    ['I C N T P L', 'Inspector, Chronicle, Nations, Statistics, World settings, Atlas'],
-    ['\\', 'Fold or open the side panel'],
-    ['Ctrl S', 'Quick save'],
-    ['J', 'Leap ahead: run years of history at full speed'],
-    ['Touch', 'Drag to pan, pinch to zoom, tap to inspect, long-press for more'],
-  ];
-  // what other packages added: their tabs' keys, then their shortcuts by group
-  const tabKeys = getTabs().filter((t) => t.key && tabOpen(app, t));
-  if (tabKeys.length) rows.push([tabKeys.map((t) => String(t.key).toUpperCase()).join(' '), tabKeys.map((t) => t.label).join(', ')]);
-  const grid = h('div.keys');
-  const put = (k, d) => grid.append(h('span', null, ...k.split(/(\s+)/).map((p) => (p.trim() ? h('kbd', { text: p }) : ' '))), h('span', { text: d }));
-  for (const [k, d] of rows) put(k, d);
-  // registered keys by group (a key may hide itself, or show a range as one row)
-  const extra = listKeys().filter((d) => !d.hidden).sort((a, b) => String(a.group).localeCompare(String(b.group)) || String(a.label).localeCompare(String(b.label)));
-  let group = null;
-  for (const d of extra) {
-    if (d.group !== group) { group = d.group; grid.append(h('span.keys-group', { text: group || 'More' })); }
-    put(d.display || describeKey(d), d.label);
-  }
-  openModal({
-    title: 'Keyboard and mouse',
-    body: h('div', { style: { display: 'flex', flexDirection: 'column', gap: '14px' } },
-      grid,
-      h('p.muted', { text: 'With a god tool selected, click or drag on the map to use it; brush tools keep working while you hold the button down. Inspect is the default tool.' })),
-    actions: [{ label: 'Close', cls: 'btn-brass', onClick: (m) => m.close() }],
-  });
-}
+export { showHelp } from './keys.js';

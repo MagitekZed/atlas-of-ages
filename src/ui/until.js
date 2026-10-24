@@ -23,7 +23,8 @@ import { yearOf } from '../core/world.js';
 import { registerKey, registerCommand, registerUntilCondition, getUntilConditions, getUntilCondition } from './registry.js';
 import { h } from './dom.js';
 import { iconEl } from './icons.js';
-import { showProgress, openModal, msText, tip } from './widgets.js';
+import { showProgress, openModal, msText, syncRange } from './widgets.js';
+import { openOptions, optRow } from './options.js';
 import { statusToast, actionToast } from './toasts.js';
 import { getNotices, setNotices, NOTICE_LEVELS, noticeMin } from './prefs.js';
 import { entrySel, entryPoint } from './app.js';
@@ -515,44 +516,42 @@ export function mount(app) {
   app.on('tick', () => testRules());
 
   // ---------------------------------------------------------------------------
-  // The Notices dialog
+  // The Notices leaf of Options: a five-step scale for each kind of news, what a leap or the
+  // fastest speeds quiet, and what stops time on its own
 
-  function openNotices() {
+  function noticesPanel() {
     const n = getNotices();
     const save = () => { setNotices(n); app.emit('notices'); };
-    // one control for every kind of news: shows the shared level, or "Mixed" when they differ
-    const allSel = h('select.field', { id: 'notice-all' });
-    const mixedOpt = h('option', { value: 'mixed', text: 'Mixed' });
-    mixedOpt.disabled = true;
-    allSel.appendChild(mixedOpt);
-    for (const [v, lab] of NOTICE_LEVELS) allSel.appendChild(h('option', { value: String(v), text: lab }));
-    const catSels = [];
+    const idxOf = (v) => Math.max(0, NOTICE_LEVELS.findIndex(([x]) => x === v));
+    const scale = (id, v, label, onInput) => {
+      const r = h('input.nt-range', { id, type: 'range', min: 0, max: NOTICE_LEVELS.length - 1, step: 1, 'aria-label': label });
+      r.value = String(idxOf(v));
+      syncRange(r);
+      r.addEventListener('input', () => { syncRange(r); onInput(NOTICE_LEVELS[Number(r.value)][0]); });
+      return r;
+    };
+    // one scale for every kind of news: it shows the shared level, or "Mixed" when they differ
+    const catScales = [];
+    const allState = h('i.nt-state');
     const syncAll = () => {
       const levels = new Set(Object.keys(CATEGORIES).map((c) => noticeMin(n, c)));
-      mixedOpt.hidden = levels.size === 1;
-      allSel.value = levels.size === 1 ? String([...levels][0]) : 'mixed';
+      allState.textContent = levels.size === 1 ? NOTICE_LEVELS[idxOf([...levels][0])][1] : 'Mixed';
+      if (levels.size === 1) { allScale.value = String(idxOf([...levels][0])); syncRange(allScale); }
     };
-    allSel.addEventListener('change', () => {
-      if (allSel.value === 'mixed') return;
-      const v = Number(allSel.value);
-      for (const [cat, sel] of catSels) { n.cat[cat] = v; sel.value = String(v); }
-      syncAll();
-      save();
+    const allScale = scale('notice-all', 3, 'Every kind of news', (v) => {
+      for (const [cat, r] of catScales) { n.cat[cat] = v; r.value = String(idxOf(v)); syncRange(r); }
+      syncAll(); save();
     });
-    const all = h('div.notice-all', null,
-      h('label.notice-cat', { for: 'notice-all' }, h('span', { text: 'Every kind of news' })), allSel);
-    const cats = h('div.notice-cats');
+    const grid = h('div.nt-grid', null,
+      h('span'), h('span.nt-levels', null, ...NOTICE_LEVELS.map(([, lab], k) => h('span', { text: lab, style: { '--k': String(k) } }))),
+      h('label.nt-all', { for: 'notice-all' }, h('span.nt-name', { text: 'Every kind of news' }), allState, h('span.nt-sub', { text: 'One level sets every kind at once' })), allScale);
     for (const [cat, meta] of Object.entries(CATEGORIES)) {
-      const id = 'notice-' + cat;
-      const sel = h('select.field', { id });
-      for (const [v, lab] of NOTICE_LEVELS) sel.appendChild(h('option', { value: String(v), text: lab }));
-      sel.value = String(noticeMin(n, cat));
-      sel.addEventListener('change', () => { n.cat[cat] = Number(sel.value); syncAll(); save(); });
-      catSels.push([cat, sel]);
-      cats.append(h('label.notice-cat', { for: id }, h('i.swatch', { style: { '--c': meta.color } }), h('span', { text: meta.label })), sel);
+      const r = scale('notice-' + cat, noticeMin(n, cat), meta.label, (v) => { n.cat[cat] = v; syncAll(); save(); });
+      catScales.push([cat, r]);
+      grid.append(h('label.nt-cat', { for: 'notice-' + cat }, h('i.nt-ring', { style: { '--c': meta.color } }), h('span', { text: meta.label })), r);
     }
     syncAll();
-    const rules = h('div.notice-rules');
+    const rules = h('div.nt-rules');
     for (const def of getUntilConditions().filter((d) => d.live && !d.needs)) {
       const id = 'rule-' + def.id;
       const box = h('input', { id, type: 'checkbox' });
@@ -564,32 +563,25 @@ export function mount(app) {
       });
       let label = def.label;
       try { label = def.describe ? def.describe(def.id === 'war' || def.id === 'civFalls' ? { scope: 'watched' } : {}) : def.label; } catch (e) { /* default */ }
-      rules.appendChild(h('label.menu-item.switch', { for: id }, box, h('span.track'), h('span', { text: label })));
+      rules.appendChild(h('label.check', { for: id }, box, h('span.box'), h('span', { text: label })));
     }
-    const toggle = (key, label, desc) => {
-      const id = 'notice-' + key;
-      const box = h('input', { id, type: 'checkbox' });
-      box.checked = Boolean(n[key]);
-      box.addEventListener('change', () => { n[key] = box.checked; save(); });
-      const el = h('label.menu-item.switch', { for: id }, box, h('span.track'), h('span', { text: label }));
-      tip(el, desc);
-      return el;
-    };
-    openModal({
-      title: 'Notices',
-      body: h('div.notices', null,
-        h('h4.rule-head', { text: 'What reaches you' }),
-        h('p.muted', { text: 'For each kind of news, the least importance that raises a notice on the map.' }),
-        all,
-        cats,
+    const toggle = (key, title, desc) => optRow({ id: 'notice-' + key, title, desc, checked: n[key], onChange: (v) => { n[key] = v; save(); } });
+    return h('div.notices', null,
+      h('div.opt-col', null,
+        h('h3.opt-h', { text: 'What reaches you' }),
+        h('p.opt-desc', { text: 'For each kind of news, the least importance that raises a notice on the map.' }),
+        grid),
+      h('div.opt-col', null,
+        h('h3.opt-h', { text: 'At speed' }),
         toggle('quietFast', 'Quiet at Rapid and Max: only epochal news', 'At the fastest speeds only the turning points of history interrupt; the rest are counted in a digest.'),
         toggle('badgeAfterLeap', 'A leap clears the Chronicle’s unread count', 'After a leap or a run until, the badge on the Chronicle starts again from zero.'),
-        h('h4.rule-head', { text: 'Pause when…' }),
-        h('p.muted', { text: 'Time stops on its own when one of these happens while you watch.' }),
-        rules),
-      actions: [{ label: 'Done', cls: 'btn-brass', onClick: (m) => m.close() }],
-    });
+        h('h3.opt-h', { text: 'Pause when…' }),
+        h('p.opt-desc', { text: 'Time stops on its own when one of these happens while you watch.' }),
+        rules));
   }
+  app.noticesPanel = noticesPanel;
+  app.resetNotices = () => { setNotices({}); app.emit('notices'); };
+  const openNotices = () => openOptions(app, { tab: 'notices' });
   app.openNotices = openNotices;
 
   // ---------------------------------------------------------------------------
