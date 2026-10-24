@@ -67,7 +67,7 @@ export function mountPanel(app) {
   findHandle.addEventListener('click', () => app.openCommand?.(''));
   rail.append(menuHandle, findHandle, h('span.handle-gap'));
   for (const t of tabs) rail.appendChild(tabButton(t));
-  const wideBtn = iconButton('fit', 'Widen the panel', () => setWide(!panel.classList.contains('is-wide')), { cls: 'wide-btn' });
+  const wideBtn = iconButton('expand', 'Expand the folio', () => setWide(!panel.classList.contains('is-wide')), { cls: 'wide-btn' });
   const foldBtn = iconButton('back', 'Fold the panel', () => setCollapsed(!panel.classList.contains('is-collapsed')), { key: '\\' });
   const railSpacer = h('span.spacer');
   rail.append(railSpacer, h('div.rail-extra', null, foldBtn));
@@ -101,7 +101,8 @@ export function mountPanel(app) {
 
   const headTitle = h('h2');
   const sheetX = iconButton('close', 'Close the sheet', () => setSheet('closed'), { cls: 'sheet-x' });
-  const headActions = h('div', { style: { display: 'flex', gap: '2px' } }, wideBtn, sheetX);
+  const tabActs = h('div.head-acts');   // the active tab's own head buttons (Nations: Compare)
+  const headActions = h('div', { style: { display: 'flex', gap: '2px' } }, tabActs, wideBtn, sheetX);
   const head = h('div.panel-head', null, headTitle, headActions);
   const scroll = h('div.panel-scroll');
   const panes = new Map();
@@ -187,6 +188,8 @@ export function mountPanel(app) {
     for (const [k, p] of panes) p.hidden = k !== t.id;
     scroll.classList.toggle('is-flush', Boolean(t.flush));
     setText(headTitle, t.headTitle ? t.headTitle() : t.title);
+    clear(tabActs);
+    for (const b of t.headActions || []) tabActs.append(b);
     if (t.id === 'chronicle') { unread = 0; setText(badges.get('chronicle'), ''); }
     syncMore();
     if (app.world) { try { t.show(); } catch (e) { app.reportError(`panel.${t.id}.show`, e); } }
@@ -235,7 +238,11 @@ export function mountPanel(app) {
     panel.classList.toggle('is-wide', on);
     requestAnimationFrame(syncCover);
     setPref('panelWide', on);
-    tip(wideBtn, on ? 'Narrow the panel' : 'Widen the panel');
+    clear(wideBtn);
+    wideBtn.appendChild(svgEl(glyph(on ? 'collapse' : 'expand', 18)));
+    wideBtn.setAttribute('aria-label', on ? 'Narrow the folio' : 'Expand the folio');
+    wideBtn.setAttribute('aria-pressed', String(on));
+    tip(wideBtn, on ? 'Narrow the folio' : 'Expand the folio');
     setTimeout(() => { app.r('resize'); if (active) byId.get(active)?.show(); }, 240);
   }
   // --- phone sheet: peek (rail only), open (about half the screen) or tall ----------------------

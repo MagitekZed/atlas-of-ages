@@ -83,6 +83,7 @@ class Renderer {
     this.selection = null;
     this.brush = null;
     this.snapshot = null;
+    this.past = null;          // an atlas plate drawn over today's map (setAtlasSnapshot)
     this.sprites = new SpriteCache(1600);
     this.labeler = new Labeler();
     this.fx = new FxSystem();
@@ -137,7 +138,7 @@ class Renderer {
     this._labelCache = null; this._regionSig = null; this._planRects = null; this._townNamed = null;
     if (this._plans) this._plans.clear();
     this._fireList = []; this._fireScanAt = -1e9; this._fireScanDay = -1;
-    this.snapshot = null; this._snapSrc = null;
+    this.snapshot = null; this.past = null; this._snapSrc = null;
     this.vec = { vWater: null, vTerrain: null, vRoads: null, borderKey: null, borderAt: -1e9 };
     this._bjob = null; this._bvotes = null; this._bvote = null;
     this._own = null; this._ownKey = null;
@@ -206,10 +207,15 @@ class Renderer {
   /** Extra highlight rings [{ x, y, r, tone, label? }] (entity coordinates). Stored for the highlight layer (WP7). */
   setHighlights(list) { this.highlights = Array.isArray(list) ? list.filter((q) => q && Number.isFinite(q.x) && Number.isFinite(q.y)) : []; }
 
-  /** Show a historical atlas snapshot (stats §8) instead of live borders; null restores. */
-  setAtlasSnapshot(snap) {
-    if (!snap || !this.world) { this.snapshot = null; this._snapSrc = null; return; }
-    if (snap === this._snapSrc && this.snapshot) return;
+  /**
+   * Bring up a historical atlas snapshot (stats §8); null restores. By default today's map
+   * stays and the plate is kept as this.past: its borders traced as the live ones are, and the
+   * land that has changed hands since, for the past-borders layer (./pastborders.js) to draw
+   * over a dimmed present. swap: true shows the snapshot instead of the live borders.
+   */
+  setAtlasSnapshot(snap, { swap = false } = {}) {
+    if (!snap || !this.world) { this.snapshot = null; this.past = null; this._snapSrc = null; return; }
+    if (snap === this._snapSrc && (this.snapshot || this.past)) return;
     const w = this.world, W = w.W, H = w.H, N = w.N;
     let grid = null;
     try {
@@ -243,8 +249,38 @@ class Renderer {
     });
     for (const e of best.values()) e.capital = true;
     towns.sort((a, b) => a.y - b.y || a.x - b.x);
-    this.snapshot = { y: snap.y, owner: full, towns, civIds: [...best.keys()] };
     this._snapSrc = snap;
+    if (swap) { this.past = null; this.snapshot = { y: snap.y, owner: full, towns, civIds: [...best.keys()] }; return; }
+    this.snapshot = null;
+    this.past = { y: snap.y, owner: full, towns, civIds: [...best.keys()], borders: null, frontier: null, changed: null };
+    try { this._tracePast(this.past); } catch (e) { /* the plate stands without its lines */ }
+  }
+
+  /** The past plate's borders (the same sub-tile vote and trace as the live ones) and the land held otherwise today. */
+  _tracePast(past) {
+    const w = this.world, W = w.W, H = w.H, N = w.N, wa = w.f.water, LAND = WATER.LAND;
+    const live = this._ownerGrid(), full = past.owner;
+    const changed = new Path2D();
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W;) {
+        const i = y * W + x;
+        if (wa[i] !== LAND || full[i] === live[i]) { x++; continue; }
+        const x0 = x;
+        while (x < W && wa[y * W + x] === LAND && full[y * W + x] !== live[y * W + x]) x++;
+        changed.rect(x0 - 0.5, y - 0.5, x - x0, 1);
+      }
+    }
+    past.changed = changed;
+    if (!this.terrain?.Lv) return;
+    const BF = 2;
+    const cat = new Int32Array(N);
+    for (let i = 0; i < N; i++) cat[i] = wa[i] !== LAND ? -2 : full[i];
+    const bv = new CategoryVote(W, H, BF);
+    bv.prepare(cat);
+    bv.rows(cat, this.terrain.Lv, 0, bv.ch);
+    const pix = bv.pix, cw = bv.cw, ch = bv.ch;
+    past.borders = edgesToPath(traceEdges(cw, ch, (i, j) => j >= 0 && pix[i] >= 0 && pix[j] >= 0 && pix[i] !== pix[j]), 2, [W, H], 1 / BF);
+    past.frontier = edgesToPath(traceEdges(cw, ch, (i, j) => j >= 0 && ((pix[i] === -1 && pix[j] >= 0) || (pix[j] === -1 && pix[i] >= 0))), 2, [W, H], 1 / BF);
   }
 
   /** The colour of the void around the world (the UI passes its theme's token). */
@@ -642,7 +678,7 @@ class Renderer {
     const worldT = () => ctx.setTransform(z * dpr, 0, 0, z * dpr, (this.viewW / 2 - (cam.x - 0.5) * z + shx) * dpr, (this.viewH / 2 - (cam.y - 0.5) * z + shy) * dpr);
     const screenT = () => ctx.setTransform(dpr, 0, 0, dpr, shx * dpr, shy * dpr);
     // registered layers (./layers.js): nothing at all happens in a slot nobody has filled
-    const env = hasLayers() ? { z, dpr, prof, mode: this._mode, labels: null, vb: vb2, now, dt, worldT, screenT, snapshot: this.snapshot } : null;
+    const env = hasLayers() ? { z, dpr, prof, mode: this._mode, labels: null, vb: vb2, now, dt, worldT, screenT, snapshot: this.snapshot || this.past } : null;
     const slot = (name, inWorld) => {
       const list = layersFor(name);
       if (!list.length) return;

@@ -45,7 +45,7 @@ The size, the shape of the land, the first tribes, the starting era, the age and
 
 - **Find anything** (/ or Ctrl/Cmd+K) searches nations, towns, ruins, wars, faiths, plagues, great figures, wonders, places, bands, sites, map modes, tools and commands. Start with `>` for commands, tools and map modes only, `@` for places, or `#` to search the Chronicle's text. Enter flies there and opens the record. Alt+Enter opens it without moving the map, and Shift+Enter watches it.
 - **The context menu** (right-click, or long-press on touch) lists everything under the pointer. From it you can inspect, follow, watch, pin the view, zoom in, run until something happens there, use your last god tool there, see the same land in the Atlas a century ago, or copy a link that rebuilds this world and view (as history would run without your acts).
-- **Watch** (. or the star on a record) adds something to the watchlist, which holds up to eight. Watched things appear as chips under the world's title card, their news is gilded, and arrows at the edge of the map point to watched armies, storms and bands that leave the view. **Follow** (the eye on a record, or the context menu) keeps a moving army, storm or band centred, or keeps a nation, war, plague or faith framed. **Watch over this people** (the crown on a nation's record) makes it your patron people.
+- **Watch** (. or the star on a record) adds something to the watchlist, which holds up to eight. Watched things appear as chips under the world's title card, each with a count of the news written about it since you last looked at it (the count is kept with the world, so it survives a reload), their news is gilded, and arrows at the edge of the map point to watched armies, storms and bands that leave the view. **Follow** (the eye on a record, or the context menu) keeps a moving army, storm or band centred, or keeps a nation, war, plague or faith framed. **Watch over this people** (the crown on a nation's record) makes it your patron people.
 - **Pins.** B saves the current view, and Shift+1–9 flies back to a saved view.
 - **The timeline** (Y) shows all of history as a strip with lanes for population and ages, wars, plagues, and great events. Click to open an event and show that decade in the Atlas, drag to scrub, and use the wheel to zoom.
 - **Map modes** (M and Shift+M, or the map dock) are Terrain, Political, Elevation, Temperature, Rainfall, Biomes, Vegetation, Wildlife, Population, Religion, Culture, Technology, Trade, Disease, Tectonics, Resources, Devastation and Pollution. Mythic worlds add Arcane, Peoples and Monsters.
@@ -55,20 +55,20 @@ The size, the shape of the land, the first tribes, the starting era, the age and
 
 ## Reading the record
 
-The side panel holds the record. A key opens each tab, and `\` folds the panel away.
+The side panel holds the record. A key opens each tab, and `\` folds the panel away. The expand button in the panel's head widens it for long ledgers.
 
 - **Inspector** (I). Click anything to open its dossier: a stretch of ground, a town, nation, army, war, faith, plague, storm, volcano, band, trade route, ruler, dynasty, figure, wonder, fire, site or continent. Dossiers have charts over time, a town's chain of owners, and in Mythic worlds the mix of peoples.
 - **Chronicle** (C). Every entry history has written, with filters by category and importance and a search box. Click an entry to fly there.
 - **Annals** (R). Four parts: the Almanac of everything that ever existed, the Hall of Records, the Centuries in review, and the Stream of empires.
-- **Nations** (N). A ledger of living nations that you can sort, followed by the fallen nations with their lifespans. Pick two to four nations, or Shift+click their rows, to compare them side by side.
+- **Nations** (N). A ledger of living nations that you can sort, followed by the fallen nations with their lifespans. Pick two to four nations (the compare button in the panel's head), or Shift+click their rows, to compare them side by side.
 - **Statistics** (T). Population, climate, sea level, CO₂, forests and herds, wars and plagues over time. Drag across a chart to zoom it, or click it to travel to that year.
 - **World** (P). Every live parameter, which you can change while the world runs. Each shows its genesis value and can be reset. The tab also lists what each system costs per simulated year.
-- **Atlas** (L). Border maps taken every ten years. Scrub through them or play them as a timelapse. Looking into the past stops time.
+- **Atlas** (L). Border maps taken every ten years. Scrub through them or play them as a timelapse. On the map, that year's borders are drawn dashed over today's map, dimmed, with the land that has changed hands since hatched. Looking into the past stops time.
 - **Legends** (O, Legendary and Mythic worlds). The state of magic, the peoples of the world and of each continent and realm, the bestiary, the places of power, the arcane arts, and the miracles and tales. A Legendary world shows only its tales.
 
 ## Intervening
 
-**God tools** are in the toolbelt at the bottom, in seven groups:
+**God tools** are in the toolbelt at the bottom (on a phone, under Tools in the tab bar), in seven groups. On a phone a tap aims the tool and shows what it would do there; the button in the tool sheet, named for the act, then uses it there:
 
 - **Shape the Land**: raise, lower, flatten, mountains, drown land, raise an island.
 - **Command the Sky**: rain, drought, blizzard, lightning.

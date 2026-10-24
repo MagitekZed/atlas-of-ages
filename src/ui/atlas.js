@@ -1,7 +1,9 @@
 // The Atlas tab: a historical atlas of borders. Scrub the snapshots in world.history.atlas
 // (taken every ten years), play them as a timelapse, and read who held the world then and
-// what happened. The map itself switches to the snapshot (renderer.setAtlasSnapshot); this
-// tab also draws its own plate (src/ui/plate.js drawAtlasPlate) so it works with any renderer.
+// what happened. On the map the plate's borders are drawn dashed over today's map, dimmed,
+// with the land that has changed hands since hatched (renderer.setAtlasSnapshot, the
+// past-borders layer); this tab also draws its own plate (src/ui/plate.js drawAtlasPlate) in
+// the colours of that age, so it works with any renderer.
 // Looking into the past stops time (and leaving restores the pace), so the present does not
 // run on beneath an old map; with the Chronoscope, "Rewind to this moment" makes the past the
 // present again. The app events atlasGoto (k) and timeTravel (year) bring a plate up.
@@ -51,6 +53,10 @@ export function createAtlas(app) {
   presentBtn.addEventListener('click', () => exit());
   const nationsList = h('div.list');
   const eventsList = h('div');
+  // the key to the lines on the map, while a plate is up
+  const keyPast = h('span');
+  const keyToday = h('p.atlas-key-sub');
+  const mapKey = h('div.atlas-key', { hidden: true }, h('p.atlas-key-row', null, h('i.ak-dash'), keyPast, h('i.ak-hatch'), h('span', { text: 'Changed hands since' })), keyToday);
   const emptyNote = h('p.empty-note', { hidden: true, text: 'The first plate is drawn at the dawn of history; more follow every ten years.' });
 
   el.append(
@@ -58,6 +64,7 @@ export function createAtlas(app) {
     plate,
     h('div.scrubber', null, tlWrap, slider,
       h('div.row', null, prev, playBtn, next, speedSeg, h('span', { style: { flex: '1' } }), rewindBtn, presentBtn)),
+    mapKey,
     emptyNote,
     h('section.ins-section', null, h('h4.rule-head', { text: 'Nations of the age' }), nationsList),
     h('section.ins-section', null, h('h4.rule-head', { text: 'Events of the decade' }), eventsList),
@@ -173,6 +180,9 @@ export function createAtlas(app) {
     setText(yearEl, `Year ${s.y}`);
     setText(ageEl, app.atlasIndex == null ? 'the latest plate' : `${F.span(w.time.day - (s.day ?? s.y * 360))} ago`);
     setText(bannerYear, `Year ${s.y}`);
+    mapKey.hidden = app.atlasIndex == null;
+    setText(keyPast, `Borders of Year ${s.y}`);
+    setText(keyToday, `Under them, dimmed: today’s map of Year ${Math.floor(w.time.day / DAYS_PER_YEAR)}`);
     setText(cap, `Plate ${k + 1} of ${n} · Year ${s.y}`);
     const back = canRewind();
     rewindBtn.hidden = !back; bannerRewind.hidden = !back;

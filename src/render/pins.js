@@ -27,10 +27,13 @@ export function pinTarget(id) {
   return lastFrame.get(String(id)) || null;
 }
 
+/** The Atlas plate on view: drawn over today's map (past) or in its place (snapshot). */
+const plateOf = (r) => r.past || r.snapshot;
+
 function candidates(r) {
   const w = r.world;
   if (!w) return [];
-  const snap = r.snapshot;
+  const snap = plateOf(r);
   const key = `${w.seed}|${w.chronicle.seq}|${snap ? snap.y : 'live'}|${Math.floor(w.time.day / DAYS_PER_YEAR)}`;
   if (cache.key === key) return cache.list;
   const es = w.chronicle.entries;
@@ -67,8 +70,9 @@ function draw(r, ctx, env) {
   const list = candidates(r);
   const frame = new Map();
   if (!list.length) { lastFrame = frame; return; }
-  const now = r.snapshot && Number.isFinite(r.snapshot.y) ? r.snapshot.y * DAYS_PER_YEAR : w.time.day;
-  const span = (r.snapshot ? 10 : WINDOW_YEARS) * DAYS_PER_YEAR;
+  const plate = plateOf(r);
+  const now = plate && Number.isFinite(plate.y) ? plate.y * DAYS_PER_YEAR : w.time.day;
+  const span = (plate ? 10 : WINDOW_YEARS) * DAYS_PER_YEAR;
   const vw = r.viewW, vh = r.viewH;
   const z = r.camera?.zoom || 1;
   // a town drawn as its ground plan: the pin stands above the plan's edge rather than on it

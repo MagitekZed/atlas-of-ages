@@ -70,7 +70,8 @@
 .watch-chip .glyph { color: var(--brass); flex: none; }
 .watch-chip .wn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .watch-chip .wv { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-3); white-space: nowrap; }
-.watch-chip .news { position: absolute; top: -2px; right: -2px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--slate-1); }
+/* what is new since you looked: a vermilion count in a ring */
+.watch-chip .news { position: static; flex: none; min-width: 17px; height: 17px; margin-left: 2px; padding: 0 3px; border: 1px solid var(--vermilion); border-radius: 9px; background: var(--plate); color: var(--vermilion); font: 500 10px/15px var(--font-ui); font-style: normal; text-align: center; }
 .watch-chip.is-gone { opacity: .6; }
 .watch-chip.is-gone .wn { text-decoration: line-through; text-decoration-color: var(--ink-3); }
 .watch-chip.is-following { border-color: var(--verdigris); }

@@ -13,6 +13,7 @@ const PLUGINS = [
   ['overlays', 'WP6', () => import('./overlays.js')],
   ['pins', 'WP8', () => import('./pins.js')],
   ['neatline', 'UI', () => import('./neatline.js')],
+  ['pastborders', 'UI', () => import('./pastborders.js')],
 ];
 
 const status = [];

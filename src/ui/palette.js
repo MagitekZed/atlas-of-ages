@@ -6,10 +6,12 @@
 // change (availableTools, contracts §11 — Awaken Magic opens the mythic group mid-run).
 // Map tools and pair tools join the belt; tools marked hidden, and entity tools (acts on a
 // record, offered in the Inspector by acts.js), stay off it. Q and E step through the belt.
+// On a phone the card ends in the aim: a hint until a spot is tapped, then a button named for
+// the act (the first words of the tool's description) that uses it there (app.confirmAim).
 
 import { getTools, getTool, TOOL_GROUPS } from '../core/tools.js';
 import * as kernelTools from '../core/tools.js';
-import { h, clear } from './dom.js';
+import { h, clear, isCompact } from './dom.js';
 import { iconEl } from './icons.js';
 import { tip, rangeInput } from './widgets.js';
 import { getPref, setPref } from './prefs.js';
@@ -182,8 +184,32 @@ export function mountPalette(app) {
     const back = coarse ? 'Tap the magnifier to inspect again.' : t.target === 'pair' && pairSource ? 'Esc lets go of the first.' : 'Esc returns to Inspect.';
     card.appendChild(forecast);
     syncForecast();
+    if (isCompact() && t.target !== 'pair') { card.appendChild(aimRow); syncAim(); return; }
     card.appendChild(h('p.hint', { text: `${how}${t.continuous ? ' Hold to keep working.' : ''} ${back}` }));
   }
+
+  // a phone's aim: tap a spot, then the button acts there once
+  const aimHint = h('p.hint');
+  const aimBtn = h('button.btn.btn-brass.aim-go', { type: 'button' });
+  aimBtn.addEventListener('click', () => app.confirmAim?.());
+  const aimRow = h('div.aim-row', null, aimHint, aimBtn);
+  let aimNow = null;
+  function syncAim() {
+    const t = app.tool !== 'inspect' ? getTool(app.tool) : null;
+    if (!t) return;
+    const on = Boolean(aimNow && aimNow.toolId === t.id);
+    const first = String(t.desc || '').split('.')[0].trim();
+    aimBtn.textContent = first && first.length <= 24 ? first : t.label;
+    aimBtn.hidden = !on;
+    aimBtn.disabled = Boolean(on && lastForecast && lastForecast.ok === false);
+    let risky = false;
+    try { risky = typeof t.danger === 'function' && Boolean(t.danger(app.toolOptions(t.id))) && !app.chrono?.canProtect?.(); } catch (e) { risky = false; }
+    aimHint.textContent = on
+      ? `${risky ? 'At this strength it cannot be undone. ' : ''}Tap another spot to move it, or the magnifier to inspect again.`
+      : 'Tap a spot on the map to aim; drag to move the map.';
+    aimHint.classList.toggle('is-grave', on && risky);
+  }
+  app.on('toolAim', (a) => { aimNow = a; syncAim(); });
 
   // the tool's forecast under the cursor (input.js emits toolPreview as it changes)
   const forecast = h('p.forecast', { hidden: true, 'aria-live': 'polite' });
@@ -196,7 +222,7 @@ export function mountPalette(app) {
     forecast.classList.toggle('is-refused', Boolean(p && p.ok === false));
   }
   let pairSource = null;
-  app.on('toolPreview', (p) => { lastForecast = p; syncForecast(); });
+  app.on('toolPreview', (p) => { lastForecast = p; syncForecast(); syncAim(); });
   app.on('pairSource', (p) => { pairSource = p; buildCard(); });
 
   const radiusText = (r) => `${r} ${r === 1 ? 'tile' : 'tiles'}`;

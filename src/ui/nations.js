@@ -8,6 +8,7 @@
 import { liveCivs, civSettlements, enemiesOf } from '../core/entities.js';
 import { h, clear, setText } from './dom.js';
 import { tip } from './widgets.js';
+import { iconEl } from './icons.js';
 import * as F from './format.js';
 import { powerOf } from '../sim/stats.js';
 import { getPref, setPref } from './prefs.js';
@@ -48,8 +49,9 @@ export function createNations(app) {
   // comparison picking
   const picked = new Set();
   let picking = false;
-  const pickBtn = h('button.chip', { type: 'button', text: 'Compare', 'aria-pressed': 'false' });
-  tip(pickBtn, 'Pick two to four nations to set side by side (or Shift+click any row).');
+  // Compare stands in the folio's running head (panel.js shows a tab's headActions)
+  const pickBtn = h('button.icon-btn.head-compare', { type: 'button', 'aria-label': 'Compare nations', 'aria-pressed': 'false' }, iconEl('compare', { size: 18, label: 'Compare' }));
+  tip(pickBtn, 'Pick two to four nations to set side by side (or Shift+click any row).', 'Compare');
   const pickBar = h('div.compare-bar', { hidden: true });
   const goBtn = h('button.btn.btn-sm.btn-brass', { type: 'button' });
   const clearBtn = h('button.btn.btn-sm.btn-quiet', { type: 'button', text: 'Clear' });
@@ -75,7 +77,7 @@ export function createNations(app) {
   const fallenList = h('div.list', { role: 'list' });
   const fallenHead = h('h4.rule-head', null, 'The fallen ', h('span.count'));
   const liveHead = h('h4.rule-head', null, 'Living nations ', h('span.count'));
-  el.append(tiles, h('div.ledger-head', null, h('div.ledger-sortrow', null, h('span.gen-label', { text: 'Sort by', style: { marginBottom: '0' } }), pickBtn), seg), pickBar, liveHead, liveList, fallenHead, fallenList);
+  el.append(tiles, h('div.ledger-head', null, h('div.ledger-sortrow', null, h('span.gen-label', { text: 'Sort by', style: { marginBottom: '0' } })), seg), pickBar, liveHead, liveList, fallenHead, fallenList);
 
   function tile(label) {
     const v = h('span.v'), d = h('span.d');
@@ -165,7 +167,7 @@ export function createNations(app) {
   }
 
   return {
-    id: 'nations', label: 'Nations', title: 'Nations', icon: 'nations', el,
+    id: 'nations', label: 'Nations', title: 'Nations', icon: 'nations', el, headActions: compareMod ? [pickBtn] : [],
     show() { lastSig = ''; refresh(); },
     refresh,
     onWorld() { lastSig = ''; refresh(); },

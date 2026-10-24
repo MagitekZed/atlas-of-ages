@@ -12,6 +12,9 @@
 // renderer (setToolPreview) and read out in the hover card; a refusal turns the cursor
 // into a "no" sign. A tool whose danger(opts) holds asks for a second click unless the
 // Chronoscope can undo it. Every stroke is bracketed as one act for undo (app.chrono).
+// On a phone a god tool is aimed first: a tap sets the spot (its forecast drawn there, the
+// toolAim event tells the tool sheet), a drag still pans, and app.confirmAim() uses the tool
+// there once. Pair tools keep their two picks.
 // App events for the expansion (contracts §15): userCamera whenever the viewer moves the
 // map; mapContext on a right-click without a drag, or a 550 ms touch long-press in Inspect
 // (only while someone listens, so the tap still selects otherwise); mapDblClick after a
@@ -22,7 +25,7 @@ import { getTool, applyTool, finishTool } from '../core/tools.js';
 import * as kernelTools from '../core/tools.js';
 import { matchKey, getTabs, registerKey } from './registry.js';
 import { settlementAt } from '../core/entities.js';
-import { isTyping } from './dom.js';
+import { isTyping, isCompact } from './dom.js';
 import { modalOpen } from './widgets.js';
 import { statusToast } from './toasts.js';
 import { showHelp, openLeap } from './hud.js';
@@ -71,8 +74,10 @@ export function mountInput(app, canvas) {
   let pair = null;            // { tool, a: { kind, id?, x, y, label } } once a pair tool's source is chosen
   let armed = null;           // { toolId, x, y, t } a dangerous act waiting for its second click
   let wheelNote = null;       // { text, until } brush readout after a modified wheel
+  let aim = null;             // { toolId, x, y } the spot a phone has aimed its tool at
+  let aiming = false;         // the press in hand (mode 'pending') aims rather than selects
   let tabIndex = -1, tabKeys = '';
-  const camMoved = (how) => app.emit('userCamera', { how });
+  const camMoved = (how) => { if (aim) hoverDirty = true; app.emit('userCamera', { how }); };
 
   const local = (e) => {
     const r = canvas.getBoundingClientRect();
@@ -113,6 +118,7 @@ export function mountInput(app, canvas) {
       return;
     }
     if (e.button !== 0) return;
+    aiming = false;
     if (app.tool === 'inspect') {
       mode = 'pending'; start = p; last = p;
       grab = e.altKey ? null : grabbable(p);
@@ -127,6 +133,9 @@ export function mountInput(app, canvas) {
           emitContext(start);
         }, LONG_PRESS_MS);
       }
+    } else if (isCompact() && getTool(app.tool)?.target !== 'pair') {
+      // a phone aims first: a tap sets the spot, a drag pans
+      mode = 'pending'; start = p; last = p; grab = null; aiming = true;
     } else if (e.pointerType === 'touch') {
       // a second finger may be on its way (pinch): hold the tool back for a moment
       mode = 'tool-wait'; start = p; last = p;
@@ -192,7 +201,8 @@ export function mountInput(app, canvas) {
       setCursor();
       return;
     }
-    if (mode === 'pending' && e.type === 'pointerup') {
+    if (mode === 'pending' && e.type === 'pointerup' && aiming) aimAt(p);
+    else if (mode === 'pending' && e.type === 'pointerup') {
       const t = performance.now();
       const dbl = lastClick && t - lastClick.t < 380 && Math.hypot(p.x - lastClick.x, p.y - lastClick.y) < 8;
       lastClick = dbl ? null : { t, x: p.x, y: p.y };
@@ -389,6 +399,42 @@ export function mountInput(app, canvas) {
     return false;
   }
 
+  // --- aim, then confirm (phones) ------------------------------------------------------------
+  function setAim(next) {
+    if (!aim && !next) return;
+    aim = next;
+    hoverDirty = true; previewAt = 0;
+    if (!aim) { clearPreview(); hideHoverCard(); app.r('setBrush', null); }
+    app.emit('toolAim', aim);
+  }
+  function aimAt(p) {
+    const w = app.world, tool = getTool(app.tool);
+    let tile = app.r('screenToTile', p.x, p.y);
+    if (!w || !tool || !tile) return;
+    if (tool.target === 'settlement') {
+      const pick = app.r('pickEntity', p.x, p.y);
+      const s = pick?.kind === 'settlement' ? w.settlements[pick.id] : null;
+      if (s) tile = { x: s.x, y: s.y, i: s.i };
+    }
+    setAim({ toolId: tool.id, x: tile.x, y: tile.y });
+  }
+  /** Use the aimed tool once on its spot (the tool sheet's button). */
+  app.confirmAim = () => {
+    if (!aim || aim.toolId !== app.tool || !app.world) return;
+    const tool = getTool(aim.toolId);
+    const sp = app.r('e2s', aim.x, aim.y);
+    if (!tool || !sp) return;
+    const p = { x: sp.sx, y: sp.sy };
+    armed = { toolId: tool.id, x: p.x, y: p.y, t: performance.now() };   // the button is the deliberate second touch
+    if (stroke) endStroke();
+    mode = 'tool';
+    beginStroke(p);
+    endStroke();
+    mode = null;
+    setAim(null);
+  };
+  app.on('world', () => setAim(null));
+
   // --- pair tools: source, rubber band, target ------------------------------------------------
   /** What a click picks for one side of a pair tool: { kind, id?, x, y, label } or null. */
   function pickFor(kind, p) {
@@ -457,8 +503,11 @@ export function mountInput(app, canvas) {
     if (nowT - hoverAt < 40) return;
     hoverAt = nowT; hoverDirty = false;
     const w = app.world;
+    // an aimed tool keeps its forecast (and card) on the aimed spot as the map moves
+    const aimed = aim && aim.toolId === app.tool && w ? { x: aim.x, y: aim.y, i: aim.y * w.W + aim.x } : null;
+    if (aimed) { const sp = app.r('e2s', aimed.x, aimed.y); if (sp) hoverPos = { x: sp.sx, y: sp.sy }; }
     if (!w || !hoverPos) { app.emit('hover', null); hideHoverCard(); clearPreview(); return; }
-    const t = app.r('screenToTile', hoverPos.x, hoverPos.y);
+    const t = aimed || app.r('screenToTile', hoverPos.x, hoverPos.y);
     app.emit('hover', t || null);
     const tool = app.tool !== 'inspect' ? getTool(app.tool) : null;
     if (tool && t && tool.target !== 'pair') {
@@ -714,6 +763,7 @@ export function mountInput(app, canvas) {
     if (k === 'Escape') {
       if (mode === 'grab') { grab = null; mode = null; clearPreview(); hideHoverCard(); setCursor(); return; }
       if (cancelPair()) return;
+      if (aim) { setAim(null); return; }
       if (armed) { armed = null; return; }
       if (app.tool !== 'inspect') app.setTool('inspect');
       else if (app.atlasIndex != null) app.emit('atlasExit');
@@ -780,7 +830,7 @@ export function mountInput(app, canvas) {
   // Z: frame whatever is selected (a nation's lands, a war's theatre, a town and its fields)
   registerKey({ key: 'z', label: 'Frame the selection', group: 'Map', when: (a) => Boolean(a.selection), run: (a) => a.frameSelection() });
 
-  app.on('tool', () => { cancelPair(); armed = null; clearPreview(); setCursor(); hoverDirty = true; previewAt = 0; if (app.tool === 'inspect') app.r('setBrush', null); });
+  app.on('tool', () => { setAim(null); cancelPair(); armed = null; clearPreview(); setCursor(); hoverDirty = true; previewAt = 0; if (app.tool === 'inspect') app.r('setBrush', null); });
   app.on('brush', () => { hoverDirty = true; hoverAt = 0; previewAt = 0; });
   app.on('toolOptions', () => { hoverDirty = true; hoverAt = 0; previewAt = 0; });
   app.on('follow', () => { followAt = 0; followBox = null; });

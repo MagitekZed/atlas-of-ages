@@ -2,7 +2,9 @@
 //
 // The watchlist (world.ui.watch, at most 8, saved with the world and never read by the sim):
 // '.' or the star on any record adds or removes it. Watched things sit as chips under the
-// cartouche with a live number and a red dot when the Chronicle writes about them; their
+// cartouche with a live number and a count of what the Chronicle has written about them since
+// you last looked (each item keeps the chronicle seq it was last seen at, so the count outlives
+// a reload: looking means opening it, from its chip or anywhere else); their
 // entries reach the viewer as gilded toasts outside the meter (a toast filter), and watched
 // movers that leave the view are pointed at by arrows on the map's edge.
 // Pins (world.ui.pins): B keeps the current view under a name; Shift+1–9 flies back to it.
@@ -53,7 +55,7 @@ export function mount(app) {
       if (!quiet) statusToast(app, `${d.name} is no longer watched.`, 'info', { icon: 'star' });
     } else {
       if (list.length >= MAX_WATCH) { statusToast(app, `You can watch ${MAX_WATCH} things at once. Unwatch one first.`, 'warn', { icon: 'star' }); return false; }
-      list.push({ kind: sel.kind, id: sel.id, since: w.time.day });
+      list.push({ kind: sel.kind, id: sel.id, since: w.time.day, seen: w.chronicle.seq });
       if (!quiet) statusToast(app, `Watching ${d.name}: what befalls it will find you.`, 'ok', { icon: 'star' });
     }
     app.emit('watch');
@@ -144,7 +146,7 @@ export function mount(app) {
     const b = h('button.watch-chip', { type: 'button' }, sw, h('span.wn', { text: d.name }), val, dot);
     tip(b, `${d.sub || ''}${d.sub ? '. ' : ''}Click to go there; right-click for more.`, d.name);
     b.addEventListener('click', () => {
-      news.delete(q.kind + ':' + q.id);
+      markSeen(q);
       if (selectionExists(app, q)) app.select(q, { frame: !isMoverKind(q.kind) && q.kind !== 'settlement', focus: true });
       update();
     });
@@ -193,6 +195,8 @@ export function mount(app) {
       setText(el._val, liveValue(q));
       const n = news.get(q.kind + ':' + q.id) || 0;
       el._dot.hidden = !n;
+      setText(el._dot, n > 9 ? '9+' : String(n));
+      el._dot.title = n ? `${n} new since you looked` : '';
       const d = describeSel(app, q);
       el.classList.toggle('is-gone', d.alive === false);
       el.classList.toggle('is-following', app.isFollowing(q));
@@ -266,7 +270,29 @@ export function mount(app) {
     }
     lastSeq = w.chronicle.seq;
     const sel = app.selection;
-    if (sel) news.delete(sel.kind + ':' + sel.id);
+    if (sel) markSeen(sel);
+  }
+  /** The viewer has looked at a watched thing: its count starts again from now. */
+  function markSeen(sel) {
+    const q = watched().find((x) => same(x, sel));
+    if (q && app.world) q.seen = app.world.chronicle.seq;
+    news.delete(sel.kind + ':' + sel.id);
+  }
+  /** Count what was written about each watched thing since it was last seen (a world opens). */
+  function recount() {
+    const w = app.world;
+    news.clear();
+    if (!w) return;
+    const list = watched();
+    for (const q of list) if (!Number.isFinite(q.seen)) q.seen = w.chronicle.seq;
+    const from = list.length ? Math.min(...list.map((q) => q.seen)) : w.chronicle.seq;
+    const seenOf = new Map(list.map((q) => [q.kind + ':' + q.id, q.seen]));
+    const es = w.chronicle.entries;
+    for (let k = es.length - 1; k >= 0 && es[k].seq > from; k--) {
+      const e = es[k];
+      if (e.fold || e.imp < 2) continue;
+      for (const key of concerns(e)) if (key !== 'patron' && e.seq > seenOf.get(key)) news.set(key, (news.get(key) || 0) + 1);
+    }
   }
 
   let elegyShownFor = null;
@@ -557,7 +583,7 @@ export function mount(app) {
   app.on('world', (w) => {
     lastSeq = w.chronicle.seq;
     if (app.restoring) { stripSig = ''; render(); return; }
-    news.clear();
+    recount();
     lastCapital = new Map();
     elegyShownFor = null;
     stripSig = '';
@@ -565,7 +591,7 @@ export function mount(app) {
   });
   app.on('worldRestored', () => { stripSig = ''; render(); });
   app.on('tick', () => { if (!app.world) return; scanNews(); watchPatron(); render(); });
-  app.on('select', (sel) => { if (sel) { news.delete(sel.kind + ':' + sel.id); update(); } });
+  app.on('select', (sel) => { if (sel) { markSeen(sel); update(); } });
   app.on('follow', () => update());
   app.on('pinView', () => pinView());
   app.on('layout', () => setTimeout(place, 40));

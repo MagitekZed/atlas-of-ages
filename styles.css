@@ -599,6 +599,7 @@ textarea.field { border: 1px solid var(--rule); padding: 8px 10px; }
 .tool-card .desc { font-size: var(--t-small); color: var(--ink-2); }
 .tool-card .sliders { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 4px 16px; margin-top: 6px; }
 .tool-card .hint { grid-column: 1 / -1; font-size: var(--t-micro); color: var(--ink-3); margin-top: 2px; }
+.tool-card .forecast, .tool-card .aim-row { grid-column: 1 / -1; }
 .mini-slider { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; }
 .mini-slider label { font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .07em; color: var(--ink-3); }
 .mini-slider output { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink); min-width: 38px; text-align: right; }
@@ -1959,7 +1960,7 @@ button.ct-name:hover { color: var(--brass-hi); }
   .app.is-tools .belt { background: none; padding: 0; }
   .app.is-tools .belt .fx-frame, .app.is-tools .case-name { display: none; }
   .app.is-tools .tool-card { border: 0; border-top: 1px solid var(--hair-2); box-shadow: none; padding: 10px 0 0; background: none; }
-  .app.is-tools .tool-card .desc { display: block; }
+  .app.is-tools .tool-card .desc { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
   /* the tab bar along the foot, with the sheet over it */
   .panel { grid-template-rows: auto minmax(0, 1fr) auto; background: var(--plate); }
   .sheet-grip { grid-row: 1; }
@@ -2004,3 +2005,19 @@ button.ct-name:hover { color: var(--brass-hi); }
   /* when time stopped for it, the pause card already tells it, with Resume */
   .toasts:has(.toast.is-arrived) .toast.imp-5 { display: none; }
 }
+
+/* the Atlas's key to the past borders on the map */
+.atlas-key { padding: 8px 0 2px; border-top: 1px solid var(--hair-2); }
+.atlas-key-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin: 0; font-size: 12.5px; color: var(--ink-2); }
+.atlas-key-row span + i { margin-left: 8px; }
+.ak-dash { width: 22px; height: 0; border-top: 1.5px dashed var(--ink); }
+.ak-hatch { width: 16px; height: 12px; border: 1px solid var(--rule-2); background: repeating-linear-gradient(-45deg, rgba(237, 227, 203, .45) 0 1px, transparent 1px 4px); }
+.atlas-key-sub { margin: 4px 0 0; font-size: 12px; color: var(--ink-3); }
+/* the phone's aim: the act's button under its hint */
+.aim-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+.aim-row .hint { flex: 1; margin: 0; font: italic 400 13.5px/18px var(--font-display); color: var(--ink-3); }
+.aim-row .hint.is-grave { color: var(--vermilion); }
+.aim-row .aim-go { flex: none; min-height: 40px; font-size: 17px; }
+.aim-row .aim-go[hidden] { display: none; }
+.head-acts { display: flex; gap: 2px; }
+.head-acts .icon-btn[aria-pressed="true"] { color: var(--brass-hi); border-color: var(--brass); }
