@@ -9,24 +9,13 @@
 <meta name="description" content="An autonomous world simulator: shape a planet's genesis, then watch continents, climates, peoples, faiths and empires unfold across the ages.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap">
 <link rel="stylesheet" href="styles.css">
 <!-- expansion packages' stylesheets (tokens from styles.css only); inlined by tools/build-standalone.mjs -->
 <link rel="stylesheet" href="src/ui/css/story.css">
 <link rel="stylesheet" href="src/ui/css/records.css">
 <link rel="stylesheet" href="src/ui/css/myth.css">
 <link rel="stylesheet" href="src/ui/css/bands.css">
-<script>
-  // Theme before first paint: ?theme=light|dark, else the viewer's saved choice.
-  (function () {
-    try {
-      var q = new URLSearchParams(window.location.search).get('theme');
-      var t = q;
-      if (!t) { try { t = (JSON.parse(window.localStorage.getItem('atlas-of-ages:prefs:v1') || '{}') || {}).theme; } catch (e) { t = null; } }
-      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
-    } catch (e) { /* no theme override */ }
-  })();
-</script>
 </head>
 <body>
 <div id="app" class="app is-booting" data-mode="genesis">

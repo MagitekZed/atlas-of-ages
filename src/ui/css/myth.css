@@ -7,29 +7,10 @@
 .genesis, .myth-sec, .legends, .pp-sec, .pp-scope {
   --myth-acc: #b49af0;
   --myth-acc-lo: rgba(180, 154, 240, 0.16);
-  --myth-acc-glow: rgba(180, 154, 240, 0.34);
+  --myth-acc-glow: rgba(180, 154, 240, 0.34);   /* kept for old rules; Copperplate draws no glows */
   --legend-acc: #e0b964;
   --legend-acc-lo: rgba(224, 185, 100, 0.14);
 }
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) .genesis, :root:not([data-theme="dark"]) .myth-sec, :root:not([data-theme="dark"]) .legends,
-  :root:not([data-theme="dark"]) .pp-sec, :root:not([data-theme="dark"]) .pp-scope {
-    --myth-acc: #6a4cb4;
-    --myth-acc-lo: rgba(106, 76, 180, 0.11);
-    --myth-acc-glow: rgba(106, 76, 180, 0.24);
-    --legend-acc: #93661a;
-    --legend-acc-lo: rgba(147, 102, 26, 0.12);
-  }
-}
-:root[data-theme="light"] .genesis, :root[data-theme="light"] .myth-sec, :root[data-theme="light"] .legends,
-:root[data-theme="light"] .pp-sec, :root[data-theme="light"] .pp-scope {
-  --myth-acc: #6a4cb4;
-  --myth-acc-lo: rgba(106, 76, 180, 0.11);
-  --myth-acc-glow: rgba(106, 76, 180, 0.24);
-  --legend-acc: #93661a;
-  --legend-acc-lo: rgba(147, 102, 26, 0.12);
-}
-
 /* ------------------------------------------------------------------ genesis: the three ages */
 .gen-ages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .gen-age {
@@ -50,17 +31,16 @@
 .gen-age:hover:not(:disabled) { border-color: var(--rule-2); background: var(--slate-2); }
 .gen-age:hover:not(:disabled) .ga-emblem { color: var(--acc); }
 .gen-age:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.gen-age.is-on { border-color: var(--acc); background: linear-gradient(180deg, var(--acc-lo), transparent 85%), var(--slate-2); box-shadow: inset 0 0 0 1px var(--acc); }
-.gen-age.is-on .ga-emblem { color: var(--acc); transform: scale(1.06); }
+.gen-age.is-on { border-color: var(--acc); background: var(--plate); box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--acc); }
+.gen-age.is-on .ga-emblem { color: var(--acc); }
 .gen-age.is-on .ga-name { color: var(--ink); }
 .gen-age:disabled { cursor: not-allowed; opacity: .62; }
 .gen-age:disabled .ga-name::after { content: " · coming"; font-family: var(--font-ui); font-size: var(--t-micro); letter-spacing: 0; color: var(--ink-4); }
-.genesis[data-myth="2"] .gen-age[data-level="2"].is-on { box-shadow: inset 0 0 0 1px var(--acc), 0 0 22px var(--myth-acc-glow); }
+.genesis[data-myth="2"] .gen-age[data-level="2"].is-on { box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--acc); }
 
 /* the whole screen leans toward the chosen age */
 .genesis[data-myth="2"] {
   background-image:
-    radial-gradient(ellipse 70% 55% at 72% 38%, var(--myth-acc-lo), transparent 72%),
     repeating-linear-gradient(0deg, transparent 0 63px, var(--graticule) 63px 64px),
     repeating-linear-gradient(90deg, transparent 0 63px, var(--graticule) 63px 64px);
 }
@@ -122,7 +102,7 @@
 .myth-arts { display: flex; flex-direction: column; gap: 9px; }
 .myth-art { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; align-items: baseline; }
 .myth-art .ma-name { font-family: var(--font-display); font-size: 15.5px; color: var(--ink); }
-.myth-art .ma-name::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 2px; transform: rotate(45deg) translateY(-1px); background: var(--sc, var(--myth-acc)); }
+.myth-art .ma-name::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 0; transform: rotate(45deg) translateY(-1px); background: var(--sc, var(--myth-acc)); }
 .myth-art .ma-count { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-3); }
 .myth-art .meter { grid-column: 1 / -1; --mc: var(--sc, var(--myth-acc)); }
 .myth-art .ma-next { grid-column: 1 / -1; font-size: var(--t-micro); color: var(--ink-3); }
@@ -157,7 +137,7 @@
 .lg-row .lg-t { font-family: var(--font-display); font-size: 15px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lg-row .lg-s { grid-column: 1; font-size: var(--t-micro); color: var(--ink-3); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lg-row .lg-n { grid-column: 2; grid-row: 1 / 3; align-self: center; font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-2); text-align: right; }
-.lg-row .lg-school::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 2px; transform: rotate(45deg) translateY(-1px); background: var(--sc, var(--myth-acc)); }
+.lg-row .lg-school::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 0; transform: rotate(45deg) translateY(-1px); background: var(--sc, var(--myth-acc)); }
 .lg-row.lg-tale { grid-template-columns: 44px minmax(0, 1fr); }
 .lg-row.lg-tale .lg-y { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--myth-acc); }
 .lg-row.lg-tale .lg-text { font-size: var(--t-small); line-height: 1.4; color: var(--ink-2); white-space: normal; }
@@ -169,12 +149,12 @@
  * stay apart in both themes), legend rows (symbol · name and details · whole %), the realm
  * chart, and the compact forms in the Nations ledger, the hover card and Legends. */
 .pp-bar {
-  display: flex; gap: 1px; width: 100%; height: 10px; overflow: hidden; border-radius: 3px;
+  display: flex; gap: 1px; width: 100%; height: 10px; overflow: hidden; border-radius: 0;
   background: var(--hair-2); box-shadow: 0 0 0 1px var(--hair-2);
 }
-.pp-bar.is-lg { height: 14px; border-radius: 4px; }
+.pp-bar.is-lg { height: 14px; border-radius: 0; }
 .pp-bar.is-md { height: 9px; }
-.pp-bar.is-sm { height: 5px; border-radius: 2px; gap: 1px; }
+.pp-bar.is-sm { height: 5px; border-radius: 0; gap: 1px; }
 .pp-bar.is-empty { opacity: .5; }
 .pp-bar .pp-seg {
   flex: 1 1 0; min-width: 2px; background: var(--rc);
@@ -192,7 +172,7 @@
 .pp-name { font-family: var(--font-display); font-size: 15.5px; line-height: 1.2; color: var(--ink); min-width: 0; }
 .pp-tag {
   margin-left: 7px; padding: 0 5px; border: 1px solid color-mix(in srgb, var(--myth-acc, var(--brass)) 50%, var(--rule));
-  border-radius: 8px; font-family: var(--font-ui); font-size: 10.5px; letter-spacing: .03em; color: var(--myth-acc, var(--brass)); vertical-align: 2px;
+  border-radius: 0; font-family: var(--font-ui); font-size: 10.5px; letter-spacing: .03em; color: var(--myth-acc, var(--brass)); vertical-align: 2px;
 }
 .pp-x { margin-left: auto; font-size: var(--t-micro); color: var(--ink-3); text-align: right; }
 .pp-pct { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink); text-align: right; }

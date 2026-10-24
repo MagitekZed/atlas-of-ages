@@ -12,7 +12,6 @@ import { glyph, iconEl } from './icons.js';
 import { tip, openPopover, closePopover, openModal, msText } from './widgets.js';
 import { people, eraName, int } from './format.js';
 import { summarize } from '../sim/stats.js';
-import { setTheme, themeChoice } from './theme.js';
 import { setPref } from './prefs.js';
 import { openSaves, quickSave } from './saves.js';
 import { getCommands, runCommand, listKeys, getTabs, describeKey } from './registry.js';
@@ -240,15 +239,6 @@ function openMenu(app, anchor) {
     input.addEventListener('change', () => set(input.checked));
     return h('label.menu-item.switch', { for: id }, input, h('span.track'), h('span', { text: label }));
   };
-  const themeSeg = h('div.seg', { role: 'group', 'aria-label': 'Theme', style: { margin: '2px 10px 6px' } });
-  for (const [v, lab] of [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']]) {
-    const b = h('button', { type: 'button', text: lab, 'aria-pressed': themeChoice() === v ? 'true' : 'false' });
-    b.addEventListener('click', () => {
-      setTheme(app, v);
-      for (const x of themeSeg.children) x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
-    });
-    themeSeg.appendChild(b);
-  }
   // the Chronoscope: undo names what it would take back
   const chrono = app.chrono;
   const last = chrono?.lastAct?.();
@@ -274,8 +264,6 @@ function openMenu(app, anchor) {
     item('keyboard', 'Keyboard and mouse', () => showHelp(app), '?'),
     ...menuCommands(app),
     h('div.menu-sep'),
-    h('div.menu-label', { text: 'Theme' }),
-    themeSeg,
     app.openNotices ? item('chronicle', 'Notices and pauses…', () => app.openNotices()) : toggle('Pause on epochal events', () => app.autoPause, (v) => { app.autoPause = v; setPref('autoPause', v); }),
     toggle('Autosave every century', () => app.autosave, (v) => { app.autosave = v; setPref('autosave', v); }),
     app.sound ? toggle('Sound', () => app.sound.on, (v) => app.sound.setOn(v)) : null,

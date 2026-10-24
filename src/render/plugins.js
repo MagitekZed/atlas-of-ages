@@ -12,6 +12,7 @@ const PLUGINS = [
   ['myth', 'WP5', () => import('./myth.js')],
   ['overlays', 'WP6', () => import('./overlays.js')],
   ['pins', 'WP8', () => import('./pins.js')],
+  ['neatline', 'UI', () => import('./neatline.js')],
 ];
 
 const status = [];

@@ -1,62 +1,78 @@
-/* Atlas of Ages — observatory instruments around a living atlas.
-   Layout: a full-bleed map; a brass cartouche (top left) and drive (top right); the map
-   dock and toolbelt along the foot; a docked ledger of tabs on the right that becomes a
-   bottom sheet on phones. Dark-first: deep blue-slate, brass, verdigris, parchment ink. */
+/* Atlas of Ages — Copperplate: the Cartographer's Table, engraved in ivory on a night ground.
+   Layout: a full-bleed map in an engraved neatline; fixtures on the map (cartouche, time
+   bridge, legend, instrument case) and folios that slide out for everything else. One look,
+   dark only. The identity and its rules: docs/design/ui/kit/IDENTITY.md and ERRATA.md (on the
+   design/copperplate branch). Four laws: if it measures, it is graduated; if it frames, it is
+   ruled; brass is now and chosen, vermilion is war; no gloss, glow, blur, radius or gradient. */
 
 :root {
   color-scheme: dark;
-  /* ground & surfaces */
+  /* grounds (dark only): the table, then opaque plates */
   --ground: #0a1017;
-  --map-void: #0b1219;   /* the map canvas around the world */
-  --slate-1: #101923;
+  --map-void: #0a1017;   /* the map canvas around the world */
+  --plate: #0e151d;      /* every panel, always opaque */
+  --plate-2: #16212d;    /* hover and pressed fills, field wells */
+  --plate-3: #1e2c3b;    /* rare: a selected row that is also hovered */
+  --slate-1: #0e151d;
   --slate-2: #16212d;
   --slate-3: #1e2c3b;
   --slate-4: #273849;
-  --glass: rgba(13, 20, 29, 0.88);
-  --glass-strong: rgba(11, 17, 25, 0.95);
-  /* metal & patina */
+  --glass: #0e151d;      /* plates are opaque: no glass, no blur */
+  --glass-strong: #0e151d;
+  /* brass: now, chosen, the one primary action. Flat ink, never metal. */
   --brass: #c9a466;
   --brass-hi: #e8cb90;
   --brass-lo: #8a6d40;
   --brass-ink: #1b1408;
-  --verdigris: #63b5a3;
-  --verdigris-lo: rgba(99, 181, 163, 0.16);
-  /* parchment ink */
-  --ink: #ede3cb;
-  --ink-2: #c3b9a1;
-  --ink-3: #8f8877;
-  --ink-4: #5f5c53;
-  /* rules */
-  --rule: rgba(201, 164, 102, 0.22);
-  --rule-2: rgba(201, 164, 102, 0.46);
-  --hair: rgba(237, 227, 203, 0.08);
-  --hair-2: rgba(237, 227, 203, 0.15);
-  /* semantic (separate from the accent) */
-  --good: #7fbf6d;
+  --brass-hatch: rgba(232, 203, 144, 0.2);
+  /* signals: vermilion for war, siege, danger and red-letter days; verdigris for boons only */
+  --vermilion: #e06a50;
+  --verdigris: #6dbba9;
+  --verdigris-lo: rgba(109, 187, 169, 0.14);
+  /* inks (contrast on --plate) */
+  --ink: #ede3cb;        /* 14.4:1 names, figures, body */
+  --ink-2: #c3b9a1;      /*  9.4:1 secondary text */
+  --ink-3: #9a927f;      /*  5.9:1 captions and caps labels: the faintest text */
+  --ink-4: #6e6a5f;      /*  3.4:1 never text: minor ticks, disabled glyphs */
+  /* rules are ivory at alpha, never brass. --rule-2 is the strong rule, --rule the quiet one. */
+  --rule: rgba(237, 227, 203, 0.3);
+  --rule-2: rgba(237, 227, 203, 0.62);
+  --hair: rgba(237, 227, 203, 0.1);
+  --hair-2: rgba(237, 227, 203, 0.16);
+  /* semantic */
+  --good: #6dbba9;
   --warn: #e4ab4b;
-  --danger: #e0664d;
-  --info: #6aa9d8;
+  --danger: #e06a50;
+  --info: #6fb6cf;
+  /* category inks: seals, map-key pips and chart series only, never fills */
+  --c-nations: #c9a24a; --c-war: #e06a50; --c-diplomacy: #5e9fd6; --c-faith: #b884d8;
+  --c-plague: #8db04a; --c-discovery: #43b3a3; --c-culture: #e08fb0; --c-trade: #d99a3e;
+  --c-nature: #6aa86a; --c-climate: #6fb6cf; --c-catastrophe: #e2703a; --c-divine: #e8d48a;
+  --c-myth: #a98be6;
   /* charts */
-  --chart-grid: rgba(237, 227, 203, 0.07);
-  --chart-axis: rgba(237, 227, 203, 0.24);
-  /* chart series: validated categorical set (lightness band, chroma, CVD and contrast on --slate-1) */
+  --chart-grid: rgba(237, 227, 203, 0.1);
+  --chart-axis: rgba(237, 227, 203, 0.5);
   --chart-1: #bf8a2a;
   --chart-2: #16a085;
   --chart-3: #e0603f;
   --chart-4: #5a86e0;
-  /* depth */
-  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.38);
-  --shadow-2: 0 18px 50px rgba(0, 0, 0, 0.55);
-  --scrim: rgba(4, 7, 11, 0.62);
+  /* depth: none. A plate stands off the map on a 1px ground keyline. */
+  --shadow-1: 0 0 0 1px var(--ground);
+  --shadow-2: 0 0 0 1px var(--ground);
+  --scrim: rgba(10, 16, 23, 0.8);
   --focus: #e8cb90;
-  --icon-knob: #101923;
-  --graticule: rgba(201, 164, 102, 0.07);
+  --icon-knob: #0e151d;
+  --graticule: rgba(237, 227, 203, 0.07);
 
-  /* type */
+  /* type: Fell for names, titles and dates as words; Fell SC for lettering 13px and up;
+     Alegreya Sans for everything read or counted, with tabular lining figures. No monospace. */
   --font-display: "IM Fell English", "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --font-sc: "IM Fell English SC", "IM Fell English", "Palatino Linotype", Palatino, Georgia, serif;
   --font-ui: "Alegreya Sans", "Gill Sans", "Gill Sans MT", Seravek, "Trebuchet MS", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-mono: var(--font-ui);
+  --f-fell: var(--font-display);
+  --f-sc: var(--font-sc);
+  --f-ui: var(--font-ui);
   --t-micro: 11px;
   --t-small: 12.5px;
   --t-body: 14.5px;
@@ -65,97 +81,29 @@
   --t-h2: 22px;
   --t-h1: 30px;
 
+  /* the line ladder (DPR 2+; DPR 1 overrides below) */
+  --l0: 0.7px;    /* hatch, stipple, minor ticks */
+  --l1: 1px;      /* hairline */
+  --l2: 1px;      /* rule */
+  --l3: 1.25px;   /* icons, reticles, data lines */
+  --l4: 1.5px;    /* the neatline only */
+  --hatch: 4px;
+  --hatch-a: 0.5;
+
   /* metrics */
   --gap: 12px;
-  --radius: 3px;
+  --radius: 0;
+  --neat: 16px;          /* the neatline band around the map */
   --rail-w: 60px;
   --panel-w: 392px;
-  --hud-pad: 12px;
+  --hud-pad: 28px;       /* fixtures stand inside the neatline */
+  /* motion */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --t1: 90ms; --t2: 140ms; --t3: 220ms; --t4: 260ms;
 }
-
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    color-scheme: light;
-    --ground: #d6ccb4;
-    --map-void: #c9bd9f;   /* the map canvas around the world */
-    --slate-1: #f4eedf;
-    --slate-2: #ece4d0;
-    --slate-3: #e2d8c0;
-    --slate-4: #d5c9ad;
-    --glass: rgba(246, 240, 226, 0.92);
-    --glass-strong: rgba(248, 243, 231, 0.97);
-    --brass: #8b6424;
-    --brass-hi: #6c4b14;
-    --brass-lo: #b8975f;
-    --brass-ink: #fbf5e6;
-    --verdigris: #22786a;
-    --verdigris-lo: rgba(34, 120, 106, 0.13);
-    --ink: #1c2731;
-    --ink-2: #44505b;
-    --ink-3: #6b7176;
-    --ink-4: #9a9a92;
-    --rule: rgba(139, 100, 36, 0.24);
-    --rule-2: rgba(139, 100, 36, 0.5);
-    --hair: rgba(28, 39, 49, 0.08);
-    --hair-2: rgba(28, 39, 49, 0.16);
-    --good: #3f8a32;
-    --warn: #a86d10;
-    --danger: #b8432d;
-    --info: #2f6ea3;
-    --chart-grid: rgba(28, 39, 49, 0.08);
-    --chart-axis: rgba(28, 39, 49, 0.3);
-    --chart-1: #a8761c;
-    --chart-2: #14866f;
-    --chart-3: #c4502f;
-    --chart-4: #3d6cc4;
-    --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 6px 18px rgba(60, 45, 20, 0.16);
-    --shadow-2: 0 18px 50px rgba(60, 45, 20, 0.28);
-    --scrim: rgba(40, 32, 18, 0.38);
-    --focus: #6c4b14;
-    --icon-knob: #f4eedf;
-    --graticule: rgba(139, 100, 36, 0.1);
-  }
-}
-:root[data-theme="light"] {
-  color-scheme: light;
-  --ground: #d6ccb4;
-  --map-void: #c9bd9f;   /* the map canvas around the world */
-  --slate-1: #f4eedf;
-  --slate-2: #ece4d0;
-  --slate-3: #e2d8c0;
-  --slate-4: #d5c9ad;
-  --glass: rgba(246, 240, 226, 0.92);
-  --glass-strong: rgba(248, 243, 231, 0.97);
-  --brass: #8b6424;
-  --brass-hi: #6c4b14;
-  --brass-lo: #b8975f;
-  --brass-ink: #fbf5e6;
-  --verdigris: #22786a;
-  --verdigris-lo: rgba(34, 120, 106, 0.13);
-  --ink: #1c2731;
-  --ink-2: #44505b;
-  --ink-3: #6b7176;
-  --ink-4: #9a9a92;
-  --rule: rgba(139, 100, 36, 0.24);
-  --rule-2: rgba(139, 100, 36, 0.5);
-  --hair: rgba(28, 39, 49, 0.08);
-  --hair-2: rgba(28, 39, 49, 0.16);
-  --good: #3f8a32;
-  --warn: #a86d10;
-  --danger: #b8432d;
-  --info: #2f6ea3;
-  --chart-grid: rgba(28, 39, 49, 0.08);
-  --chart-axis: rgba(28, 39, 49, 0.3);
-  --chart-1: #a8761c;
-  --chart-2: #14866f;
-  --chart-3: #c4502f;
-  --chart-4: #3d6cc4;
-  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.6) inset, 0 6px 18px rgba(60, 45, 20, 0.16);
-  --shadow-2: 0 18px 50px rgba(60, 45, 20, 0.28);
-  --scrim: rgba(40, 32, 18, 0.38);
-  --focus: #6c4b14;
-  --icon-knob: #f4eedf;
-  --graticule: rgba(139, 100, 36, 0.1);
+@media (max-resolution: 1.49dppx) {
+  /* DPR 1: heavier hatch and ticks so nothing shimmers */
+  :root { --l0: 1px; --l3: 1.5px; --hatch: 5px; --hatch-a: 0.32; }
 }
 
 /* ------------------------------------------------------------------ base */
@@ -172,17 +120,21 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 [hidden] { display: none !important; }
+/* Lining figures everywhere. Alegreya Sans draws old-style figures by default, and in Chrome a
+   font shorthand resets font-variant-numeric and font-feature-settings, so the setting is
+   forced on every element. IM Fell has no lining figures: its old-style dates are untouched. */
+*, *::before, *::after { font-feature-settings: "lnum" 1 !important; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus { outline: none; }
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+:focus-visible { outline: 1px solid var(--focus); outline-offset: 3px; }
 ::selection { background: var(--brass); color: var(--brass-ink); }
 h1, h2, h3, h4 { margin: 0; font-weight: 400; text-wrap: balance; }
 p { margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .sc { font-family: var(--font-sc); letter-spacing: 0.06em; }
-.mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.mono, .num { font-family: var(--font-ui); font-variant-numeric: tabular-nums lining-nums; }
 .muted { color: var(--ink-3); }
 .dim { color: var(--ink-2); }
 .danger-text { color: var(--danger); }
@@ -191,196 +143,236 @@ p { margin: 0; }
 
 .glyph { display: block; flex: none; }
 
-/* Corner ticks: brass reticle marks at the four corners of an instrument. */
+/* Plates. Every panel is an opaque plate: square corners, an outer rule, a 3px gap and an
+   inner hairline, and a 1px ground keyline against the map. No blur, no shadow. */
 .ticked { position: relative; }
-.ticked::after {
-  content: ""; position: absolute; inset: -1px; pointer-events: none;
-  background:
-    linear-gradient(var(--brass), var(--brass)) top left / 10px 1px no-repeat,
-    linear-gradient(var(--brass), var(--brass)) top left / 1px 10px no-repeat,
-    linear-gradient(var(--brass), var(--brass)) top right / 10px 1px no-repeat,
-    linear-gradient(var(--brass), var(--brass)) top right / 1px 10px no-repeat,
-    linear-gradient(var(--brass), var(--brass)) bottom left / 10px 1px no-repeat,
-    linear-gradient(var(--brass), var(--brass)) bottom left / 1px 10px no-repeat,
-    linear-gradient(var(--brass), var(--brass)) bottom right / 10px 1px no-repeat,
-    linear-gradient(var(--brass), var(--brass)) bottom right / 1px 10px no-repeat;
+.instrument, .plate {
+  background: var(--plate);
+  border: 1px solid var(--rule-2);
+  border-radius: 0;
+  box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--hair-2), 0 0 0 1px var(--ground);
 }
-
-.instrument {
-  background: var(--glass);
-  border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-1);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+.plate-s { background: var(--plate); border: 1px solid var(--rule-2); box-shadow: 0 0 0 1px var(--ground); }
+.dbl { height: 4px; border-top: 1px solid var(--rule-2); border-bottom: 1px solid var(--hair-2); }
+.hatch { background-image: repeating-linear-gradient(-45deg, rgba(237, 227, 203, var(--hatch-a)) 0 var(--l0), transparent var(--l0) var(--hatch)); }
+.hatch-brass { background-image: repeating-linear-gradient(-45deg, var(--brass-hatch) 0 1px, transparent 1px var(--hatch)); }
+.loz { display: inline-block; flex: none; width: 5px; height: 5px; transform: rotate(45deg); border: 1px solid var(--ink-3); }
+.loz.is-on { border-color: var(--brass-hi); background: var(--brass-hi); }
+.kbd {
+  display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 5px;
+  font: 500 11.5px/1 var(--font-ui); letter-spacing: 0.04em; color: var(--ink-2);
+  border: 1px solid var(--rule); border-bottom-color: var(--rule-2);
 }
 
 /* ------------------------------------------------------------------ controls */
 
+/* The default button is the kit's "span": a measured rule under the label with a tick at
+   each end. On = brass, with a brass hatch. */
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  min-height: 32px; padding: 0 12px;
-  background: transparent; color: var(--ink);
-  border: 1px solid var(--rule-2); border-radius: var(--radius);
-  font-family: var(--font-ui); font-size: var(--t-small); font-weight: 500; letter-spacing: 0.02em;
-  transition: background-color .15s, border-color .15s, color .15s;
+  --bc: var(--rule-2);
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-height: 32px; padding: 0 10px;
+  color: var(--ink); border: 0; border-radius: 0;
+  background:
+    linear-gradient(var(--bc), var(--bc)) 0 100% / 100% 1px no-repeat,
+    linear-gradient(var(--bc), var(--bc)) 0 100% / 1px 7px no-repeat,
+    linear-gradient(var(--bc), var(--bc)) 100% 100% / 1px 7px no-repeat;
+  font-family: var(--font-ui); font-size: 13.5px; font-weight: 500; letter-spacing: 0.02em;
+  transition: color var(--t1) linear;
   white-space: nowrap;
 }
-.btn:hover { background: var(--slate-3); border-color: var(--brass); }
-.btn:active { transform: translateY(1px); }
-.btn[disabled] { opacity: .45; cursor: not-allowed; }
-.btn.is-on { background: var(--verdigris-lo); border-color: var(--verdigris); color: var(--ink); }
-.btn-brass {
-  background: linear-gradient(180deg, var(--brass-hi), var(--brass));
-  border-color: var(--brass-lo); color: var(--brass-ink);
-  font-weight: 700;
+.btn:hover { --bc: var(--ink); }
+.btn[disabled] { --bc: var(--hair-2); color: var(--ink-3); cursor: default; }
+.btn.is-on, .btn[aria-pressed="true"] {
+  --bc: var(--brass); color: var(--brass-hi);
+  background:
+    linear-gradient(var(--bc), var(--bc)) 0 100% / 100% 1px no-repeat,
+    linear-gradient(var(--bc), var(--bc)) 0 100% / 1px 7px no-repeat,
+    linear-gradient(var(--bc), var(--bc)) 100% 100% / 1px 7px no-repeat,
+    repeating-linear-gradient(-45deg, var(--brass-hatch) 0 1px, transparent 1px var(--hatch));
 }
-.btn-brass:hover { background: linear-gradient(180deg, var(--brass-hi), var(--brass-hi)); border-color: var(--brass); }
-.btn-danger { border-color: var(--danger); color: var(--danger); }
-.btn-danger:hover { background: var(--danger); color: var(--slate-1); border-color: var(--danger); }
-.btn-quiet { border-color: transparent; }
-.btn-quiet:hover { border-color: var(--rule-2); }
-.btn-sm { min-height: 26px; padding: 0 9px; font-size: var(--t-micro); }
+/* primary: a brass double rule with a Fell label. One per screen. */
+.btn-brass {
+  min-height: 40px; padding: 0 22px;
+  font-family: var(--font-display); font-size: 18px; font-weight: 400; letter-spacing: 0.01em;
+  color: var(--brass-hi); background: var(--plate); border: 1px solid var(--brass);
+  box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--brass-lo);
+}
+.btn-brass:hover { background: var(--plate); box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--brass); }
+.btn-brass:active { background-color: var(--plate); background-image: repeating-linear-gradient(-45deg, var(--brass-hatch) 0 1px, transparent 1px var(--hatch)); box-shadow: inset 0 0 0 4px var(--brass-lo); }
+.btn-brass[disabled] { color: var(--ink-3); border-color: var(--rule); box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--hair-2); background: var(--plate); }
+/* danger: the span in vermilion */
+.btn-danger { --bc: var(--vermilion); color: var(--vermilion); }
+.btn-danger:hover { --bc: var(--vermilion); color: var(--ink); background-color: transparent; }
+/* quiet: a text link on a dotted engraver's leader */
+.btn-quiet {
+  background: none; color: var(--ink-2);
+  text-decoration: underline dotted var(--rule-2); text-decoration-thickness: 1px; text-underline-offset: 5px;
+}
+.btn-quiet:hover { background: none; color: var(--ink); text-decoration-style: solid; text-decoration-color: var(--ink-2); }
+.btn-sm { min-height: 26px; padding: 0 8px; font-size: 12px; }
 .btn-lg { min-height: 46px; padding: 0 22px; font-size: var(--t-lead); }
+.btn-brass.btn-lg { min-height: 46px; font-size: 20px; }
 
+/* icon: bare at rest, hairline on hover, hatched brass when on */
 .icon-btn {
   display: inline-grid; place-items: center;
   width: 34px; height: 34px; padding: 0;
   background: transparent; color: var(--ink-2);
-  border: 1px solid transparent; border-radius: var(--radius);
-  transition: background-color .15s, color .15s, border-color .15s;
+  border: 1px solid transparent; border-radius: 0;
+  transition: color var(--t1) linear, border-color var(--t1) linear;
 }
-.icon-btn:hover { color: var(--ink); background: var(--slate-3); border-color: var(--rule); }
-.icon-btn.is-on { color: var(--brass-hi); border-color: var(--rule-2); background: var(--slate-3); }
+.icon-btn:hover { color: var(--ink); background: transparent; border-color: var(--rule); }
+.icon-btn.is-on, .icon-btn[aria-pressed="true"] { color: var(--brass-hi); border-color: var(--brass-lo); background: repeating-linear-gradient(-45deg, var(--brass-hatch) 0 1px, transparent 1px var(--hatch)); }
 
 .link {
-  background: none; border: 0; padding: 0; color: var(--brass-hi);
-  text-decoration: underline; text-decoration-color: var(--rule-2); text-underline-offset: 3px;
+  background: none; border: 0; padding: 0; color: var(--ink);
+  text-decoration: underline dotted var(--rule-2); text-decoration-thickness: 1px; text-underline-offset: 4px;
   cursor: pointer; font: inherit; text-align: left;
 }
-.link:hover { text-decoration-color: var(--brass-hi); }
+.link:hover { text-decoration-style: solid; text-decoration-color: var(--ink-2); }
 
-/* segmented control */
-.seg { display: inline-flex; border: 1px solid var(--rule-2); border-radius: var(--radius); overflow: hidden; }
+/* segmented choice = the governor: options on one graduated rule, detent ticks between them,
+   the chosen one in brass with the index under the rule */
+.seg { position: relative; display: inline-flex; border: 0; border-bottom: 1px solid var(--rule-2); border-radius: 0; overflow: visible; }
 .seg > button {
-  background: transparent; border: 0; border-right: 1px solid var(--rule);
-  color: var(--ink-2); padding: 4px 9px; min-height: 28px;
-  font-family: var(--font-sc); font-size: var(--t-small); letter-spacing: .04em;
+  position: relative; background: transparent; border: 0; color: var(--ink-2);
+  padding: 4px 10px; min-height: 30px;
+  font-family: var(--font-ui); font-size: 13px; font-weight: 500; letter-spacing: .02em;
 }
-.seg > button:last-child { border-right: 0; }
-.seg > button:hover { background: var(--slate-3); color: var(--ink); }
-.seg > button.is-on, .seg > button[aria-pressed="true"], .seg > button[aria-selected="true"] { background: var(--brass); color: var(--brass-ink); }
+.seg > button + button::before { content: ""; position: absolute; left: 0; bottom: 0; width: 1px; height: 6px; background: var(--rule-2); }
+.seg > button:hover { background: transparent; color: var(--ink); }
+.seg > button.is-on, .seg > button[aria-pressed="true"], .seg > button[aria-selected="true"] { background: transparent; color: var(--brass-hi); }
+.seg > button.is-on::after, .seg > button[aria-pressed="true"]::after, .seg > button[aria-selected="true"]::after {
+  content: ""; position: absolute; left: 50%; bottom: -8px; width: 9px; height: 6px; margin-left: -4.5px;
+  background: var(--brass-hi); clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
 
-/* chips */
+/* chips: square choices on a hairline; on = brass hatch */
 .chip {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 2px 9px; min-height: 26px;
   background: transparent; color: var(--ink-2);
-  border: 1px solid var(--rule); border-radius: 999px;
+  border: 1px solid var(--rule); border-radius: 0;
   font-size: var(--t-small); line-height: 1.2;
-  transition: background-color .15s, border-color .15s, color .15s;
+  transition: border-color var(--t1) linear, color var(--t1) linear;
 }
 button.chip:hover { border-color: var(--rule-2); color: var(--ink); }
-.chip.is-on, .chip[aria-pressed="true"] { border-color: var(--verdigris); background: var(--verdigris-lo); color: var(--ink); }
+.chip.is-on, .chip[aria-pressed="true"] { border-color: var(--brass-lo); color: var(--brass-hi); background: repeating-linear-gradient(-45deg, var(--brass-hatch) 0 1px, transparent 1px var(--hatch)); }
 .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--brass)); flex: none; }
+/* tags: boxed caps, as Instrument Maker set them (square, hairline, war in vermilion) */
 .tag {
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 1px 7px; border-radius: 2px; border: 1px solid var(--rule);
-  font-size: var(--t-micro); color: var(--ink-2); line-height: 1.5; white-space: nowrap;
+  padding: 2px 8px; border-radius: 0; border: 1px solid var(--rule);
+  font-size: 11px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink-2); line-height: 1.5; white-space: nowrap;
 }
-.tag.is-war { border-color: var(--danger); color: var(--danger); }
-.tag.is-good { border-color: var(--good); color: var(--good); }
-.tag.is-warn { border-color: var(--warn); color: var(--warn); }
+.tag.is-war { border-color: rgba(224, 106, 80, 0.7); color: var(--vermilion); }
+.tag.is-good { border-color: rgba(109, 187, 169, 0.6); color: var(--verdigris); }
+.tag.is-warn { border-color: rgba(228, 171, 75, 0.6); color: var(--warn); }
 
-/* range sliders: a hairline track with a filled brass segment and a ringed knob */
+/* range sliders: a graduated rule (ticks every tenth) with a brass index for the thumb */
 input[type="range"] {
   -webkit-appearance: none; appearance: none;
   width: 100%; height: 22px; margin: 0; background: transparent; cursor: pointer;
   --fill: 50%;
 }
 input[type="range"]::-webkit-slider-runnable-track {
-  height: 3px; border-radius: 2px;
-  background: linear-gradient(90deg, var(--brass) 0 var(--fill), var(--hair-2) var(--fill) 100%);
+  height: 7px;
+  background:
+    linear-gradient(var(--rule-2), var(--rule-2)) 0 6px / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px 10%) 0 3px / 100% 3px no-repeat,
+    linear-gradient(var(--rule-2), var(--rule-2)) 0 0 / 1px 6px no-repeat,
+    linear-gradient(var(--rule-2), var(--rule-2)) 50% 0 / 1px 6px no-repeat,
+    linear-gradient(var(--rule-2), var(--rule-2)) 100% 0 / 1px 6px no-repeat,
+    repeating-linear-gradient(-45deg, var(--brass-hatch) 0 1px, transparent 1px var(--hatch)) 0 1px / var(--fill) 5px no-repeat;
 }
-input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: var(--hair-2); }
-input[type="range"]::-moz-range-progress { height: 3px; border-radius: 2px; background: var(--brass); }
+input[type="range"]::-moz-range-track { height: 1px; background: var(--rule-2); }
+input[type="range"]::-moz-range-progress { height: 1px; background: var(--brass); }
 input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
-  width: 15px; height: 15px; margin-top: -6px; border-radius: 50%;
-  background: var(--slate-1); border: 2px solid var(--brass-hi);
-  box-shadow: 0 0 0 3px var(--glass);
-  transition: transform .12s;
+  width: 11px; height: 14px; margin-top: -1px; border: 0; border-radius: 0;
+  background: var(--brass-hi);
+  clip-path: polygon(50% 0, 100% 45%, 100% 100%, 0 100%, 0 45%);
 }
-input[type="range"]::-moz-range-thumb {
-  width: 13px; height: 13px; border-radius: 50%;
-  background: var(--slate-1); border: 2px solid var(--brass-hi);
-}
-input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.12); }
-input[type="range"]:focus-visible { outline: none; }
-input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px var(--glass), 0 0 0 5px var(--focus); }
-input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px var(--focus); }
+input[type="range"]::-moz-range-thumb { width: 10px; height: 13px; border: 0; border-radius: 0; background: var(--brass-hi); }
+input[type="range"]:focus-visible { outline: 1px solid var(--brass-hi); outline-offset: 3px; }
 
-/* text inputs and selects */
+/* text inputs: a ruled line to write on, no box. Selects: the value on a dotted rule. */
 .field {
-  width: 100%; min-height: 34px; padding: 6px 10px;
-  background: var(--slate-1); color: var(--ink);
-  border: 1px solid var(--rule-2); border-radius: var(--radius);
+  width: 100%; min-height: 34px; padding: 6px 2px;
+  background: transparent; color: var(--ink);
+  border: 0; border-bottom: 1px solid var(--rule-2); border-radius: 0;
+  caret-color: var(--brass-hi);
 }
-.field:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
-.field::placeholder { color: var(--ink-3); }
+.field:focus-visible { outline: none; border-bottom-color: var(--brass-hi); box-shadow: 0 1px 0 0 var(--brass-hi); }
+.field::placeholder { color: var(--ink-3); font-style: italic; }
 select.field {
-  -webkit-appearance: none; appearance: none; padding-right: 30px;
-  background-image: linear-gradient(45deg, transparent 50%, var(--brass) 50%), linear-gradient(135deg, var(--brass) 50%, transparent 50%);
-  background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%;
-  background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+  -webkit-appearance: none; appearance: none; padding-right: 22px;
+  border-bottom-style: dotted;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-2) 50%), linear-gradient(135deg, var(--ink-2) 50%, transparent 50%);
+  background-position: calc(100% - 9px) 55%, calc(100% - 5px) 55%;
+  background-size: 4px 4px, 4px 4px; background-repeat: no-repeat;
 }
+select.field option { background: var(--plate); color: var(--ink); }
+textarea.field { border: 1px solid var(--rule); padding: 8px 10px; }
 
-/* toggle switch built on a checkbox */
-.switch { position: relative; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+/* toggle: a square slot and a block; on = block right, slot hatched brass */
+.switch { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
 .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .switch .track {
-  width: 34px; height: 18px; border-radius: 10px; border: 1px solid var(--rule-2);
-  background: var(--slate-1); position: relative; transition: background-color .15s;
+  flex: none; width: 34px; height: 16px; border-radius: 0; border: 1px solid var(--rule-2);
+  background: transparent; position: relative;
 }
 .switch .track::after {
-  content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%;
-  background: var(--ink-3); transition: transform .15s, background-color .15s;
+  content: ""; position: absolute; top: 3px; left: 3px; width: 8px; height: 8px; border-radius: 0;
+  background: var(--ink-3); transition: transform var(--t2) var(--ease), background-color var(--t1) linear;
 }
-.switch input:checked + .track { background: var(--verdigris-lo); border-color: var(--verdigris); }
-.switch input:checked + .track::after { transform: translateX(16px); background: var(--verdigris); }
-.switch input:focus-visible + .track { outline: 2px solid var(--focus); outline-offset: 2px; }
+.switch input:checked + .track { border-color: var(--brass); background: repeating-linear-gradient(-45deg, var(--brass-hatch) 0 1px, transparent 1px var(--hatch)); }
+.switch input:checked + .track::after { transform: translateX(18px); background: var(--brass-hi); }
+.switch input:focus-visible + .track { outline: 1px solid var(--brass-hi); outline-offset: 3px; }
 
-/* meters: a hairline well with a filled bar */
+/* meters: a graduated scale. Ticks every tenth, a hatched fill to the value. */
 .meter {
-  position: relative; height: 5px; border-radius: 3px; background: var(--hair-2); overflow: hidden;
+  position: relative; height: 7px; border-radius: 0; overflow: visible;
+  background:
+    linear-gradient(var(--rule-2), var(--rule-2)) 0 6px / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px 10%) 0 3px / 100% 3px no-repeat;
   --v: 0%;
 }
 .meter::before {
-  content: ""; position: absolute; inset: 0 auto 0 0; width: var(--v);
-  background: var(--mc, var(--brass)); border-radius: 3px; transition: width .35s ease;
+  content: ""; position: absolute; left: 0; top: 1px; height: 5px; width: var(--v);
+  background: repeating-linear-gradient(-45deg, var(--mc, var(--brass-hi)) 0 var(--l0), transparent var(--l0) var(--hatch));
+  opacity: .85; border-radius: 0; transition: width .35s var(--ease);
 }
-.meter.is-good { --mc: var(--good); }
+.meter.is-good { --mc: var(--verdigris); }
 .meter.is-warn { --mc: var(--warn); }
-.meter.is-danger { --mc: var(--danger); }
+.meter.is-danger { --mc: var(--vermilion); }
 .meter.is-teal { --mc: var(--verdigris); }
-/* centred meter for −1..1 values (opinion, war score) */
-.meter-mid { position: relative; height: 5px; border-radius: 3px; background: var(--hair-2); --a: 50%; --b: 50%; }
-.meter-mid::before {
-  content: ""; position: absolute; top: 0; bottom: 0; left: var(--a); right: calc(100% - var(--b));
-  background: var(--mc, var(--brass)); border-radius: 3px;
+/* centred meter for −1..1 values (opinion, war score): the fill runs from the centre tick */
+.meter-mid {
+  position: relative; height: 7px; border-radius: 0; --a: 50%; --b: 50%;
+  background:
+    linear-gradient(var(--rule-2), var(--rule-2)) 0 6px / 100% 1px no-repeat,
+    repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px 10%) 0 3px / 100% 3px no-repeat;
 }
-.meter-mid::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--ink-3); }
+.meter-mid::before {
+  content: ""; position: absolute; top: 1px; height: 5px; left: var(--a); right: calc(100% - var(--b));
+  background: repeating-linear-gradient(-45deg, var(--mc, var(--brass-hi)) 0 var(--l0), transparent var(--l0) var(--hatch));
+  border-radius: 0;
+}
+.meter-mid::after { content: ""; position: absolute; left: 50%; top: -2px; height: 9px; width: 1px; background: var(--ink-2); }
 
-.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--c, var(--brass)); box-shadow: 0 0 0 1px var(--hair-2); flex: none; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 0; background: var(--c, var(--brass)); outline: 1px solid var(--ink-3); outline-offset: 1px; flex: none; }
 
-/* section heading with an engraved rule */
+/* section heading: Fell SC between hairlines */
 .rule-head {
   display: flex; align-items: center; gap: 10px;
-  font-family: var(--font-sc); font-size: var(--t-small); letter-spacing: .09em; color: var(--brass-hi);
+  font-family: var(--font-sc); font-size: 13px; letter-spacing: .12em; color: var(--ink-2);
   margin: 0;
 }
-.rule-head::after { content: ""; flex: 1; height: 1px; background: linear-gradient(90deg, var(--rule-2), transparent); }
-.rule-head .count { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-3); letter-spacing: 0; }
+.rule-head::after { content: ""; flex: 1; height: 1px; background: var(--hair-2); }
+.rule-head .count { font-family: var(--font-ui); font-size: 12px; color: var(--ink-3); letter-spacing: 0; font-variant-numeric: tabular-nums lining-nums; }
 
 /* ------------------------------------------------------------------ app shell */
 
@@ -399,7 +391,7 @@ select.field {
 .app.ui-hidden .panel, .app.ui-hidden .readout { display: none; }
 .ui-hint {
   position: absolute; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
-  padding: 6px 14px; border-radius: 999px; background: var(--glass); border: 1px solid var(--rule);
+  padding: 6px 14px; border-radius: 0; background: var(--glass); border: 1px solid var(--rule);
   font: inherit; font-size: var(--t-small); color: var(--ink-2); cursor: pointer; white-space: nowrap;
   animation: fadeout 3s forwards 1.2s;
 }
@@ -444,11 +436,11 @@ select.field {
 .drive .play {
   width: 40px; height: 40px; border-radius: 50%;
   display: grid; place-items: center; padding: 0;
-  background: radial-gradient(circle at 35% 30%, var(--brass-hi), var(--brass) 60%, var(--brass-lo));
-  border: 1px solid var(--brass-lo); color: var(--brass-ink);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  background: var(--plate);
+  border: 1px solid var(--brass); color: var(--brass-hi);
+  box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--brass-lo);
 }
-.drive .play:hover { filter: brightness(1.08); }
+.drive .play:hover { box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--brass); }
 .speed-notches { display: flex; align-items: flex-end; gap: 2px; padding: 0 4px; }
 .speed-notches button {
   position: relative; width: 26px; height: 34px; padding: 0;
@@ -456,12 +448,12 @@ select.field {
   display: grid; place-items: end center;
 }
 .speed-notches button::before {
-  content: ""; width: 4px; height: var(--h, 10px); border-radius: 1px; background: var(--hair-2);
+  content: ""; width: 4px; height: var(--h, 10px); border-radius: 0; background: var(--hair-2);
   transition: background-color .15s, height .15s;
 }
 .speed-notches button:hover::before { background: var(--ink-3); }
 .speed-notches button.is-lit::before { background: var(--brass); }
-.speed-notches button.is-on::before { background: var(--brass-hi); box-shadow: 0 0 8px var(--brass); }
+.speed-notches button.is-on::before { background: var(--brass-hi); }
 .drive .speed-label { min-width: 104px; padding: 0 6px 0 4px; line-height: 1.15; }
 .drive .speed-label .name { font-family: var(--font-sc); font-size: var(--t-small); letter-spacing: .06em; color: var(--ink); display: block; }
 .drive .speed-label .rate { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-3); display: block; white-space: nowrap; }
@@ -478,7 +470,7 @@ select.field {
 }
 .menu-item {
   display: flex; align-items: center; gap: 10px; width: 100%;
-  padding: 7px 10px; background: transparent; border: 0; border-radius: 2px;
+  padding: 7px 10px; background: transparent; border: 0; border-radius: 0;
   color: var(--ink); text-align: left; font-size: var(--t-body);
 }
 .menu-item:hover, .menu-item:focus-visible { background: var(--slate-3); }
@@ -540,14 +532,14 @@ select.field {
 .mode-btn .lbl { font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .08em; color: var(--ink-3); }
 .mode-btn .val { font-family: var(--font-display); font-size: 16px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .legend { display: flex; flex-direction: column; gap: 5px; }
-.legend .bar { height: 9px; border-radius: 2px; box-shadow: 0 0 0 1px var(--hair-2); }
+.legend .bar { height: 9px; border-radius: 0; box-shadow: 0 0 0 1px var(--hair-2); }
 .legend .ends { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-3); }
 .legend .ticks { position: relative; height: 13px; font-family: var(--font-mono); font-size: 10px; color: var(--ink-3); }
 .legend .ticks span { position: absolute; top: 0; white-space: nowrap; }
 .legend .sw { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; max-height: 92px; overflow: auto; }
 .legend .sw span { display: flex; align-items: center; gap: 6px; font-size: var(--t-micro); color: var(--ink-2); min-width: 0; }
 .legend .sw span b { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.minimap-wrap { position: relative; padding: 7px; border: 1px solid var(--rule); border-radius: 2px; background: var(--slate-1); }
+.minimap-wrap { position: relative; padding: 7px; border: 1px solid var(--rule); border-radius: 0; background: var(--slate-1); }
 .minimap-wrap canvas { display: block; width: 100%; height: auto; cursor: pointer; touch-action: none; }
 .minimap-wrap .grat { position: absolute; inset: 0; pointer-events: none; }
 .mapdock.is-min .legend, .mapdock.is-min .minimap-wrap, .mapdock.is-min .dock-readout { display: none; }
@@ -575,7 +567,7 @@ select.field {
   transition: background-color .12s, color .12s, border-color .12s;
 }
 .tool-btn:hover { color: var(--ink); background: var(--slate-3); }
-.tool-btn.is-on { color: var(--brass-hi); background: var(--slate-3); border-color: var(--brass); box-shadow: inset 0 0 12px rgba(201, 164, 102, 0.15); }
+.tool-btn.is-on { color: var(--brass-hi); border-color: var(--brass-lo); background: repeating-linear-gradient(-45deg, var(--brass-hatch) 0 1px, transparent 1px var(--hatch)); }
 .tool-btn.is-inspect { width: 48px; height: 48px; }
 .belt-main { display: flex; flex-direction: column; min-width: 0; }
 .group-tabs { display: flex; gap: 0; padding: 4px 6px 0; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--rule); }
@@ -625,7 +617,7 @@ select.field {
 
 .atlas-banner {
   display: flex; align-items: center; gap: 12px; padding: 6px 8px 6px 16px;
-  background: var(--glass-strong); border: 1px solid var(--brass); border-radius: 999px; box-shadow: var(--shadow-2);
+  background: var(--glass-strong); border: 1px solid var(--brass); border-radius: 0; box-shadow: var(--shadow-2);
 }
 .atlas-banner .y { font-family: var(--font-display); font-size: 18px; }
 .atlas-banner .k { font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .08em; color: var(--ink-3); }
@@ -638,7 +630,7 @@ select.field {
 }
 .tooltip b { display: block; font-family: var(--font-display); font-weight: 400; font-size: 15.5px; color: var(--ink); }
 .tooltip kbd, kbd {
-  font-family: var(--font-mono); font-size: 10.5px; padding: 0 5px; border: 1px solid var(--rule-2); border-radius: 3px; color: var(--ink-2); background: var(--slate-1);
+  font-family: var(--font-mono); font-size: 10.5px; padding: 0 5px; border: 1px solid var(--rule-2); border-radius: 0; color: var(--ink-2); background: var(--slate-1);
 }
 
 /* ------------------------------------------------------------------ side panel */
@@ -669,7 +661,7 @@ select.field {
 .rail .tab { position: relative; }
 .rail .badge {
   position: absolute; top: 3px; left: calc(50% + 6px);
-  min-width: 16px; padding: 0 4px; border-radius: 8px;
+  min-width: 16px; padding: 0 4px; border-radius: 0;
   background: var(--danger); color: var(--slate-1);
   font-family: var(--font-mono); font-size: 9.5px; line-height: 15px; text-align: center;
 }
@@ -690,7 +682,7 @@ select.field {
 .crumbs { display: flex; align-items: center; gap: 6px; margin: -4px 0 0; font-size: var(--t-small); color: var(--ink-3); flex-wrap: wrap; }
 .ins-title { display: grid; grid-template-columns: auto 1fr auto; gap: 2px 12px; align-items: center; }
 .ins-title .emblem { grid-row: span 2; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--rule-2); color: var(--brass-hi); background: var(--slate-2); }
-.ins-title .emblem.civ { border: 2px solid var(--c, var(--brass)); background: radial-gradient(circle, var(--c, var(--brass)) 0 32%, transparent 34%), var(--slate-2); }
+.ins-title .emblem.civ { border: 1px solid var(--c, var(--brass)); box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 7px var(--c, var(--brass)); background: var(--plate); }
 .ins-title h3 { font-family: var(--font-display); font-size: 25px; line-height: 1.1; overflow-wrap: anywhere; }
 .ins-title .sub { font-size: var(--t-small); color: var(--ink-2); }
 .ins-title .actions { grid-row: span 2; display: flex; gap: 2px; align-self: start; }
@@ -762,7 +754,7 @@ details.more > .kv, details.more > .tags { margin-top: 8px; }
 .centry .imp i { width: 5px; height: 5px; transform: rotate(45deg); background: var(--hair-2); }
 .centry .imp i.on { background: var(--brass); }
 .centry .rec {
-  margin-left: 8px; padding: 0 6px; height: 17px; border: 1px solid var(--rule-2); border-radius: 3px;
+  margin-left: 8px; padding: 0 6px; height: 17px; border: 1px solid var(--rule-2); border-radius: 0;
   background: transparent; color: var(--ink-2); font-family: var(--font-ui); font-size: 10.5px; letter-spacing: .02em; line-height: 15px;
   cursor: pointer; opacity: 0; transition: opacity .12s;
 }
@@ -788,7 +780,7 @@ details.more > .kv, details.more > .tags { margin-top: 8px; }
   background: transparent; border-left: 0; border-right: 0; border-top: 0; color: var(--ink); text-align: left;
 }
 .ledger-row:hover { background: var(--slate-2); }
-.ledger-row .stripe { grid-row: span 3; align-self: stretch; border-radius: 0 2px 2px 0; background: var(--c); }
+.ledger-row .stripe { grid-row: span 3; align-self: stretch; border-radius: 0; background: var(--c); }
 .ledger-row .nm { font-family: var(--font-display); font-size: 17px; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ledger-row .sb { font-size: var(--t-micro); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ledger-row .val { grid-row: span 2; text-align: right; font-family: var(--font-mono); font-size: 13px; }
@@ -813,8 +805,8 @@ details.more > .kv, details.more > .tags { margin-top: 8px; }
 .chart-card canvas { display: block; width: 100%; touch-action: pan-y; }
 .chart-legend { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: var(--t-micro); color: var(--ink-2); }
 .chart-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.chart-legend .key-line { width: 14px; height: 2px; background: var(--c); border-radius: 1px; }
-.chart-legend .key-box { width: 9px; height: 9px; background: var(--c); border-radius: 2px; }
+.chart-legend .key-line { width: 14px; height: 2px; background: var(--c); border-radius: 0; }
+.chart-legend .key-box { width: 9px; height: 9px; background: var(--c); border-radius: 0; }
 .chart-tip {
   position: absolute; z-index: 30; pointer-events: none; min-width: 150px;
   padding: 7px 10px; background: var(--glass-strong); border: 1px solid var(--rule-2); border-radius: var(--radius);
@@ -822,7 +814,7 @@ details.more > .kv, details.more > .tags { margin-top: 8px; }
 }
 .chart-tip .yr { font-family: var(--font-sc); letter-spacing: .06em; color: var(--ink-3); margin-bottom: 3px; }
 .chart-tip .r { display: grid; grid-template-columns: 14px 1fr auto; gap: 6px; align-items: center; }
-.chart-tip .r i { height: 2px; background: var(--c); border-radius: 1px; }
+.chart-tip .r i { height: 2px; background: var(--c); border-radius: 0; }
 .chart-tip .r b { font-family: var(--font-mono); font-weight: 500; color: var(--ink); text-align: right; }
 .table-wrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: var(--radius); }
 table.data { border-collapse: collapse; width: 100%; font-size: var(--t-micro); }
@@ -862,7 +854,6 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
 .genesis {
   position: fixed; inset: 0; z-index: 20; overflow-y: auto; overflow-x: hidden;
   background:
-    radial-gradient(ellipse 80% 60% at 70% 40%, rgba(99, 181, 163, 0.07), transparent 70%),
     repeating-linear-gradient(0deg, transparent 0 63px, var(--graticule) 63px 64px),
     repeating-linear-gradient(90deg, transparent 0 63px, var(--graticule) 63px 64px),
     var(--ground);
@@ -913,7 +904,7 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
 .gen-plate .plate-frame { width: min(100%, calc((100vh - 250px) * 1.6 + 30px)); }
 .plate-frame .grads { position: absolute; inset: 0; pointer-events: none; }
 .plate-frame .busy {
-  position: absolute; right: 22px; top: 22px; padding: 3px 9px; border-radius: 999px;
+  position: absolute; right: 22px; top: 22px; padding: 3px 9px; border-radius: 0;
   background: var(--glass-strong); border: 1px solid var(--rule); font-size: var(--t-micro); color: var(--ink-2);
 }
 .plate-caption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; align-items: baseline; }
@@ -934,7 +925,7 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
 /* progress overlay */
 .progress {
   position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
-  background: var(--scrim); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  background: var(--scrim);
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
 .progress-box { width: min(440px, 100%); padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; background: var(--glass-strong); }
@@ -953,7 +944,7 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
 .stages { margin: 0; padding: 0; max-height: min(46vh, 420px); overflow-y: auto; }
 .progress-box .detail { margin-top: -8px; font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-3); }
 .progress-foot { display: flex; justify-content: flex-end; gap: 8px; }
-.progress-bar { height: 3px; background: var(--hair-2); border-radius: 2px; overflow: hidden; }
+.progress-bar { height: 3px; background: var(--hair-2); border-radius: 0; overflow: hidden; }
 .progress-bar > i { display: block; height: 100%; width: var(--v, 0%); background: var(--brass); transition: width .2s; }
 @keyframes pulse { to { opacity: .4; } }
 
@@ -1059,7 +1050,7 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
     width: auto; height: var(--sheet-h, var(--sheet-peek));
     grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr);
     border-left: 0; border-top: 1px solid var(--rule-2);
-    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 -1px 0 var(--ground);
     transition: height .25s ease;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
@@ -1068,7 +1059,7 @@ table.data th:first-child, table.data td:first-child { text-align: left; }
   .panel.is-open { --sheet-h: min(52%, 520px); }
   .panel.is-open.is-tall { --sheet-h: calc(100% - 56px); }
   .sheet-grip { display: block; grid-row: 1; height: 22px; margin-bottom: -8px; cursor: ns-resize; touch-action: none; position: relative; z-index: 1; }
-  .sheet-grip::after { content: ""; position: absolute; left: 50%; top: 6px; width: 44px; height: 4px; margin-left: -22px; border-radius: 2px; background: var(--rule-2); }
+  .sheet-grip::after { content: ""; position: absolute; left: 50%; top: 6px; width: 44px; height: 4px; margin-left: -22px; border-radius: 0; background: var(--rule-2); }
   .panel.is-dragging { transition: none; }
   .panel.is-dragging .panel-body { visibility: visible; }
   .rail {

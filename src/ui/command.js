@@ -17,7 +17,6 @@ import { h, clear } from './dom.js';
 import { iconEl } from './icons.js';
 import { getPref, setPref } from './prefs.js';
 import { statusToast, focusEntry } from './toasts.js';
-import { setTheme } from './theme.js';
 import { openSaves, quickSave } from './saves.js';
 import { openLeap, showHelp } from './hud.js';
 import { OVERLAYS } from './mapdock.js';
@@ -458,7 +457,6 @@ export function mount(app) {
   cmd('view.fit', 'Show the whole world', (a) => { a.r('fitWorld'); a.emit('userCamera', { how: 'fit' }); }, { icon: 'fit', keys: 'F', group: 'Map' });
   cmd('view.hide', 'Hide the instruments', (a) => a.emit('layout', 'hide-ui'), { icon: 'eyeOff', keys: 'H', keywords: ['cinema', 'screenshot'], group: 'Map' });
   cmd('help.keys', 'Keyboard and mouse', (a) => showHelp(a), { icon: 'keyboard', keys: '?', keywords: ['help', 'shortcuts', 'keys'], when: () => true });
-  for (const [v, lab] of [['light', 'Light theme'], ['dark', 'Dark theme'], ['system', 'Follow the system theme']]) cmd(`theme.${v}`, lab, (a) => setTheme(a, v), { icon: v === 'light' ? 'sun' : 'moon', keywords: ['theme', 'colours', 'night', 'day'], group: 'Look', when: () => true });
   for (const [key, label] of OVERLAYS) cmd(`overlay.${key}`, `Show or hide ${label.toLowerCase()}`, (a) => toggleOverlay(a, key), { icon: 'layers', keywords: ['overlay', 'layer', key], group: 'Map' });
   for (const [id, label] of [['inspector', 'Inspector'], ['chronicle', 'Chronicle'], ['nations', 'Nations ledger'], ['statistics', 'Statistics'], ['world', 'World settings'], ['atlas', 'Historical atlas']]) cmd(`tab.${id}`, `Open the ${label}`, (a) => { a.setTab(id); a.emit('layout', 'open-panel'); }, { icon: id === 'inspector' ? 'inspect' : id, keywords: ['tab', 'panel'], group: 'Panels' });
 
