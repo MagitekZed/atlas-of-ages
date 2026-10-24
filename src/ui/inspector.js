@@ -14,7 +14,7 @@ import { WATER, DAYS_PER_YEAR } from '../core/constants.js';
 import { elevationMeters, seasonName, dateString } from '../core/world.js';
 import { liveCivs, liveSettlements, civSettlements, areAtWar, nearestSettlement } from '../core/entities.js';
 import { sitesNear, SITE_KINDS } from '../core/sites.js';
-import { h, clear, svgEl, Binder } from './dom.js';
+import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
 import * as F from './format.js';
@@ -65,19 +65,104 @@ export function kv(b, items) {
     const dt = h('dt', { text: it.k });
     if (it.tip) tip(dt, it.tip);
     const dd = h('dd', { class: it.ref || it.txt ? 'txt' : '' });
-    dl.append(dt, dd);
     if (it.ref) b.list(dd, () => [it.ref()], (r) => r.key, (r) => r.make());
     else b.text(dd, it.v);
-    if (it.hide) { b.hide(dt, it.hide); b.hide(dd, it.hide); }
-    if (it.m) {
-      const m = h('div.meter', { class: it.mc || '' });
-      const row = h('div.meter-row', null, m);
-      dl.append(row);
-      b.meter(m, it.m);
-      if (it.hide) b.hide(row, it.hide);
+    if (!it.m) {
+      dl.append(dt, dd);
+      if (it.hide) { b.hide(dt, it.hide); b.hide(dd, it.hide); }
+      continue;
     }
+    // a measure reads on one line: its label, its graduated scale with the index at the value,
+    // and the value, which turns vermilion when the measure is in a bad way
+    const m = h('div.meter', { class: it.mc || '' });
+    const row = h('div.gauge-row', { class: it.mc || '' }, dt, m, dd);
+    dl.append(row);
+    b.meter(m, it.m);
+    b.toggle(row, 'is-alarm', () => gaugeAlarm(it.mc, it.m()));
+    if (it.hide) b.hide(row, it.hide);
   }
   return dl;
+}
+
+/** Is a measure in a bad way? Danger measures (unrest, sickness) when high; the rest when low. */
+function gaugeAlarm(mc, v) {
+  if (!Number.isFinite(v)) return false;
+  if (mc === 'is-danger') return v >= 0.4;
+  if (mc === 'is-teal') return false;
+  return v < 0.3;
+}
+
+/**
+ * The siege gauge (Instrument Maker's dial): a half circle graduated 0 to 100 with the progress
+ * hatched in vermilion and a needle at it, the figure beside it, then who besieges and with what.
+ */
+function siegeGauge(app, b, s) {
+  const w = app.world;
+  const R = 46;
+  const svg = svgNode('svg', { class: 'siege-dial', viewBox: '-58 -54 116 66', width: 150, height: 85, 'aria-hidden': 'true' });
+  const pt = (f, r) => [-Math.cos(f * Math.PI) * r, -Math.sin(f * Math.PI) * r];
+  const arcD = (f0, f1, r) => { const [x0, y0] = pt(f0, r), [x1, y1] = pt(f1, r); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 0 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
+  svg.appendChild(svgNode('path', { class: 'sd-rim', d: arcD(0, 1, R) }));
+  let ticks = '';
+  for (let k = 0; k <= 20; k++) {
+    const f = k / 20, [x0, y0] = pt(f, R - (k % 10 === 0 ? 9 : k % 2 === 0 ? 6 : 4)), [x1, y1] = pt(f, R - 1.5);
+    ticks += `M${x0.toFixed(2)} ${y0.toFixed(2)}L${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  }
+  svg.appendChild(svgNode('path', { class: 'sd-ticks', d: ticks }));
+  const done = svgNode('path', { class: 'sd-done' });
+  const needle = svgNode('path', { class: 'sd-needle' });
+  svg.append(done, needle, svgNode('circle', { class: 'sd-hub', r: 3.2 }));
+  for (const [f, t] of [[0, '0'], [1, '100']]) {
+    const [x, y] = pt(f, R + 0.5);
+    svg.appendChild(Object.assign(svgNode('text', { class: 'sd-lab', x: x.toFixed(1), y: (y + 9).toFixed(1), 'text-anchor': 'middle' }), { textContent: t }));
+  }
+  const pct = h('span.siege-pct');
+  const army = () => w.armies.find((q) => q.id === s.siege?.armyId) || null;
+  const by = h('div.siege-by');
+  b.list(by, () => [civRef(app, s.siege?.civId)], (r) => r.key, (r) => r.make());
+  const host = h('p.siege-host');
+  b.text(host, () => {
+    const a = army();
+    if (!a) return s.siege?.startDay != null ? `Since ${F.year(s.siege.startDay)}` : '';
+    const g = generalName(w, a.general);
+    return `${g !== '—' ? `${g}’s host` : 'The host'}, ${F.people(a.strength)} strong · supply ${F.pct(a.supply)}`;
+  });
+  b.run(() => {
+    const p = Math.max(0, Math.min(1, s.siege?.progress || 0));
+    done.setAttribute('d', p > 0.001 ? arcD(0, p, R - 4) : '');
+    const [x, y] = pt(p, R - 12);
+    needle.setAttribute('d', `M0 0L${x.toFixed(2)} ${y.toFixed(2)}`);
+    setText(pct, `${Math.round(p * 100)}%`);
+  });
+  const sec = section('Siege', h('div.siege', null, svg, h('div.siege-fig', null, pct, h('span.siege-k', { text: 'Done' }))), by, host);
+  b.hide(sec, () => !s.siege);
+  return sec;
+}
+
+/** Chain of title as one bar: each holder's tenure a segment in its colour, oldest first. */
+function titleBar(app, b, s) {
+  const w = app.world;
+  const bar = h('div.title-bar', { role: 'img' });
+  const note = h('p.title-note');
+  b.list(bar, () => {
+    const chain = ownerChain(w, s.id);
+    const end = s.alive ? w.time.day : (s.destroyedDay ?? w.time.day);
+    return chain.map((o, k) => ({ o, len: Math.max(1, (chain[k + 1]?.day ?? end) - o.day), k }));
+  }, (it) => `${it.o.day}:${it.o.civId}:${it.len > 3600 ? Math.round(it.len / 3600) : 0}`, ({ o, len }) => {
+    const c = w.civs[o.civId];
+    const seg = h('span.title-seg', { style: { flexGrow: String(len), background: c?.colorHex || 'var(--ink-4)' } });
+    tip(seg, `${c?.name || 'A forgotten people'}: ${F.ownHow(o.code)} ${F.year(o.day)}`);
+    return seg;
+  });
+  b.text(note, () => {
+    const chain = ownerChain(w, s.id), last = chain[chain.length - 1];
+    const c = last ? w.civs[last.civId] : null;
+    const taken = chain.filter((o) => o.code !== 'f').length;
+    const hs = s.hist || {};
+    return `${c ? c.name : 'Unheld'} since ${F.year(last?.day ?? s.foundedDay)} · ${chain.length} ${chain.length === 1 ? 'holder' : 'holders'}${hs.sieges ? ` · sieges ${F.int(hs.sieges)}` : ''}${taken ? `, taken ${F.int(taken)}` : ''}`;
+  });
+  b.attr(bar, 'aria-label', () => `${ownerChain(w, s.id).length} holders`);
+  return h('div.title-chain', null, bar, note);
 }
 
 export function cells(b, items) {
@@ -642,12 +727,7 @@ function settlementView(app, sel, b) {
     { k: 'Immunity', v: () => { const e = Object.entries(s.immunity || {}).filter(([, v]) => v > 0.01); return e.length ? e.map(([pid, v]) => `${F.headName(w.plagues[pid]?.name || 'Old plague')} ${F.pct(v)}`).join(', ') : 'None'; }, txt: true },
   ]);
 
-  const siege = kv(b, [
-    { k: 'Besieged by', ref: () => civRef(app, s.siege?.civId) },
-    { k: 'Siege progress', v: () => F.pct(s.siege?.progress), m: () => s.siege?.progress || 0, mc: 'is-danger' },
-  ]);
-  const siegeSec = section('Siege', siege);
-  b.hide(siegeSec, () => !s.siege);
+  const siegeSec = siegeGauge(app, b, s);
 
   const wonders = rows(b, () => w.wonders.filter((q) => q.sid === s.id).map((q) => ({ key: q.id + ':' + q.destroyedDay, icon: 'wonder', label: F.headName(q.name), n: F.year(q.builtDay), s: `${F.humanize(q.kind || 'wonder')}${q.destroyedDay != null ? ' · destroyed ' + F.year(q.destroyedDay) : ''}`, sel: { kind: 'wonder', id: q.id } })), 'No wonders.', app);
   const wonderSec = section('Wonders', wonders);
@@ -672,6 +752,7 @@ function settlementView(app, sel, b) {
   return h('div.tabpanel', null,
     title(b, { icon: s.alive ? 'town' : 'ruin', name: () => s.name, subNode: () => { const c = civ(); return { key: `${s.alive}:${s.tier}:${s.civId}:${c?.name}`, make: () => h('span', null, s.alive ? `${F.tierName(s.tier)} of ` : 'Ruins, last held by ', c ? linkBtn(app, { kind: 'civ', id: c.id }, c.name, { swatch: c.colorHex }) : 'no nation') }; }, actions: standardActions(app) }),
     epithet, tags, legend, lead,
+    siegeSec,
     anchored(cells(b, s.alive ? [
       { k: 'People', v: () => F.people(s.population), s: () => 'peak ' + F.people(Math.max(s.peakPopulation || 0, s.population || 0)) },
       { k: 'Food', v: () => monthsOfFood(s), s: () => `${F.num(s.foodProd)} made, ${F.num(s.foodNeed)} eaten / mo` },
@@ -688,7 +769,7 @@ function settlementView(app, sel, b) {
       return box;
     })(),
     section('Its life', ledgerChart(app, b, 's', s.id, { marks: conquestMarks, color: civ()?.colorHex })),
-    section('Chain of title', chain),
+    section('Chain of title', titleBar(app, b, s), chain),
     section('Story', story),
     // a ruin has no livelihood: its last day's cares are not shown as if they were today's
     hideFor(b, () => !s.alive, section('Livelihood', kv(b, [
@@ -719,7 +800,6 @@ function settlementView(app, sel, b) {
     section('Buildings', buildings),
     section('Faith', faith, kv(b, [{ k: 'Dominant faith', ref: () => religionRef(app, s.dominantReligion) }])),
     hideFor(b, () => !s.alive, section('Health', disease)),
-    siegeSec,
     hideFor(b, () => !s.alive, section('Trade routes', routeRows)),
     wonderSec, figSec, nearSec,
     section('History', chronicleList(app, b, (e) => entryAbout(e, 'settlement', s.id))),
