@@ -22,8 +22,11 @@ import { createApp, TABS, MAX_SPEED, selectionExists } from './ui/app.js';
 import { urlOptions } from './ui/prefs.js';
 import { installTooltips, showProgress, msText } from './ui/widgets.js';
 import { installThemeWatch } from './ui/theme.js';
-import { mountGenesis } from './ui/genesis.js';
-import { mountHud } from './ui/hud.js';
+import { mountGenesis, randomSeed } from './ui/genesis.js';
+import { mountTitle } from './ui/title.js';
+import { forgeWorld } from './ui/forging.js';
+import { getPref } from './ui/prefs.js';
+import { mountHud, showHelp } from './ui/hud.js';
 import { mountMapDock } from './ui/mapdock.js';
 import { mountPalette } from './ui/palette.js';
 import { mountInput } from './ui/input.js';
@@ -271,12 +274,9 @@ async function beginWorld(params, { years = 0, speed = null } = {}) {
   const prevRunning = app.running;
   app.running = false;
   years = Math.max(0, Math.min(5000, Math.round(Number(years) || 0)));
-  const stages = ['Raising the world', 'Waking the systems', 'Seeding the first peoples', 'Opening the atlas'];
-  if (years > 0) stages.push(`Running ${int(years)} years of history`);
-  const prog = showProgress('Forging a world', stages);
+  let prog = null;
   let installed = false;
   try {
-    await prog.stage(0, 'Raising continents…');
     let world = createWorld(params);
     const sub = [];
     let tS = performance.now(), last = null;
@@ -284,8 +284,9 @@ async function beginWorld(params, { years = 0, speed = null } = {}) {
       const t = performance.now();
       if (last) sub.push({ label: last, ms: t - tS });
       last = String(label); tS = t;
-      prog.note(String(label) + '…');
     };
+    // the generator runs in a breath; the forging below plays its stages back at a watchable pace
+    await oneFrame();
     try {
       generate(world, { onStage });
     } catch (e) {
@@ -301,16 +302,23 @@ async function beginWorld(params, { years = 0, speed = null } = {}) {
       statusToast(app, `The world generator failed (${e.message}); a simplified world was made instead.`, 'error');
     }
     if (last) sub.push({ label: last, ms: performance.now() - tS });
-    prog.substages(sub);
-    await prog.stage(1, 'Waking the systems…');
     const systems = await systemsReady;
-    await prog.stage(2, 'Seeding the first peoples…');
     const sim = prepareSim(world, systems);
-    await prog.stage(3, 'Opening the atlas…');
+    // the forging: the plate engraved stage by stage; Cancel throws the world away
+    if (!getPref('skipForging', false) && !isHidden()) {
+      const after = ['Waking the systems', 'Seeding the first peoples', 'Opening the atlas'];
+      const r = await forgeWorld(app, world, { stages: sub, after, drawColour: drawPreview });
+      if (r.cancelled) {
+        app.running = prevRunning;
+        if (!app.world) title?.show();
+        return null;
+      }
+    }
     installWorld(world, sim, { run: false });
     installed = true;
     if (years > 0) {
-      await prog.stage(4, `Running ${int(years)} years of history…`);
+      prog = showProgress('Forging a world', [`Running ${int(years)} years of history`]);
+      await prog.stage(0, `Running ${int(years)} years of history…`);
       const r = await fastForward(years, prog);
       app.emit('historySkipped');
       app.emit('tick');
@@ -318,10 +326,10 @@ async function beginWorld(params, { years = 0, speed = null } = {}) {
     }
     if (speed != null && Number.isFinite(speed)) app.setSpeed(speed);
     app.running = true;
-    prog.close();
+    prog?.close();
     return world;
   } catch (e) {
-    prog.close();
+    prog?.close();
     app.running = installed || prevRunning;
     app.reportError('beginWorld', e);
     showFatal('The world could not be created', e, { canReturn: true });
@@ -588,6 +596,28 @@ genesis = mountGenesis(app, {
   onReturn: () => app.returnToWorld(),
 });
 
+// the title screen stands over the Genesis screen until something is chosen
+let title = null;
+function randomWorldParams() {
+  const preset = PRESETS[Math.floor(Math.random() * PRESETS.length)];
+  return { ...defaultParams(), ...(preset?.params || {}), seed: randomSeed(), mythLevel: Math.floor(Math.random() * 3) };
+}
+title = mountTitle(app, {
+  backdrop: (canvas) => {
+    if (!app.modules.gen) return;
+    const w = createWorld({ ...defaultParams(), ...initialGenesis, seed: initialGenesis.seed || randomSeed() });
+    generate(w, { preview: true });
+    canvas.width = Math.round(w.W * 6); canvas.height = Math.round(w.H * 6);
+    drawPreview(w, canvas);
+  },
+  onNew: () => {},
+  onDefault: () => beginWorld({ ...defaultParams(), seed: randomSeed() }),
+  onRandom: () => beginWorld(randomWorldParams()),
+  onLoad: () => openSaves(app),
+  onKeys: () => showHelp(app),
+});
+app.showTitle = () => title.show();
+
 requestAnimationFrame(frame);
 window.__atlasBooted = true;
 appEl.classList.remove('is-booting');
@@ -628,6 +658,7 @@ if (url.autostart === '1' || url.autostart === 'true') {
 } else {
   // a returning viewer is offered the world they left (the resume slot, saves.js)
   offerResume(app).catch(() => {});
+  if (!url.seed && !url.preset && !url.size && !url.set && url.title !== '0') title.show();
 }
 document.documentElement.dataset.ready = '1';
 window.atlasReady = true;
