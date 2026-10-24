@@ -545,9 +545,11 @@ textarea.field { border: 1px solid var(--rule); padding: 8px 10px; }
 .minimap-wrap canvas { display: block; width: 100%; height: auto; cursor: pointer; touch-action: none; }
 .minimap-wrap .grat { position: absolute; inset: 0; pointer-events: none; }
 .mapdock.is-min .legend, .mapdock.is-min .minimap-wrap, .mapdock.is-min .dock-readout { display: none; }
-.dock-readout { font-family: var(--font-mono); font-size: 10.5px; line-height: 1.5; color: var(--ink-2); min-height: 46px; }
+/* three lines, always: the readout never grows or shrinks the dock (and so the minimap above it) */
+.dock-readout { font-family: var(--font-mono); font-size: 10.5px; line-height: 16px; color: var(--ink-2); height: 50px; overflow: hidden; }
+.dock-readout > * { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dock-readout .muted { font-family: var(--font-ui); font-size: var(--t-small); }
-.dock-readout .place { font-family: var(--font-ui); font-size: var(--t-small); color: var(--ink); }
+.dock-readout .place { font-family: var(--font-ui); font-size: var(--t-small); line-height: 18px; color: var(--ink); }
 
 .mode-list { width: 300px; max-height: min(460px, 70vh); overflow: auto; }
 .mode-list .menu-item { align-items: flex-start; flex-direction: column; gap: 0; }
@@ -1227,6 +1229,10 @@ div.arc-big { background: var(--ground); }
 .cartouche .stat .v { font: 500 17px/22px var(--font-ui); color: var(--ink); white-space: nowrap; }
 .cartouche .stat .v.is-alert { color: var(--vermilion); }
 .cartouche .stat-btn:hover .k { color: var(--brass-hi); }
+/* the era stands on its own line under the numbers: the card keeps one height and no era is cut */
+.cartouche .headline { flex-wrap: wrap; }
+.cartouche .stat.is-era { flex: 1 0 100%; flex-direction: row; align-items: baseline; gap: 10px; margin-top: 8px; padding: 6px 0 0; border-left: 0; border-top: 1px solid var(--hair-2); }
+.cartouche .stat.is-era .v { font-size: 16px; line-height: 20px; }
 
 /* letters: the newest notice open, older ones folded to slips under it */
 .toast { background: var(--plate); border: 1px solid var(--rule-2); box-shadow: inset 0 0 0 3px var(--plate), inset 0 0 0 4px var(--hair-2), 0 0 0 1px var(--ground); }

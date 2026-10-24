@@ -44,6 +44,7 @@ export function mountHud(app) {
     plagues: stat('Plagues', 'chronicle', 'Active outbreaks.'),
     era: stat('Era', 'nations', 'The most advanced age any nation has reached.'),
   };
+  stats.era.el.classList.add('is-era');   // on a line of its own, so no era's name is cut
   const headline = h('div.headline', null, Object.values(stats).map((s) => s.el));
   const cartIn = h('div.cart-in', null, h('div.cart-name', null, dial.el, name), ages, h('div.date-line', null, date, season),
     h('div.rule-loz', { 'aria-hidden': 'true' }, h('span.loz')), headline);
