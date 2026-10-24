@@ -280,10 +280,13 @@ async function beginWorld(params, { years = 0, speed = null } = {}) {
     let world = createWorld(params);
     const sub = [];
     let tS = performance.now(), last = null;
+    const snaps = {};
     const onStage = (label) => {
       const t = performance.now();
       if (last) sub.push({ label: last, ms: t - tS });
       last = String(label); tS = t;
+      // the relief as it rose, before the land weathered: the forging shows the continents rising
+      if (label === 'Weathering the land') snaps.rawElev = world.f.elevation.slice();
     };
     // the generator runs in a breath; the forging below plays its stages back at a watchable pace
     await oneFrame();
@@ -305,10 +308,11 @@ async function beginWorld(params, { years = 0, speed = null } = {}) {
     const systems = await systemsReady;
     const sim = prepareSim(world, systems);
     // the forging: the plate engraved stage by stage; Cancel throws the world away
+    let forged = null;
     if (!getPref('skipForging', false) && !isHidden()) {
       const after = ['Waking the systems', 'Seeding the first peoples', 'Opening the atlas'];
-      const r = await forgeWorld(app, world, { stages: sub, after, drawColour: drawPreview });
-      if (r.cancelled) {
+      forged = await forgeWorld(app, world, { stages: sub, after, snaps, drawColour: drawPreview });
+      if (forged.cancelled) {
         app.running = prevRunning;
         if (!app.world) title?.show();
         return null;
@@ -316,6 +320,7 @@ async function beginWorld(params, { years = 0, speed = null } = {}) {
     }
     installWorld(world, sim, { run: false });
     installed = true;
+    if (forged) await arrive(forged);
     if (years > 0) {
       prog = showProgress('Forging a world', [`Running ${int(years)} years of history`]);
       await prog.stage(0, `Running ${int(years)} years of history…`);
@@ -338,6 +343,26 @@ async function beginWorld(params, { years = 0, speed = null } = {}) {
     creating = false;
     genesis?.setBusy(false);
   }
+}
+
+/**
+ * From the forging into the world: the map opens under the finished plate at the plate's own
+ * framing, the plate melts away, the camera eases out to the whole world, and the instruments
+ * come in one after another (the app's is-arriving class).
+ */
+async function arrive(forged) {
+  const cam = app.renderer?.camera;
+  if (cam) {
+    cam.fit();
+    cam.zoom = Math.max(cam.viewW / cam.worldW, cam.viewH / cam.worldH);
+    cam.x = cam.worldW / 2; cam.y = cam.worldH / 2;
+  }
+  appEl.classList.add('is-arriving');
+  await oneFrame();
+  const melt = forged.dissolve();
+  setTimeout(() => { if (cam) cam.focusOn(cam.worldW / 2, cam.worldH / 2, cam.fitZoom()); }, 700);
+  await melt;
+  setTimeout(() => appEl.classList.remove('is-arriving'), 1600);
 }
 
 /** Leap ahead from the running world (Menu › Leap ahead). */
