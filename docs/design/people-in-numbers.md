@@ -48,13 +48,17 @@ The rules:
 | **Deaths** | The mortality shape, flattened by health and medicine | Peoples with different frailty by age; infant care through a faith or an era |
 | **Who moves** | The `movers` shape | Nomads who move whole families; colonies of young men only |
 
-Each rule is read through one function that takes the world, the realm and (in Mythic worlds)
-the people. For example, `levyRule(world, civ, people)` returns per-band weights for both sexes.
+Each rule is read through one function that takes the world, the realm and (in Mythic worlds,
+from phase 3) the people: `ruleOf(world, key, civ)` in `src/core/cohorts.js`. For example,
+`ruleOf(world, 'levy', civ)` returns per-band weights for both sexes. The keys are `levy`,
+`movers`, `frail`, `violent`, `all`, `fertility`, `mortality` (34-number tables) and `pairK` (a
+number).
 
-- **Default.** In this chunk each function returns the defaults.
-- **Overrides.** Later chunks register providers that override them, through the same
-  `registerProvider` mechanism the myth module already uses for demography.
-- **Calibration.** It is always against the default rule's reference structure, so a realm that
+- **Default.** In this chunk each rule returns the defaults.
+- **Overrides.** Later chunks register providers at the `cohortRule` extension point (the first
+  answer wins), through the same `registerProvider` mechanism the myth module already uses for
+  demography.
+- **Calibration.** It is always against the default rule's reference shapes, so a realm that
   levies women as well as men really does have about twice the manpower. That is a
   consequence, not a bug to tune away.
 
@@ -71,12 +75,18 @@ hold the following.
     adds only Mythic behaviour.
 - **No new randomness.** Every cohort operation is plain arithmetic; no `world.rng` draws.
   The one exception: new events roll through the existing event deck's own draws.
-- **Calibration.**
-  - Across the twelve `tools/hashcheck.mjs` worlds run to Year 500 and Year 1000, world
-    population stays within ±10 % of main.
-  - Living realms, wars started and towns stay within ±15 %.
-  - Births and deaths are scaled against a reference age structure (below), so a town at that
-    structure behaves exactly as today. The gate catches the drift that real age structures add.
+- **Calibration (a health check, not a target).**
+  - Across twelve worlds (the `tools/hashcheck.mjs` seeds plus two more) run to Year 500 and
+    Year 1000, the totals of world population, living realms, towns and wars stay near main
+    (about ±10 % to ±15 %).
+  - A single world drifts much further either way, because any change sends its history down
+    another path. That is expected and is not the test.
+  - The user's rule (2026-10-25): totals may move, and other larger changes are fine, if the
+    worlds stay interesting and mostly successful. A world failing or nearly dying out should be
+    rare but possible. So report drift honestly and fix modelling errors, without forcing the
+    totals back onto main's.
+  - Births and deaths are scaled against each town's reference shape (below), so a town at that
+    shape behaves exactly as today.
 - **Invariant.** For every live town, after each monthly pass,
   `|Σ cohorts − population| < 0.5`. A dev flag checks it every month (on in `--trial`, like
   `KEYFRAME_DEV.verify`).
@@ -165,13 +175,22 @@ read them only through the rule functions, never directly.
   - Bands 10–14 and 65–74 work at half in eras 0–3, and not at all from era 4.
   - The participation factor is set so that, at the reference structure, the working population
     is 0.8 × population: today's `LABOR_SHARE`.
-- **Reference structure `REF`.** The stationary population these schedules imply. It is computed
-  once when the module loads, by running the cohort step on a unit population until it settles.
-  It is pure arithmetic and the same on every machine. From it:
-  - `REF_FERT = Σ_b F[b]·REF_female[b]`
-  - `REF_MORT = Σ_b M[b]·REF[b]`
-  - `REF_WORK`, the reference working share
-  - `REF_MEN`, the share of men aged 15–44
+- **Reference shapes.** Today's crude rates are taken to be the rates of a town whose bands have
+  the shape those rates imply: the *stable* population of the default schedules with crude death
+  rate `d` growing at `r = birth − death` (0 to 4 % a year), under the same monthly step the towns
+  run. A fast-growing town is young, a stagnant one with low deaths is old, and each is measured
+  against its own expected shape. So a town at that shape behaves exactly as today, and only a
+  departure from it (a hollow, a boom, a town of widows) moves its births, deaths and manpower.
+  - The shapes are tabulated once when the module loads, over 28 death rates (0.3 % to 30 %) and
+    9 growth rates, and read by interpolation. Pure arithmetic, the same on every machine.
+  - Per cell: `Fref = Σ F·women`, `Mref = Σ M·n` and `Eref`, the default levy rule's share, per
+    head.
+  - `REF`, the stationary shape at a crude death rate of 2.8 % (median age about 26), seeds new
+    towns and shapes arrivals from elsewhere.
+  - *Why not one fixed shape:* the first build measured every town against `REF` alone. Real
+    towns are younger (growing) or older (Mythic peoples with low mortality), so births fell and
+    deaths rose almost everywhere: world population ended 33 % below main and manpower 46 %
+    below.
 
 ## Mechanics
 
@@ -216,26 +235,43 @@ reference:
 
 ```
 fert    = Σ_b F[b] · women[b] / pop
-births  = birthA · pop / 12 · (fert / REF_FERT)
+births  = birthA · pop / 12 · (fert / Fref(birthA, deathA))
 ```
 
 Then pairing. Births also depend on there being partners, through the **pairing** rule
 (default below):
 
 ```
-pairing = min(1, PAIR_K · men15to44 / women15to44) / min(1, PAIR_K · REF_RATIO)
+x       = min(1, (men20to54 / women15to44) / Pref(birthA, deathA))
+used    = used + (x − used) / 480                 (monthly; s.flags.mates)
+pairing = min(1, PAIR_K · x / used)
 births  = births · pairing
 ```
 
-`PAIR_K = 1.1` by default: a small surplus of women still finds partners. `REF_RATIO` is the
-reference structure's ratio, so the factor is exactly 1 there.
+- **Partners are men of 20–54** for the women of 15–44: husbands are usually older, and widows
+  remarry older men.
+- `Pref` is that ratio at the town's reference shape (a growing town has fewer men of 20–54 per
+  young woman than an old one), so `x` is 1 there.
+- **What the town is used to.** `used` is `x` averaged over about 40 years. A people that has
+  always lived short of men (a realm forever at war) has adapted through remarriage, later
+  marriage or more wives, so a chronic shortage costs no births. A sudden loss does.
+- `PAIR_K = 1.1` by default: births fall only once `x` is more than about 9 % below what the
+  town is used to.
+- *Why:* wars kill about as many young men as old age and illness do (in a 500-year Historical
+  world, 158,000 men aged 15–44 died at war against 166,000 of natural causes). The crude birth
+  rate main was tuned with already includes that ordinary loss. Measuring every town against a
+  peaceful ratio cut births in nearly every town, and world population ended a third below main.
+  The first build also sent every returning levy to the town where the army mustered, so the
+  other towns lost their young men for good; levies now go home to every town of the realm as
+  they were drawn.
 
 Births go into band 0: 1.05 / 2.05 to boys, 1 / 2.05 to girls.
 
 What this does:
-- A town at the reference structure gets exactly today's births.
-- A town that lost a third of its young men in a war loses about a quarter of its births until
-  the boys born before the war grow up. That is the second echo of the hollow generation.
+- A town at its reference shape gets exactly today's births.
+- A town that suddenly lost a third of its young men loses about a fifth of its births for a
+  generation, easing as it adapts and as the boys born before the war grow up. That is the second
+  echo of the hollow generation.
 - A town whose young women emigrated gets fewer births for a generation.
 - **Pairing is a society rule.** Where a faith or law allows several wives, `PAIR_K` rises and a
   surplus of women costs fewer births. Where marriage is late, fertility shifts to later bands.
@@ -248,7 +284,7 @@ mortality shape:
 
 ```
 mortIdx = Σ_b M[b] · n[b] / pop
-deaths  = deathA · pop / 12 · (mortIdx / REF_MORT)
+deaths  = deathA · pop / 12 · (mortIdx / Mref(birthA, deathA))
 dead[b] = deaths · M[b] · n[b] / Σ_b M[b] · n[b]
 ```
 
@@ -325,19 +361,20 @@ invariant to hold, so the conversions can land one at a time.
 - **Manpower.** `civ.military.manpower` (`civmonth.js`) becomes:
 
   ```
-  eligible  = Σ_towns Σ_bands levyRule(world, civ)[band, sex] · n[band, sex]
-  manpower  = eligible · (0.03 / REF_ELIGIBLE) · mods.military
+  levyBase  = Σ_towns pop · (Σ_bands levy[band, sex] · n[band, sex] / pop) / Eref(town)
+  manpower  = levyBase · 0.03 · mods.military
   ```
 
-  `REF_ELIGIBLE` is the default rule's share at the reference structure. Under the default
-  rule, at the reference structure, this is exactly today's `pop × 0.03 × military`.
+  `Eref` is the default rule's share at the town's reference shape, kept on `s.flags.eref` from
+  its last monthly pass. Under the default rule, at the reference shape, this is exactly today's
+  `pop × 0.03 × military`.
   - A realm that lost a generation of young men has less manpower twenty years on, and a realm
     in a baby boom has more.
   - A realm whose rule calls more people up has more.
 - **Levies.**
   - Raising an army takes the people the rule names from the towns, in today's amounts.
   - When the army disbands, the surviving share goes home in the same bands, aged by the months
-    away.
+    away, to every town of the realm in proportion to its people (as they were drawn).
   - Those who do not come back are the hole.
 - **The war machine (chunk 2)** reads the same slice for its companies, so an army raised under
   a different rule fields different people (youths, women, the old).
@@ -532,7 +569,8 @@ Each phase lands on its own branch, passes the gates, and ships.
 
 1. **Cohorts.**
    - The `src/core/cohorts.js` module, the reference tables and the reconcile.
-   - Births, deaths and ageing.
+   - Births, deaths and ageing. One table per town in every world: Mythic towns age at the human
+     pace until phase 3 gives each people its own table and its own `life` stretch.
    - Manpower from the young men; levies taken and returned as slices.
    - Famine and the damage profiles.
    - The town dossier pyramid.
@@ -553,7 +591,45 @@ Tests added along the way (`tools/headless.mjs`):
   - A war that takes 30 % of a town's men 15–44 leaves a trough in bands 35–49 twenty years
     later.
   - A famine kills more under-10s and over-60s than adults.
-  - At the reference structure, births and deaths equal today's crude rates to within rounding.
+  - At its reference shape, a town's births and deaths equal today's crude rates (within 1 %,
+    the table's interpolation).
+
+## Phase 1 results (2026-10-25)
+
+Built on `sim/people-in-numbers`: the cohorts, births, deaths and ageing, the profiles for every
+population flow, manpower from the levy rule, levies kept and returned as slices, and the People
+section of the town dossier.
+
+- **Gates.**
+  - `npm test` passes, and so does `--trial` at mythLevel 2.
+  - `--cohort-check` passes: no invariant breaks, and the three behaviour checks hold.
+- **Calibration**, twelve worlds against main, totals at Year 500 and Year 1000:
+
+  | Population | Realms | Towns | Wars started | Manpower |
+  | --- | --- | --- | --- | --- |
+  | 0 % | +5 % | +3 % | +14 % | −5 % |
+
+  - Single worlds range from −38 % to +77 % in population.
+  - No world came near collapse: the leanest still held 8 realms, 149 towns and 414,000 people.
+  - It took three corrections to get here (each is described where it applies above):
+    1. Each town is measured against its own reference shape, not one fixed shape.
+    2. Partners are men of 20–54, against what the town is used to.
+    3. Levies go home to every town of the realm.
+
+    The first build ran at −33 % population and −46 % manpower.
+- **Speed.**
+  - The cohort work costs 1.4 ms per sim-year on the 298 towns of a medium world at Year 1000:
+    reconcile 0.15, births, deaths and ageing 1.05, settling 0.15.
+  - Manpower adds a sum over each town's bands once a month.
+  - `tools/timeab.mjs` cannot isolate this. A save loaded on the branch takes a different path
+    from the same save on main (its towns are reseeded with age bands), so the two runs simulate
+    different worlds. On the Mythic Year-900 save it showed +7.6 % in all, before the rounding
+    was folded into ageing.
+- **Size.** At Year 1000 on a medium map the age bands add 97 KB and the two new numbers per town
+  (`flags.eref`, `flags.mates`) 16 KB: 113 KB in all.
+- **Not yet in phase 1.**
+  - The pyramid labels for a gap matched to an event moved to phase 4 with the events.
+  - Mythic towns age at the human pace until phase 3.
 
 ## Decisions (2026-10-25)
 

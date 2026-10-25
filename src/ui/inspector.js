@@ -14,6 +14,7 @@ import { WATER, DAYS_PER_YEAR } from '../core/constants.js';
 import { elevationMeters, seasonName, dateString } from '../core/world.js';
 import { liveCivs, liveSettlements, civSettlements, areAtWar, nearestSettlement } from '../core/entities.js';
 import { sitesNear, SITE_KINDS } from '../core/sites.js';
+import { NB, NC, cohortSummary } from '../core/cohorts.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -769,6 +770,7 @@ function settlementView(app, sel, b) {
       return box;
     })(),
     section('Its life', ledgerChart(app, b, 's', s.id, { marks: conquestMarks, color: civ()?.colorHex })),
+    hideFor(b, () => !s.alive || !Array.isArray(s.cohorts), section('People', agePyramid(app, b, s))),
     section('Chain of title', titleBar(app, b, s), chain),
     section('Story', story),
     // a ruin has no livelihood: its last day's cares are not shown as if they were today's
@@ -806,6 +808,56 @@ function settlementView(app, sel, b) {
     otherRecords(b, () => s, SETTLEMENT_KEYS),
   );
 }
+
+// The town's people by age and sex (core/cohorts.js): a two-sided pyramid, men left and women
+// right, the open 80+ band on top, redrawn once a month; the numbers beside it below.
+const PYR_W = 300, PYR_ROW = 10, PYR_MID = 30, PYR_H = NB * PYR_ROW;
+function agePyramid(app, b, s) {
+  const svg = svgNode('svg', { class: 'pyramid', viewBox: `0 0 ${PYR_W} ${PYR_H + 14}`, role: 'img', 'aria-label': 'Age pyramid' });
+  const half = (PYR_W - PYR_MID) / 2, bars = [];
+  for (let k = 0; k < NB; k++) {
+    const y = PYR_H - (k + 1) * PYR_ROW + 1;
+    const m = svgNode('rect', { class: 'pyr-m', x: half, y, width: 0, height: PYR_ROW - 2 });
+    const f = svgNode('rect', { class: 'pyr-f', x: half + PYR_MID, y, width: 0, height: PYR_ROW - 2 });
+    svg.append(m, f);
+    bars.push([m, f]);
+    if (k % 2 === 0 || k === NB - 1) {
+      const t = svgNode('text', { class: 'pyr-age', x: PYR_W / 2, y: y + PYR_ROW - 3, 'text-anchor': 'middle' });
+      t.textContent = k === NB - 1 ? '80+' : String(5 * k);
+      svg.append(t);
+    }
+  }
+  const lm = svgNode('text', { class: 'pyr-key', x: 0, y: PYR_H + 12 }); lm.textContent = 'Men';
+  const lf = svgNode('text', { class: 'pyr-key', x: PYR_W, y: PYR_H + 12, 'text-anchor': 'end' }); lf.textContent = 'Women';
+  svg.append(lm, lf);
+  let last = '';
+  b.run(() => {
+    const c = s.cohorts;
+    const key = Array.isArray(c) ? `${s.id}:${Math.floor(app.world.time.day / 30)}:${Math.round(s.population)}` : 'none';
+    if (key === last) return;
+    last = key;
+    let top = 0;
+    if (Array.isArray(c) && c.length === NC) for (let i = 0; i < NC; i++) if (c[i] > top) top = c[i];
+    for (let k = 0; k < NB; k++) {
+      const wm = top > 0 ? half * c[k] / top : 0, wf = top > 0 ? half * c[NB + k] / top : 0;
+      bars[k][0].setAttribute('x', (half - wm).toFixed(1)); bars[k][0].setAttribute('width', wm.toFixed(1));
+      bars[k][1].setAttribute('width', wf.toFixed(1));
+    }
+  });
+  const sum = () => cohortSummary(s.cohorts, townEra(app, s));
+  const share = (v) => { const t = sum(); return t.total > 0 ? `${F.people(t[v])} · ${F.pct(t[v] / t.total)}` : '—'; };
+  const facts = kv(b, [
+    { k: 'Median age', v: () => { const t = sum(); return t.total > 0 ? `${Math.round(t.median)} years` : '—'; } },
+    { k: 'Children (under 15)', v: () => share('children') },
+    { k: 'Elders (65 and over)', v: () => share('elders') },
+    { k: 'Working hands', v: () => share('working'), tip: 'Ages 15 to 64; before the Medieval Age children of 10 to 14 and elders to 74 work half time too.' },
+    { k: 'Men 15–44', v: () => F.people(sum().men), tip: 'Whom the levy calls up, and half of every marriage.' },
+    { k: 'Women 15–44', v: () => F.people(sum().women), tip: 'The mothers of the next generation.' },
+  ]);
+  return h('div.pyramid-box', null, svg, facts);
+}
+/** The era a town's working ages follow (its realm's). */
+const townEra = (app, s) => app.world.civs[s.civId]?.tech?.era | 0;
 
 /** A storm's age: tenths of a day while young, whole days and months after. */
 function stormDays(d) {

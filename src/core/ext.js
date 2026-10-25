@@ -34,6 +34,7 @@ export const EXT_POINTS = {
   people: { combine: 'first', sig: '(w, {genesis, k?, i?, parentCivId?}) → {race, traits?, languageStyle?}|null' },
   demography: { combine: 'mulEach', keys: ['birth', 'mortality'], clamp: [0.3, 3], sig: '(w, s, civ) → {birth?, mortality?}' },
   lifespan: { combine: 'mul', clamp: [0.2, 8], sig: '(w, civ, person) → age divisor' },
+  cohortRule: { combine: 'first', sig: '(w, key, civ) → 34 weights (levy, movers, frail, violent, all, fertility, mortality) | number (pairK) | null' },
   mods: { combine: 'concat', sig: '(w, civ) → partial mods (applyFx)' },
   loyalty: { combine: 'sum', clamp: [-0.3, 0.3], sig: '(w, s, civ)' },
   nameStyle: { combine: 'first', sig: '(w, civ, govKey) → {styles?, titles?}|null' },

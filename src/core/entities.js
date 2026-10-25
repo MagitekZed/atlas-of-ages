@@ -10,6 +10,7 @@ import { tierForPop, WATER, DAYS_PER_YEAR } from './constants.js';
 import { bumpVersion } from './world.js';
 import { DX8, DY8 } from './util.js';
 import { mulOf } from './ext.js';
+import { seedCohorts, takePeople, profileForCause } from './cohorts.js';
 
 export { addBand, removeBand, getBand, bandsNear } from './bands.js';
 
@@ -214,6 +215,9 @@ export function createSettlement(world, civId, x, y, opts = {}) {
     hist: { sieges: 0, held: 0, fires: 0, quakes: 0, plagues: 0, conquered: 0, riots: 0 }, // WP1 counters
     own: [],                // owner chain [[day, civId, code]] ≤ 16 (WP6)
     flags: {},
+    // its people by age band and sex (core/cohorts.js): the slice the founders came with, or the
+    // reference shape
+    cohorts: seedCohorts(population, opts.cohorts),
     // fields other modules add, declared here in the order they arrive so every settlement keeps
     // one hidden class (undefined until set, and never saved; keep in step with SETTLEMENT_SHAPE,
     // world.js): the civ module's (ensureSettlementFields) as the town is founded, then in Mythic
@@ -300,14 +304,15 @@ export function destroySettlement(world, sid, cause = 'abandoned', opts = {}) {
  * dmg: { pop, wealth, food, defense, buildings, cause }
  * Every fraction is scaled by the ext 'damage' providers (mulOf('damage', world, s, cause),
  * neutral 1 — wards and luck in Mythic worlds); the number of rng draws never depends on it.
+ * The dead are taken from the town's age bands by the cause's profile (core/cohorts.js).
  * Returns the number of people killed. Destroys the settlement if fewer than 8 remain.
  */
 export function damageSettlement(world, s, dmg = {}) {
   if (!s || !s.alive) return 0;
   const dmgMul = mulOf('damage', world, s, dmg.cause ?? null);
   const sc = dmgMul === 1 ? (v) => v : (v) => v * dmgMul;
-  const deaths = s.population * clamp01(sc(dmg.pop || 0));
-  s.population -= deaths;
+  // who dies depends on the cause: the sword takes the young men, hunger the children and the old
+  const deaths = takePeople(world, s, s.population * clamp01(sc(dmg.pop || 0)), profileForCause(dmg.cause));
   if (dmg.wealth) s.wealth *= 1 - clamp01(sc(dmg.wealth));
   if (dmg.food) s.food *= 1 - clamp01(sc(dmg.food));
   if (dmg.defense) s.defense *= 1 - clamp01(sc(dmg.defense));

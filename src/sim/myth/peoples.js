@@ -44,6 +44,7 @@
 import { on } from '../../core/hooks.js';
 import { liveSettlements, liveCivs, settlementsNear } from '../../core/entities.js';
 import { dayOfYear, bumpVersion } from '../../core/world.js';
+import { emptySlice, takePeople, addPeople } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR, DAYS_PER_MONTH, RACE_META } from '../../core/constants.js';
 import { isMythic, fin, RACES, RACE_LIST, RACE_IDX, NR, raceRel } from './races.js';
 import { record, pickT, fill, yearOfDay, theName, rulerName, seasonAt, placePhrase, aAn } from './prose.js';
@@ -604,7 +605,8 @@ function expel(world, pp, s, civ, victim) {
     const d = (t.x - s.x) * (t.x - s.x) + (t.y - s.y) * (t.y - s.y);
     if (d < bd || (d === bd && dest && t.id < dest.id)) { bd = d; dest = t; }
   }
-  s.population = pop - moved;
+  const sl = emptySlice();
+  takePeople(world, s, moved, 'all', sl, civ);
   settle(world, pp, s, a, { expel: true });   // a turning it causes is told by the expulsion
   if (dest && moved > 0) {
     const arrive = moved * 0.75;   // a quarter die on the road
@@ -613,7 +615,8 @@ function expel(world, pp, s, civ, victim) {
     for (let k = 0; k < NR; k++) b[k] *= dp;
     b[vk] += arrive;
     tidy(b, null);
-    dest.population = dp + arrive;
+    if (!(dest.population >= 0)) dest.population = dp;
+    addPeople(world, dest, sl, arrive);
     settle(world, pp, dest, b, { expel: true });
   }
   pp.expel[s.id] = day;

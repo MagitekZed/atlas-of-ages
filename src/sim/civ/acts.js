@@ -22,6 +22,7 @@
 import { registerTool } from '../../core/tools.js';
 import { transferSettlement } from '../../core/entities.js';
 import { emitFx, bumpVersion } from '../../core/world.js';
+import { emptySlice, takePeople, addPeople } from '../../core/cohorts.js';
 import { adjectiveOf } from '../../core/names.js';
 import { discover, techDef, giftableTechs, isArcane } from './tech.js';
 import { completeWonder } from './buildings.js';
@@ -82,10 +83,11 @@ export function colonize(world, fromSid, x, y, opts = {}) {
   const p = settlersPlan(world, from, x, y);
   if (!p.ok) return { ok: false, message: p.reason };
   const civ = p.civ;
-  from.population -= p.n;
+  const sl = emptySlice();
+  takePeople(world, from, p.n, 'movers', sl, civ);
   from.flags.lastSettler = world.time.day;
-  const s = foundSettlement(world, civ, p.x, p.y, p.n * 0.95, { from, overseas: p.overseas, divine: Boolean(opts.divine), cause: opts.cause ?? null });
-  if (!s) { from.population += p.n; return { ok: false, message: 'The settlers could not take root there.' }; }
+  const s = foundSettlement(world, civ, p.x, p.y, p.n * 0.95, { from, overseas: p.overseas, divine: Boolean(opts.divine), cause: opts.cause ?? null, cohorts: sl });
+  if (!s) { addPeople(world, from, sl, p.n); return { ok: false, message: 'The settlers could not take root there.' }; }
   if (civ.ruler?.deeds && p.overseas) civ.ruler.deeds.colonies = fin(civ.ruler.deeds.colonies) + 1;
   return { ok: true, s, message: `Settlers from ${from.name} founded ${s.name}.` };
 }

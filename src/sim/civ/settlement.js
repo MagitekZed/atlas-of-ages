@@ -16,8 +16,9 @@
 // Farmland: conversion when hungry (clears veg), abandonment without labour, fallowing on
 // exhausted soil; soil exhaustion slowed by husbandry / crop rotation / fertiliser.
 // Population: births (food, housing, happiness, × birthRate) and deaths (health, crowding,
-// siege). Health: crowding vs sanitation, hunger, disease, pollution. Happiness: food,
-// wealth, taxes, war weariness, faith, buildings, ruler. Unrest and loyalty follow.
+// siege), shaped by the town's age bands (core/cohorts.js: reconciled first, rounded last).
+// Health: crowding vs sanitation, hunger, disease, pollution. Happiness: food, wealth, taxes,
+// war weariness, faith, buildings, ruler. Unrest and loyalty follow.
 // Production: labour not tied to food, mines (deplete mineral / resourceAmt), timber.
 // Wealth: production, commerce, luxury deposits, tradeIncome (written by trade) → taxes.
 // Also: housing, culture, defense/garrison, tier & radius, popDensity, pollution & CO₂.
@@ -39,6 +40,7 @@ import { latitude, monthOf, emitFx } from '../../core/world.js';
 import { emit } from '../../core/hooks.js';
 import { neutralSettlementMods, SETTLEMENT_MOD_KEYS } from '../../core/effects.js';
 import { mulEachOf, sumOf, hasProviders } from '../../core/ext.js';
+import { reconcileCohorts, cohortMonth, cohortTotal, settleCohorts, verifyCohorts, COHORT_DEV } from '../../core/cohorts.js';
 import { clamp, clamp01, smoothstep, majorToll } from '../../core/util.js';
 import { proxies, climGrid, BIO_WILD, BIO_VEGMAX, BIO_HERB, BIO_WOOD, BIO_FARM, BIO_FISH } from './land.js';
 import { getMods, hasTech, modValue } from './tech.js';
@@ -173,6 +175,7 @@ function scratchX(world) {
     labor: 0, fw: 0, farmLabor: 0, farmFrac: 0, farmMean: 0, left: 0, gPot: 0, gPotMean: 0, gatherNow: 0, gatherMean: 0,
     pressure: 0, prodFood: 0, fed: 1, stockMonths: 0, housing: 0, houseRatio: 0,
     dis: 0, production: 0, foodWorkers: 0, tier: 0, isCap: false,
+    cm: { births: 0, deaths: 0, famine: 0, emig: 0 },
   });
 }
 
@@ -184,6 +187,7 @@ export function updateSettlement(world, s, civ, cctx) {
   ensureSettlementFields(s);
   const pop = fin(s.population, 0);
   if (pop < 8) { abandon(world, s, civ, 'dwindled'); return; }
+  reconcileCohorts(world, s);
   const X = scratchX(world);
   X.mods = cctx.mods || getMods(world, civ);
   X.sm = townMods(world, s);
@@ -195,6 +199,8 @@ export function updateSettlement(world, s, civ, cctx) {
   healthAndEconomy(world, s, civ, X);
   socialPhase(world, s, civ, cctx, X);
   landUseAndGrowth(world, s, civ, cctx, X);
+  settleCohorts(s);
+  if (COHORT_DEV.verify && s.alive) verifyCohorts(world, s);
 }
 
 /** Season of the harvest, the catchment's potentials (rescanned quarterly) and buildings. */
@@ -313,10 +319,13 @@ function demographyPhase(world, s, civ, X) {
   let deathA = 0.032 * (1.45 - s.health) + (houseRatio > 1 ? 0.06 * (houseRatio - 1) : 0) + (s.siege ? 0.04 : 0);
   deathA = Math.max(0.004, deathA) * sm.mortality * modValue(mods, 'mortality', 1);
   if (dm) { birthA *= dm.birth; deathA *= dm.mortality; }
-  const births = pop * birthA / 12;
-  const deaths = pop * deathA / 12 + famineDeaths;
   if (houseRatio > 1.02) emig += pop * 0.01 * (houseRatio - 1) * fin(P.migration, 1);
-  const newPop = Math.max(0, pop + births - deaths - emig);
+  // the crude rates are those of a town at the reference age structure: the town's own bands
+  // shape them (women of childbearing age and their partners, the old and the very young), the
+  // famine takes the frail and the emigrants are the young (core/cohorts.js)
+  const out = cohortMonth(world, s, civ, birthA, deathA, famineDeaths, emig, X.cm);
+  famineDeaths = out.famine; emig = out.emig;
+  const newPop = cohortTotal(s.cohorts);
   s.growth = clamp(div(newPop - pop, pop, 0) * 12, -1, 1);
   s.emigrants = emig;
   if (famineDeaths > 0) {

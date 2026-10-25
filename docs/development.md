@@ -72,7 +72,7 @@ node tools/headless.mjs --rewind-test    # keyframe, act, replay: the replayed w
 node tools/headless.mjs --trial          # random acts of every kind; save/load and keyframe replay must all agree
 ```
 
-Run `--trial` at both `--set mythLevel=0` and `--set mythLevel=2` after any change to simulation state, caches, tools or the kernel. `--keyframe-check` checks that keyframes share closed records correctly over a long run. SPEC §10 describes each gate in full.
+Run `--trial` at both `--set mythLevel=0` and `--set mythLevel=2` after any change to simulation state, caches, tools or the kernel. `--keyframe-check` checks that keyframes share closed records correctly over a long run. `--cohort-check` runs the age-band behaviour checks, then a normal run that checks every town's bands against its population after each monthly pass and prints the world's age structure and the people moved by each profile (see [design/people-in-numbers.md](design/people-in-numbers.md)). SPEC §10 describes each gate in full.
 
 ## Checking speed work
 

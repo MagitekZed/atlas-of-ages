@@ -22,6 +22,7 @@
 
 import { chronicle } from '../../core/chronicle.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
+import { seedCohorts, NC } from '../../core/cohorts.js';
 
 export const STATE_VERSION = 2;
 export const DYNASTY_CAP = 400;
@@ -280,10 +281,12 @@ export function adjustHistory(civ, { leftShare = 0, joined = 0, dTowns = 0 } = {
  *   flags.tierSeen last tier announced through the tierChanged hook
  *   flags.famPop0  population when the current famine began (the famine hook's 5 % test)
  */
-const SETTLE_FIELDS_V = 3;
+const SETTLE_FIELDS_V = 4;
 /** Flags every settlement carries from birth, in one order, so their objects share a shape. */
 const SETTLE_FLAG_DEFAULTS = [['res', 0], ['pot', null], ['ep', null], ['grieve', 0], ['planDay', -1], ['noSiteDay', -1], ['noSiteN', 0],
-  ['noSeaDay', -1], ['famineDeaths', 0], ['brev', 0], ['emig', 0], ['conqueredDay', null], ['seceded', null], ['pacified', null], ['famPop0', 0]];
+  ['noSeaDay', -1], ['famineDeaths', 0], ['brev', 0], ['emig', 0], ['conqueredDay', null], ['seceded', null], ['pacified', null], ['famPop0', 0],
+  // the age bands' reference levy share and partner ratio (core/cohorts.js; 0 until the first pass)
+  ['eref', 0], ['mates', 0]];
 export function ensureSettlementFields(s) {
   if (s.flags && s.flags.fv === SETTLE_FIELDS_V && Number.isFinite(s.population)) return s;
   s.flags ||= {};
@@ -308,6 +311,8 @@ export function ensureSettlementFields(s) {
   if (!Number.isFinite(s.unrest)) s.unrest = 0;
   if (!Number.isFinite(s.radius) || s.radius < 1) s.radius = 2;
   if (!Number.isFinite(s.peakPopulation)) s.peakPopulation = s.population;
+  // a town from an older save gets the reference age structure (core/cohorts.js)
+  if (!Array.isArray(s.cohorts) || s.cohorts.length !== NC) s.cohorts = seedCohorts(s.population);
   s.flags.fv = SETTLE_FIELDS_V;
   return s;
 }

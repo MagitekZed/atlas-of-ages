@@ -1,5 +1,6 @@
 // The civ-level monthly pass: aggregates settlements into civ caches (population,
-// territory, wealth, peaks, military.manpower ≈ 3 % of pop × mods.military,
+// territory, wealth, peaks, military.manpower ≈ 3 % of pop × mods.military (read from the
+// people the levy rule names, core/cohorts.js),
 // military.strength = Σ strength of the realm's armies in the field), refreshes
 // mods, researches, runs the treasury and tax policy, shares food through the granary
 // network, updates legitimacy and stability, handles rulers and great figures, ages, and
@@ -10,6 +11,7 @@
 
 import { civSettlements, killCiv } from '../../core/entities.js';
 import { monthOf } from '../../core/world.js';
+import { ruleOf, levyBase, scratchSlice, takePeople, addPeople } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR as DPY, RESOURCES } from '../../core/constants.js';
 import { refreshMods, researchMonthly, hasTech, getMods } from './tech.js';
 import { targetTax, evaluateGovernment, styleName, canReformNow } from './government.js';
@@ -49,9 +51,12 @@ export function aggregate(world, civ) {
   const sms = new Array(ss.length);
   let k = 0;
   const mods = getMods(world, civ);
+  const levy = ruleOf(world, 'levy', civ);
+  let levyPop = 0;
   for (const s of ss) {
     const p = Math.max(0, fin(s.population));
     pop += p; wealth += fin(s.wealth); culture += fin(s.culture);
+    levyPop += levyBase(s, levy);
     happy += p * fin(s.happiness, 0.5); loyal += p * fin(s.loyalty, 0.5); unrest += p * fin(s.unrest);
     if (civ.stateReligion != null && s.dominantReligion != null && s.dominantReligion !== civ.stateReligion) faithOff += p;
     if (fin(s.flags?.assim, 1) < 0.5) foreign += p;
@@ -69,7 +74,7 @@ export function aggregate(world, civ) {
   }
   const n = ss.length;
   return {
-    ss, sms, n, nEff, cap, pop,
+    ss, sms, n, nEff, cap, pop, levyPop,
     wealth, culture,
     avgHappy: div(happy, pop, 0.5), avgLoyal: div(loyal, pop, 0.5), avgUnrest: div(unrest, pop, 0),
     faithDis: div(faithOff, pop, 0), libBonus: div(lib, pop, 0), diversity: div(foreign, pop, 0), resMul: div(resW, pop, 1),
@@ -146,8 +151,9 @@ function urbanDrift(world, civ, agg) {
     // a town's draw (fairs, booms, plague fear: the attract modifier) pulls or holds its people
     const pull = Math.max(0.2, Math.min(3, ba / Math.max(0.2, agg.sms[k].attract)));
     const n = v.population * rate * (0.5 + best.happiness) * pull;
-    v.population -= n;
-    best.population += n;
+    const sl = scratchSlice();
+    takePeople(world, v, n, 'movers', sl, civ);
+    addPeople(world, best, sl, n);
   }
 }
 
@@ -197,7 +203,9 @@ export function monthlyCiv(world, civ) {
   styleName(civ, world);
 
   const mods = refreshMods(world, civ);
-  civ.military.manpower = agg.pop * 0.03 * mods.military;
+  // manpower: 3 % of the people, counted by those the realm's levy rule names (by default the
+  // young men) against the town's reference shape (core/cohorts.js levyBase)
+  civ.military.manpower = agg.levyPop * 0.03 * mods.military;
   civ.military.strength = Math.round(armyStrength(world, civ.id));
 
   researchMonthly(world, civ, agg);

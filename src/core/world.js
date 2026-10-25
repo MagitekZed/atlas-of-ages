@@ -174,7 +174,7 @@ const SETTLEMENT_SHAPE = (s) => ({
   defense: s.defense, garrison: s.garrison, buildings: s.buildings, religion: s.religion, dominantReligion: s.dominantReligion,
   disease: s.disease, immunity: s.immunity, coastal: s.coastal, harbor: s.harbor, siege: s.siege, famine: s.famine, radius: s.radius,
   race: s.race, effects: s.effects, effectsV: s.effectsV, traits: s.traits, epithet: s.epithet, legend: s.legend,
-  hist: s.hist, own: s.own, flags: s.flags,
+  hist: s.hist, own: s.own, flags: s.flags, cohorts: s.cohorts,
   project: s.project, farmland: s.farmland, growth: s.growth, capacity: s.capacity,
   foodImport: s.foodImport, emigrants: s.emigrants, taxes: s.taxes,
   peoples: s.peoples, peoplesPast: s.peoplesPast,

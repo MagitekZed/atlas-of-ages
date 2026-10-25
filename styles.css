@@ -699,6 +699,13 @@ textarea.field { border: 1px solid var(--rule); padding: 8px 10px; }
 .kv > dd.txt { font-family: var(--font-ui); font-size: var(--t-small); white-space: normal; text-align: right; }
 .kv > dd .link { font-family: var(--font-ui); }
 .kv .meter-row { grid-column: 1 / -1; margin-top: -2px; }
+/* the town's age pyramid (inspector: People) */
+.pyramid-box { display: grid; gap: 10px; }
+svg.pyramid { display: block; width: 100%; height: auto; }
+svg.pyramid .pyr-m { fill: var(--brass); }
+svg.pyramid .pyr-f { fill: var(--verdigris); }
+svg.pyramid .pyr-age { fill: var(--ink-3); font-family: var(--font-ui); font-size: 8.5px; font-variant-numeric: tabular-nums; }
+svg.pyramid .pyr-key { fill: var(--ink-3); font-family: var(--font-sc); font-size: 9.5px; letter-spacing: .07em; }
 .kv-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .kv-3 .cell { padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--slate-2); min-width: 0; }
 .kv-3 .cell .k { font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .07em; color: var(--ink-3); display: block; }
