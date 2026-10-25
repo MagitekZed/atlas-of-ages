@@ -243,7 +243,7 @@ Then pairing. Births also depend on there being partners, through the **pairing*
 
 ```
 x       = min(1, (men20to54 / women15to44) / Pref(birthA, deathA))
-used    = used + (x − used) / 480                 (monthly; s.flags.mates)
+used    = used + (x − used) / 1200                (monthly; s.flags.mates)
 pairing = min(1, PAIR_K · x / used)
 births  = births · pairing
 ```
@@ -252,9 +252,16 @@ births  = births · pairing
   remarry older men.
 - `Pref` is that ratio at the town's reference shape (a growing town has fewer men of 20–54 per
   young woman than an old one), so `x` is 1 there.
-- **What the town is used to.** `used` is `x` averaged over about 40 years. A people that has
-  always lived short of men (a realm forever at war) has adapted through remarriage, later
-  marriage or more wives, so a chronic shortage costs no births. A sudden loss does.
+- **What the town is used to.** `used` is `x` averaged over about a century. A people that has
+  long lived short of men adapts through remarriage, later marriage or more wives, but slowly: a
+  war-torn realm carries the loss for generations.
+  - Births come back sooner the other way: once the killing stops, the boys grow up and `x`
+    itself recovers.
+  - *The choice (the user's, 2026-10-25):* the first version adapted over 40 years. A century
+    lets wars slow a people's growth for generations, which the user preferred over keeping
+    main's numbers. In the event the world totals hardly moved (population 0 % → −3 % against
+    main). Most of the early shortfall had come from the levy bug (below), not from how fast
+    towns adapt.
 - `PAIR_K = 1.1` by default: births fall only once `x` is more than about 9 % below what the
   town is used to.
 - *Why:* wars kill about as many young men as old age and illness do (in a 500-year Historical
@@ -607,13 +614,15 @@ section of the town dossier.
 
   | Population | Realms | Towns | Wars started | Manpower |
   | --- | --- | --- | --- | --- |
-  | 0 % | +5 % | +3 % | +14 % | −5 % |
+  | −3 % | +7 % | 0 % | +5 % | −11 % |
 
-  - Single worlds range from −38 % to +77 % in population.
-  - No world came near collapse: the leanest still held 8 realms, 149 towns and 414,000 people.
+  - Single worlds range from −44 % to +53 % in population.
+  - Men per woman of 15–44 run 0.77 to 1.0 across the worlds (1.05 at birth): the wars show.
+  - No world came near collapse: the leanest still held 7 realms, 135 towns and 260,000 people.
+  - With the 40-year adaptation the totals were 0 %, +5 %, +3 %, +14 % and −5 %.
   - It took three corrections to get here (each is described where it applies above):
     1. Each town is measured against its own reference shape, not one fixed shape.
-    2. Partners are men of 20–54, against what the town is used to.
+    2. Partners are men of 20–54, against what the town is used to (over about a century).
     3. Levies go home to every town of the realm.
 
     The first build ran at −33 % population and −46 % manpower.

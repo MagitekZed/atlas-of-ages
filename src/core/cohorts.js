@@ -27,8 +27,11 @@ const SEX_RATIO = 1.05, BOY = SEX_RATIO / (1 + SEX_RATIO);
 const PAIR_LO = 3, PAIR_HI = 8;
 /** Partners: men of 20–54 (bands 4–10) for the women of 15–44 — husbands are older, widows remarry. */
 const MATE_LO = 4, MATE_HI = 10;
-/** Months over which a town gets used to its partner ratio (remarriage, later marriage, more wives). */
-const MATE_ADAPT = 480;
+/**
+ * Months over which a town gets used to its partner ratio (remarriage, later marriage, more
+ * wives): about a century, so a war-torn people carries the loss for generations.
+ */
+const MATE_ADAPT = 1200;
 /** Crude death rate of the reference structure (a pre-modern life expectancy of about 36). */
 const REF_DEATH = 0.028;
 
@@ -379,7 +382,7 @@ export function cohortMonth(world, s, civ, birthA, deathA, famineDead, emig, out
   // the levy share of the town's reference shape, for manpower (levyBase)
   s.flags.eref = Math.round(ref.elig * 1e4) / 1e4;
   // partners: men of 20–54 per woman of 15–44 against the reference's (x), and what the town is
-  // used to (s.flags.mates, x averaged over about 40 years and never above 1): births fall when x
+  // used to (s.flags.mates, x averaged over about a century, never above 1): births fall when x
   // drops below 1 / pairK of that — a sudden loss of men hurts; a realm always at war has adapted
   const men = span(c, 0, MATE_LO, MATE_HI), women = span(c, NB, PAIR_LO, PAIR_HI);
   const x = women > 0 ? Math.min(1, men / (women * ref.mates)) : 1;
