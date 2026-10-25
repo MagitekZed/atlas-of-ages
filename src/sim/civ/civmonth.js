@@ -52,11 +52,12 @@ export function aggregate(world, civ) {
   let k = 0;
   const mods = getMods(world, civ);
   const levy = ruleOf(world, 'levy', civ);
-  let levyPop = 0;
+  let levyPop = 0, sch = 0;
   for (const s of ss) {
     const p = Math.max(0, fin(s.population));
     pop += p; wealth += fin(s.wealth); culture += fin(s.culture);
     levyPop += levyBase(s, levy);
+    sch += p * fin(s.flags?.sch, 1);
     happy += p * fin(s.happiness, 0.5); loyal += p * fin(s.loyalty, 0.5); unrest += p * fin(s.unrest);
     if (civ.stateReligion != null && s.dominantReligion != null && s.dominantReligion !== civ.stateReligion) faithOff += p;
     if (fin(s.flags?.assim, 1) < 0.5) foreign += p;
@@ -77,7 +78,9 @@ export function aggregate(world, civ) {
     ss, sms, n, nEff, cap, pop, levyPop,
     wealth, culture,
     avgHappy: div(happy, pop, 0.5), avgLoyal: div(loyal, pop, 0.5), avgUnrest: div(unrest, pop, 0),
-    faithDis: div(faithOff, pop, 0), libBonus: div(lib, pop, 0), diversity: div(foreign, pop, 0), resMul: div(resW, pop, 1),
+    // research: the towns' own modifiers, and their scholars against an unbuilt town's (jobs.js, ±10 %)
+    faithDis: div(faithOff, pop, 0), libBonus: div(lib, pop, 0), diversity: div(foreign, pop, 0),
+    resMul: div(resW, pop, 1) * Math.max(0.9, Math.min(1.1, 1 + 0.25 * (div(sch, pop, 1) - 1))),
     coastShare: n ? coast / n : 0, plagued,
     hasOre: Boolean(res & (RES_BIT.copper | RES_BIT.tin)), hasHorses: Boolean(res & RES_BIT.horses),
     distRatio: n > 1 ? div(dist / (n - 1), Math.max(4, mods.adminRange), 0) : 0,

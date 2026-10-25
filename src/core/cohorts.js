@@ -58,6 +58,10 @@ const DEFAULT_RULES = {
   /** pairing: a small surplus of women still finds partners (births fall below 1/1.1 of the usual ratio) */
   pairK: 1.1,
 };
+/** who works: ages 15–64, with children of 10–14 and elders of 65–74 at half before the Medieval Age */
+const WORK_EARLY = both(wk, wk), WORK_LATE = both(wkLate, wkLate);
+function wk(b) { return b >= 3 && b <= 12 ? 1 : b === 2 || b === 13 || b === 14 ? 0.5 : 0; }
+function wkLate(b) { return b >= 3 && b <= 12 ? 1 : 0; }
 function mv(b) { return b < 3 ? 1 : b <= 6 ? 2 : b <= 10 ? 0.6 : 0.2; }
 function fr(b) { return b < 2 || b >= 12 ? 3 : 1; }
 
@@ -78,6 +82,7 @@ export function ruleOf(world, key, civ) {
     const v = firstOf('cohortRule', world, key, civ || null);
     if (v != null && (typeof v === 'number' ? Number.isFinite(v) : v.length === NC)) return v;
   }
+  if (key === 'work') return civ && civ.tech && civ.tech.era >= 4 ? WORK_LATE : WORK_EARLY;
   return DEFAULT_RULES[key] || DEFAULT_RULES.all;
 }
 
@@ -132,6 +137,8 @@ const REF = stableShape(REF_DEATH, 0);
 export const REF_SHAPE = Object.freeze(REF.slice());
 /** The default levy rule's share of the people at REF. */
 export const REF_ELIGIBLE = dot(DEFAULT_RULES.levy, REF);
+/** Hands per working-age person (by the early rule), so a town at REF has 0.8 × its people working, as before. */
+const LABOUR_K = 0.8 / dot(WORK_EARLY, REF);
 
 // the table: crude death rates on a geometric grid, growth 0–4 % a year; per cell Σ F·women,
 // Σ M·n and the levy share of the reference shape (per head), and its partners per woman
@@ -352,20 +359,26 @@ export function roundSlice(c) {
 
 /**
  * Settle any difference between Σ cohorts and s.population left by writes elsewhere: a loss is
- * taken from everyone alike, a gain arrives shaped like movers. Seeds a missing table.
+ * taken from everyone alike, a gain arrives shaped like movers. Seeds a missing table. Returns
+ * the town's working hands (workersIn), counted in the same pass.
  */
-export function reconcileCohorts(world, s) {
+export function reconcileCohorts(world, s, civ) {
   const pop = Math.max(0, s.population || 0);
   let c = s.cohorts;
-  if (!Array.isArray(c) || c.length !== NC) { s.cohorts = seedCohorts(pop); return; }
-  const tot = cohortTotal(c);
+  if (c === undefined || c === null || c.length !== NC) c = s.cohorts = seedCohorts(pop);
+  const work = ruleOf(world, 'work', civ);
+  let tot = 0, wk = 0;
+  for (let i = 0; i < NC; i++) { const v = c[i]; tot += v; wk += work[i] * v; }
   const diff = pop - tot;
-  if (diff > -1e-6 && diff < 1e-6) return;
-  if (!(tot > 0)) { s.cohorts = seedCohorts(pop); return; }
-  if (diff < 0) { const k = pop / tot; for (let i = 0; i < NC; i++) c[i] *= k; return; }
-  const w = ruleOf(world, 'movers', world.civs[s.civId]);
-  const W = dot(w, REF);
-  for (let i = 0; i < NC; i++) c[i] += W > 0 ? diff * w[i] * REF[i] / W : diff * REF[i];
+  if (diff > -1e-6 && diff < 1e-6) return LABOUR_K * wk;
+  if (!(tot > 0)) s.cohorts = seedCohorts(pop);
+  else if (diff < 0) { const k = pop / tot; for (let i = 0; i < NC; i++) c[i] *= k; }
+  else {
+    const w = ruleOf(world, 'movers', civ);
+    const W = dot(w, REF);
+    for (let i = 0; i < NC; i++) c[i] += W > 0 ? diff * w[i] * REF[i] / W : diff * REF[i];
+  }
+  return workersIn(world, s, civ);
 }
 
 /**
@@ -377,14 +390,22 @@ export function reconcileCohorts(world, s) {
  */
 export function cohortMonth(world, s, civ, birthA, deathA, famineDead, emig, out) {
   const c = s.cohorts;
-  const pop = cohortTotal(c);
+  // one pass: the people, the fertility rule's weight, the partners and the women of 15–44
+  const fertR = ruleOf(world, 'fertility', civ);
+  let pop = 0, fertSum = 0, men = 0, women = 0;
+  for (let b = 0; b < NB; b++) {
+    const m = c[b], f = c[NB + b];
+    pop += m + f;
+    fertSum += fertR[b] * m + fertR[NB + b] * f;
+    if (b >= MATE_LO && b <= MATE_HI) men += m;
+    if (b >= PAIR_LO && b <= PAIR_HI) women += f;
+  }
   const ref = refIndices(birthA, deathA);
   // the levy share of the town's reference shape, for manpower (levyBase)
   s.flags.eref = Math.round(ref.elig * 1e4) / 1e4;
   // partners: men of 20–54 per woman of 15–44 against the reference's (x), and what the town is
   // used to (s.flags.mates, x averaged over about a century, never above 1): births fall when x
   // drops below 1 / pairK of that — a sudden loss of men hurts; a realm always at war has adapted
-  const men = span(c, 0, MATE_LO, MATE_HI), women = span(c, NB, PAIR_LO, PAIR_HI);
   const x = women > 0 ? Math.min(1, men / (women * ref.mates)) : 1;
   let used = s.flags.mates;
   if (!(used > 0)) used = x;
@@ -394,7 +415,7 @@ export function cohortMonth(world, s, civ, birthA, deathA, famineDead, emig, out
   // partners
   let births = 0;
   if (pop > 0 && birthA > 0) {
-    const fert = dot(ruleOf(world, 'fertility', civ), c) / pop;
+    const fert = fertSum / pop;
     const K = ruleOf(world, 'pairK', civ);
     const pairing = Math.min(1, K * x / Math.max(0.2, used));
     births = birthA * pop / 12 * (fert / ref.fert) * pairing;
@@ -441,6 +462,18 @@ export function settleCohorts(s) {
 
 // ---------------------------------------------------------------------------
 // Readers
+
+/**
+ * The working hands of town s: its people weighted by the realm's who-works rule (by default
+ * 15–64, and before the Medieval Age half of 10–14 and of 65–74), 0.8 × the people at REF.
+ * Scaled to s.population if the table lags; 0.8 × the people without a table.
+ */
+export function workersIn(world, s, civ) {
+  const c = s.cohorts, pop = s.population || 0;
+  if (c === undefined || c === null || c.length !== NC) return 0.8 * pop;
+  const tot = cohortTotal(c);
+  return tot > 0 ? LABOUR_K * dot(ruleOf(world, 'work', civ), c) * pop / tot : 0.8 * pop;
+}
 
 /**
  * The people town s counts for in manpower (today 3 % of them): its population at its reference

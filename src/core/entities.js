@@ -223,7 +223,7 @@ export function createSettlement(world, civId, x, y, opts = {}) {
     // world.js): the civ module's (ensureSettlementFields) as the town is founded, then in Mythic
     // worlds its mix of peoples (myth/peoples.js) and, a decade on, that mix's history
     project: undefined, farmland: undefined, growth: undefined, capacity: undefined,
-    foodImport: undefined, emigrants: undefined, taxes: undefined,
+    foodImport: undefined, emigrants: undefined, taxes: undefined, jobs: undefined,
     peoples: undefined, peoplesPast: undefined,
   };
   addIndexed(world, 'settlements', s);

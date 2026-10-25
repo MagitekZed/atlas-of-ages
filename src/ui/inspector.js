@@ -15,6 +15,7 @@ import { elevationMeters, seasonName, dateString } from '../core/world.js';
 import { liveCivs, liveSettlements, civSettlements, areAtWar, nearestSettlement } from '../core/entities.js';
 import { sitesNear, SITE_KINDS } from '../core/sites.js';
 import { NB, NC, cohortSummary } from '../core/cohorts.js';
+import { NJ, TRADE_LABELS } from '../sim/civ/jobs.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -854,7 +855,38 @@ function agePyramid(app, b, s) {
     { k: 'Men 15–44', v: () => F.people(sum().men), tip: 'Whom the levy calls up, and half of every marriage.' },
     { k: 'Women 15–44', v: () => F.people(sum().women), tip: 'The mothers of the next generation.' },
   ]);
-  return h('div.pyramid-box', null, svg, facts);
+  return h('div.pyramid-box', null, svg, facts, tradesBar(app, b, s));
+}
+
+// The town's working hands by trade (sim/civ/jobs.js): one stacked bar, then each trade.
+const TRADE_COLORS = ['var(--c-nature)', 'var(--brass-lo)', 'var(--info)', 'var(--ink-3)', 'var(--c-trade)', 'var(--brass)',
+  'var(--c-war)', 'var(--c-faith)', 'var(--c-discovery)', 'var(--c-catastrophe)', 'var(--ink-4)'];
+function tradesBar(app, b, s) {
+  const bar = h('div.trades-bar', { role: 'img', 'aria-label': 'Working hands by trade' });
+  const segs = [];
+  for (let t = 0; t < NJ; t++) { const g = h('span', { style: { background: TRADE_COLORS[t] } }); segs.push(g); bar.append(g); }
+  let last = '';
+  b.run(() => {
+    const j = s.jobs;
+    const key = Array.isArray(j) ? `${s.id}:${Math.floor(app.world.time.day / 30)}` : 'none';
+    if (key === last) return;
+    last = key;
+    let tot = 0;
+    if (Array.isArray(j)) for (let t = 0; t < NJ; t++) tot += j[t];
+    for (let t = 0; t < NJ; t++) segs[t].style.flexGrow = tot > 0 ? String(j[t] / tot) : '0';
+  });
+  const list = h('div.trades');
+  b.list(list, () => {
+    const j = s.jobs;
+    if (!Array.isArray(j)) return [];
+    let tot = 0;
+    for (let t = 0; t < NJ; t++) tot += j[t];
+    const out = [];
+    for (let t = 0; t < NJ; t++) if (tot > 0 && j[t] / tot >= 0.005) out.push({ t, n: j[t], share: j[t] / tot });
+    return out;
+  }, (it) => `${it.t}:${Math.round(it.n)}`, (it) => h('span.trade', null,
+    h('i.swatch', { style: { '--c': TRADE_COLORS[it.t] } }), h('b', { text: TRADE_LABELS[it.t] }), h('span', { text: `${F.people(it.n)} · ${F.pct(it.share)}` })));
+  return h('div.trades-box', null, h('h5.trades-head', { text: 'Trades' }), bar, list);
 }
 /** The era a town's working ages follow (its realm's). */
 const townEra = (app, s) => app.world.civs[s.civId]?.tech?.era | 0;

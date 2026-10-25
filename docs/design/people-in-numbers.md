@@ -41,7 +41,7 @@ The rules:
 | Rule | Default here | Later variations (examples) |
 | --- | --- | --- |
 | **Who serves** (levy) | Men 15–44, 15–19 at half | All genders; a narrower or wider span; youths from 12 (child soldiers); only the unfree; only volunteers |
-| **Who works** | Ages 15–64; 10–14 and 65–74 at half before era 4 | Child labour banned or required; women barred from some trades; elders working longer |
+| **Who works** | Ages 15–64; 10–14 and 65–74 at half before era 4 | Child labour banned or required; women barred from some trades; elders working longer; a desperate town sending its children and old people back to work at a cost in happiness (see "Kept for later") |
 | **Births** | Women 15–44 by the fertility shape, with pairing (`PAIR_K` 1.1) | Earlier or later marriage; several wives allowed (higher `PAIR_K`); a faith that blesses large families; a people with long fertility |
 | **Where people work** | The trade mix by era, bent by buildings | Caste systems; guild monopolies; trades closed to women or to a people |
 | **Who practises magic** (Mythic) | The magical trades’ demand, leaning by people | Magic banned; mage castes; a faith that hunts witches |
@@ -202,21 +202,23 @@ this:
 1. **`reconcileCohorts`** (new, first): settles any difference between `Σ cohorts` and
    `s.population` left by writes elsewhere since last month (see "Writes from elsewhere").
 2. **`seasonAndLand`**: unchanged.
-3. **`foodPhase`.**
+3. **`updateJobs`** (new, right after the land scan, `src/sim/civ/jobs.js`): moves `s.jobs`
+   toward this month's demand (see "Occupations"). It runs here, not last, so that food,
+   production and commerce all read this month's trades. The reconcile counts the working hands
+   in the same pass.
+4. **`foodPhase`.**
    - The working population and the farmers come from `s.jobs`, no longer from
      `pop × LABOR_SHARE`.
-   - At the reference structure the numbers match today's.
-4. **`demographyPhase`.**
+5. **`demographyPhase`.**
    - Births and deaths are computed as today, then shaped by the age structure.
    - Famine deaths and emigrants are taken with profiles.
    - Ageing happens here.
-5. **`healthAndEconomy`.**
+6. **`healthAndEconomy`.**
    - Production reads craftsmen, miners and builders instead of `pop − foodWorkers`.
    - Commerce reads merchants.
-6. **`socialPhase`, then `landUseAndGrowth`.** Unchanged, except that a labour shortage now comes
+7. **`socialPhase`, then `landUseAndGrowth`.** Unchanged, except that a labour shortage now comes
    from the farmers in `s.jobs`.
-7. **`updateJobs`** (new, last): moves `s.jobs` toward this month's demand (see "Occupations").
-8. **Rounding**: cohorts and jobs are rounded to hundredths.
+8. **Rounding**: cohorts are rounded to hundredths as they age, and jobs as they update.
 
 ### Births
 
@@ -390,10 +392,19 @@ invariant to hold, so the conversions can land one at a time.
 
 - **Working population `W`.** The working-age bands times participation (above). At the
   reference structure `W = 0.8 · pop`.
+  - *The choice (the user's, 2026-10-25): hands follow the real age mix.* Young, growing towns
+    have 70–77 % of their people working, not today's flat 80 %, and from the Medieval Age the
+    children stop working at half. More fields go short of hands and growth slows. That brake is
+    the honest consequence of having age bands. The alternative, holding `W` at 80 % of a town's
+    expected shape, would have kept main's numbers and left the child-labour rule mattering only
+    in shocks.
 - **Demand per trade**, recomputed each month from what the town already knows:
   - **Farmers:** `farmLoad · fw`, the labour today's code already asks for.
-  - **Herders and hunters, fishers:** the hands that bring in today's gathered and fished food.
-    Today's diminishing-returns formula is turned around to find the hands it needs.
+  - **Herders and hunters, fishers:** the full-time share of foraging. Everyone not farming
+    still forages part-time, as today, so the gathered food comes from all of them. The
+    foragers counted are those today's code already subtracts from production: the food brought
+    in over 0.75 of a forager's best month. (Counting only full-time foragers as the ones who
+    gather would have cut the Stone Age's food by a fifth.)
   - **Miners:** proportional to the mine's level and the ore and strategic deposits in reach.
   - **Craftsmen:** a share of the remaining hands that grows with the realm's production mod and
     with workshops and factories.
@@ -403,9 +414,19 @@ invariant to hold, so the conversions can land one at a time.
   - **Scholars:** grows with libraries, universities and observatories.
   - **Builders:** grows with buildings under way and housing being built.
   - **Labourers:** the rest.
-- **Inertia.** Each trade moves 8 % of the way toward its demand each month, and labourers fill
-  any gap at once. A plague that kills a third of the farmers leaves a shortage the next
-  harvest, not a reshuffle.
+- **Inertia.**
+  - The trades that take learning (miners, craftsmen, merchants, clergy, scholars, builders) move
+    8 % of the way toward their demand each month, so a loss or a new building shows for a year or
+    two.
+  - Labourers fill the gap at once. Fields short of farmers take labourers straight away, so a
+    harvest goes short only when there are no hands left (after a plague, a levy or a hollow
+    generation).
+  - The foragers and the soldiers follow their need each month: they are the bookkeeping of
+    part-time foraging and of the garrison.
+  - *Why farmers don't lag:* the first build moved farmers at 8 % a month like the rest. New
+    fields then waited for farmers, and the land-use rule, which expands only when farmers stand
+    above 97 % of demand, stalled. That cost about 16 points of population at Year 500 on six
+    worlds. With farmers fixed at 80 % of the people, field abandonment matches main.
 - **The trade mix by era (fixed).**
   - The food trades, miners and soldiers come from need, as above.
   - The hands left over are split by era. This table is the default of the **where people
@@ -426,21 +447,31 @@ invariant to hold, so the conversions can land one at a time.
     - Each temple level adds 30 % to clergy, and the realm's religiosity trait scales clergy by
       0.6 to 1.4.
     - Each level of library, university or observatory adds 40 % to scholars.
-    - Each market, bank or harbour adds 25 % to merchants.
+    - Markets add 30 % a level to merchants, banks 25 % a level and a harbour 20 %: today's
+      commerce bonuses for those buildings, so commerce at demand matches today's.
     - Each factory level adds 30 % to craftsmen.
     - Builders double while a building is under way.
     - Labourers take up whatever the others give back, and never fall below 15 % of the
       leftover hands.
 - **Keeping production and commerce as they are.** Production and commerce read the trades
-  through one constant per era. Each is solved once when the module loads, from the reference
-  structure and that era's mix with no buildings, so that a typical town produces and trades
-  exactly what it does today. The calibration gate checks the result across whole runs.
+  against the town's own unbuilt demand. That is the same idea as one constant per era, but
+  exact for every town rather than a typical one.
+  - **Production:** today's non-food term is multiplied by craftsmen, builders and labourers
+    (weights 1, 0.6, 0.3) over what an unbuilt town of that era would have. Ore output is
+    multiplied by the miners over the mine's demand.
+  - **Commerce:** today's formula, with the merchants over an unbuilt town's in place of the
+    market, bank and harbour bonuses.
+  - A town whose trades stand at their demand produces and trades exactly as today. Lags, losses,
+    and buildings that draw a trade (factories, markets) move it.
+  - **Research:** each town keeps its scholars over an unbuilt town's (`s.flags.sch`). The realm
+    multiplies research by `1 + 0.25 × (mean − 1)`, between ±10 %.
 - **What reads occupations in this chunk.**
-  - **Food:** farm labour and gatherers (replacing `X.farmLabor` and `X.left`).
-  - **Production:** craftsmen, miners and builders replace `nonFood`.
-  - **Commerce:** merchants.
-  - **Research:** the realm's research gets a small multiplier from its share of scholars,
-    capped at ±10 % (replacing nothing, so it changes outcomes; calibrated in the gate).
+  - **Food:** the farmers work the fields (`X.farmLabor`). Everyone else forages, as before,
+    out of the town's working hands rather than 0.8 × its people.
+  - **Production:** craftsmen, builders, labourers and miners, against an unbuilt town's (above).
+  - **Commerce:** merchants, against an unbuilt town's.
+  - **Research:** the realm's research gets a small multiplier from its scholars, capped at ±10 %
+    (replacing nothing, so it changes outcomes).
   - Nothing else yet. Unrest by trade and the estates arrive in chunk 7.
 
 ### Magical trades (Mythic only)
@@ -473,6 +504,15 @@ everywhere else. That keeps Historical worlds byte-identical with and without th
   ban magic, mage castes, or a faith that hunts witches.
 - **Kept for later.** Mage guilds and their rivalries, and the death of the last mage in a
   realm as the Fading closes (a Chronicle event), belong to the Schools of magic idea.
+
+### Kept for later: desperate hands
+
+The user's idea (2026-10-25). A town short of working hands, with fields going unworked or a
+famine coming, can send its children and old people back to work.
+- **Gain:** more hands now.
+- **Cost:** happiness, and perhaps health and the children's later skill.
+- **It is a who-works rule.** A realm's rule could allow it, forbid it, or make it its normal
+  way. A crisis would raise it for a while, so it varies by society like the others.
 
 ### Births and deaths by people (Mythic)
 
@@ -639,6 +679,31 @@ section of the town dossier.
 - **Not yet in phase 1.**
   - The pyramid labels for a gap matched to an event moved to phase 4 with the events.
   - Mythic towns age at the human pace until phase 3.
+
+## Phase 2 results (2026-10-25)
+
+Built on `sim/people-in-numbers`: `s.jobs` (`src/sim/civ/jobs.js`) with demand and inertia;
+food, production, commerce and research read it; the town dossier's People section gains a
+trades bar under the pyramid.
+
+- **Gates.** `npm test`, `--trial` at mythLevel 2 and `--cohort-check` all pass.
+- **Calibration**, the same twelve worlds against main, totals at Year 500 and Year 1000:
+
+  | Population | Realms | Towns | Wars started | Manpower |
+  | --- | --- | --- | --- | --- |
+  | −11 % | −8 % | −6 % | −5 % | −16 % |
+
+  - Working hands run 71–81 % of the people across the worlds (80 % before).
+  - Mythic worlds fall furthest, from −5 % to −55 % in population. Likely cause: long-lived
+    peoples ageing at the human pace until phase 3, so their towns fill with elders who don't
+    work.
+  - No world came near collapse: the leanest held 5 realms, 108 towns and 274,000 people.
+- **Speed.** On the 298 towns of a medium world at Year 1000:
+  - The trades update costs 0.8 ms per sim-year.
+  - The age bands cost 1.5 ms (their reconcile now also counts the working hands).
+  - Together that is about 2.3 ms, over the 2 ms budget for the whole chunk, with phases 3 and 4
+    still to come. Revisit before the chunk merges.
+- **Size.** 11 numbers per town (about 30 KB at Year 1000 on a medium map, estimated).
 
 ## Decisions (2026-10-25)
 

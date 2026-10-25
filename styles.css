@@ -706,6 +706,16 @@ svg.pyramid .pyr-m { fill: var(--brass); }
 svg.pyramid .pyr-f { fill: var(--verdigris); }
 svg.pyramid .pyr-age { fill: var(--ink-3); font-family: var(--font-ui); font-size: 8.5px; font-variant-numeric: tabular-nums; }
 svg.pyramid .pyr-key { fill: var(--ink-3); font-family: var(--font-sc); font-size: 9.5px; letter-spacing: .07em; }
+/* the town's trades, under the pyramid */
+.trades-box { display: grid; gap: 7px; }
+.trades-head { margin: 4px 0 0; font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .07em; font-weight: 400; color: var(--ink-3); }
+.trades-bar { display: flex; height: 12px; border: 1px solid var(--rule); background: var(--plate-2); overflow: hidden; }
+.trades-bar > span { flex: 0 0 0; min-width: 0; }
+.trades { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15em), 1fr)); gap: 3px 14px; }
+.trades .trade { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 7px; align-items: baseline; font-size: var(--t-small); color: var(--ink-2); }
+.trades .trade b { font-weight: 400; color: var(--ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trades .trade span:last-child { font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.trades .swatch { width: 9px; height: 9px; background: var(--c); align-self: center; }
 .kv-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .kv-3 .cell { padding: 8px 10px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--slate-2); min-width: 0; }
 .kv-3 .cell .k { font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .07em; color: var(--ink-3); display: block; }

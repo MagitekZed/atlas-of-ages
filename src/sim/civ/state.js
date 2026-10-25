@@ -281,12 +281,14 @@ export function adjustHistory(civ, { leftShare = 0, joined = 0, dTowns = 0 } = {
  *   flags.tierSeen last tier announced through the tierChanged hook
  *   flags.famPop0  population when the current famine began (the famine hook's 5 % test)
  */
-const SETTLE_FIELDS_V = 4;
+const SETTLE_FIELDS_V = 5;
 /** Flags every settlement carries from birth, in one order, so their objects share a shape. */
 const SETTLE_FLAG_DEFAULTS = [['res', 0], ['pot', null], ['ep', null], ['grieve', 0], ['planDay', -1], ['noSiteDay', -1], ['noSiteN', 0],
   ['noSeaDay', -1], ['famineDeaths', 0], ['brev', 0], ['emig', 0], ['conqueredDay', null], ['seceded', null], ['pacified', null], ['famPop0', 0],
   // the age bands' reference levy share and partner ratio (core/cohorts.js; 0 until the first pass)
-  ['eref', 0], ['mates', 0]];
+  ['eref', 0], ['mates', 0],
+  // its scholars against an unbuilt town's (jobs.js), for the realm's research
+  ['sch', 1]];
 export function ensureSettlementFields(s) {
   if (s.flags && s.flags.fv === SETTLE_FIELDS_V && Number.isFinite(s.population)) return s;
   s.flags ||= {};
@@ -297,6 +299,7 @@ export function ensureSettlementFields(s) {
   if (!Number.isFinite(s.foodImport)) s.foodImport = 0;
   if (!Number.isFinite(s.emigrants)) s.emigrants = 0;
   if (!Number.isFinite(s.taxes)) s.taxes = 0;
+  if (s.jobs === undefined) s.jobs = null;   // the town's trades (jobs.js), set on its first pass
   if (!Number.isFinite(s.flags.assim)) s.flags.assim = s.originCivId === s.civId ? 1 : 0.3;
   if (!Number.isFinite(s.flags.maxTier)) s.flags.maxTier = s.tier || 0;
   if (!Number.isFinite(s.flags.lastSettler)) s.flags.lastSettler = -1e9;
