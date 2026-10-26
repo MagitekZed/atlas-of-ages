@@ -19,6 +19,7 @@ import { DAYS_PER_YEAR, RESOURCES, BIOME } from '../../core/constants.js';
 import { emit } from '../../core/hooks.js';
 import { mulOf, firstOf, hasProviders } from '../../core/ext.js';
 import { capitalize } from '../../core/util.js';
+import { sliceLike, takePeople } from '../../core/cohorts.js';
 import { TECH_BY_ID, researchBurst, getMods } from './tech.js';
 import { findSite, foundSettlement } from './expansion.js';
 import { fin, record } from './state.js';
@@ -262,8 +263,9 @@ function spawnFigure(world, civ, agg) {
         const site = findSite(world, s, civ, { overseas: true, range: mods.seaRange + 18 });
         if (site && s.population > 400) {
           const n = Math.min(s.population * 0.08, 1500);
-          s.population -= n;
-          spawnLater(world, civ, s, site, n);
+          const sl = sliceLike(s);
+          takePeople(world, s, n, 'movers', sl, civ);
+          spawnLater(world, civ, s, site, n, sl);
         }
       } else {
         const d = pick(world, ['crossed the wilderness and mapped the lands beyond the frontier', 'travelled for years and brought back tales of distant peoples']);
@@ -333,8 +335,8 @@ function spawnFigure(world, civ, agg) {
   if (kind === 'scholar') researchBurst(world, civ, 0.5);
 }
 
-function spawnLater(world, civ, from, site, n) {
-  foundSettlement(world, civ, site.x, site.y, n * 0.9, { from, overseas: true });
+function spawnLater(world, civ, from, site, n, cohorts) {
+  foundSettlement(world, civ, site.x, site.y, n * 0.9, { from, overseas: true, cohorts });
 }
 
 function researchTarget(civ) {

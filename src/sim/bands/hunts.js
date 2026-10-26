@@ -13,6 +13,7 @@
 import { createArmy, removeArmy, getBand, nearestSettlement, addFigure } from '../../core/entities.js';
 import { emit } from '../../core/hooks.js';
 import { emitFx } from '../../core/world.js';
+import { sliceLike, takePeople, roundSlice, returnLevy } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR, WATER } from '../../core/constants.js';
 import { clamp, clamp01 } from '../../core/util.js';
 import { makePerson } from '../../core/names.js';
@@ -71,17 +72,18 @@ export function raiseHunt(world, civ, band) {
   // levies leave the towns, as for war (they come home when the hunt does)
   let drawn = 0;
   const pop = Math.max(1, civ.population || 0);
+  const levy = sliceLike(home);
   for (const id of civ.settlementIds) {
     const s = world.settlements[id];
     if (!s || !s.alive) continue;
     const take = Math.min(s.population * 0.15, str * 0.6 * s.population / pop);
-    s.population -= take; drawn += take;
+    drawn += takePeople(world, s, take, 'levy', levy, civ);
   }
   civ.treasury = Math.max(0, (civ.treasury || 0) - str * 0.2);
   const general = makePerson(civ.language || world.lang, rng);
   const skill = Math.round(rng.float(0.9, 1.25) * 100) / 100;
   const army = createArmy(world, { civId: civ.id, x: home.x, y: home.y, homeId: home.id, strength: str, warId: null, general: { name: general, skill, born: world.time.day - 40 * DAYS_PER_YEAR, wins: 0, battles: 0, honours: 0 }, state: 'hunting' });
-  Object.assign(army.flags, { hunt: band.id, mp: 0, skill, bad: [], nextPlan: FAR, startStr: str, drawn, hp: null, hs: 0, hday: world.time.day, hpd: -1, hret: 0 });
+  Object.assign(army.flags, { hunt: band.id, mp: 0, skill, bad: [], nextPlan: FAR, startStr: str, drawn, hp: null, hs: 0, hday: world.time.day, hpd: -1, hret: 0, levy: roundSlice(levy), levyDay: world.time.day });
   army.name = huntName(world, civ, home, band);
   (st.hunts ||= []).push(army.id);
   st.stats.hunts++;
@@ -211,12 +213,12 @@ function stepArmy(world, army, grid) {
   return step >= last;
 }
 
-/** Stand a hunt down at home: the surviving levies go back to their town. */
+/** Stand a hunt down at home: the surviving levies go back to the towns they came from. */
 export function disbandHunt(world, army, reason = 'hunt') {
   const home = world.settlements[army.homeId];
   if (home && home.alive && home.civId === army.civId && army.strength > 0) {
     const start = army.flags.startStr > 0 ? army.flags.startStr : army.strength;
-    home.population += Math.max(0, (army.flags.drawn || 0) * clamp01(army.strength / start));
+    returnLevy(world, home, army.flags, Math.max(0, (army.flags.drawn || 0) * clamp01(army.strength / start)));
   }
   emit(world, 'armyDisbanded', army, reason);
   removeArmy(world, army.id);

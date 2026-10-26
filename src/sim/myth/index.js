@@ -39,6 +39,7 @@ import { divineMonthly, pruneDivine } from './divine.js';
 import { folkYearly, FOLK_IDS } from './folklore.js';
 import { mythPreview as previewImpl } from './preview.js';
 import './tools.js';
+import './trades.js';
 import { record, pickT, fill, placePhrase, listJoin, theName, yearOfDay } from './prose.js';
 import { ensurePeoples, peoplesDaily, peoplesYearly, peoplesCounts, mixStats } from './peoples.js';
 

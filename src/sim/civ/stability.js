@@ -14,6 +14,7 @@
 import { civSettlements, transferSettlement, areAtWar, settlementsNear, enemiesOf, addOpinion, liveSettlements } from '../../core/entities.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
 import { emitFx } from '../../core/world.js';
+import { takePeople } from '../../core/cohorts.js';
 import { getMods, refreshMods } from './tech.js';
 import { govCapacity, revolutionTarget, govDef } from './government.js';
 import { overthrow, noteDeed } from './rulers.js';
@@ -259,7 +260,7 @@ function suppressRising(world, civ, s) {
   const day = world.time.day;
   const st = world.sys.civ;
   const dead = s.population * world.rng.float(0.01, 0.04);
-  s.population = Math.max(8, s.population - dead);
+  takePeople(world, s, Math.min(dead, s.population - 8), 'violent', null, civ);
   s.unrest = 0.3; s.loyalty = Math.max(s.loyalty, 0.3); s.flags.grieve = 0; s.flags.pacified = day;
   // other provinces take note: the next rising waits a while (half the usual quiet)
   civ.flags.lastRebelDay = day - 12 * DAYS_PER_YEAR;

@@ -16,8 +16,11 @@
 // Farmland: conversion when hungry (clears veg), abandonment without labour, fallowing on
 // exhausted soil; soil exhaustion slowed by husbandry / crop rotation / fertiliser.
 // Population: births (food, housing, happiness, × birthRate) and deaths (health, crowding,
-// siege). Health: crowding vs sanitation, hunger, disease, pollution. Happiness: food,
-// wealth, taxes, war weariness, faith, buildings, ruler. Unrest and loyalty follow.
+// siege), shaped by the town's age bands (core/cohorts.js: reconciled first, rounded last).
+// Health: crowding vs sanitation, hunger, disease, pollution. Happiness: food, wealth, taxes,
+// war weariness, faith, buildings, ruler. Unrest and loyalty follow.
+// Hands: the town's trades (jobs.js, set after the land scan): the farmers and gatherers feed it,
+// craftsmen, builders and labourers make, merchants trade, miners work the mine.
 // Production: labour not tied to food, mines (deplete mineral / resourceAmt), timber.
 // Wealth: production, commerce, luxury deposits, tradeIncome (written by trade) → taxes.
 // Also: housing, culture, defense/garrison, tier & radius, popDensity, pollution & CO₂.
@@ -39,12 +42,15 @@ import { latitude, monthOf, emitFx } from '../../core/world.js';
 import { emit } from '../../core/hooks.js';
 import { neutralSettlementMods, SETTLEMENT_MOD_KEYS } from '../../core/effects.js';
 import { mulEachOf, sumOf, hasProviders } from '../../core/ext.js';
+import { reconcileCohorts, cohortMonth, settleCohorts, verifyCohorts, isSet, COHORT_DEV } from '../../core/cohorts.js';
 import { clamp, clamp01, smoothstep, majorToll } from '../../core/util.js';
 import { proxies, climGrid, BIO_WILD, BIO_VEGMAX, BIO_HERB, BIO_WOOD, BIO_FARM, BIO_FISH } from './land.js';
 import { getMods, hasTech, modValue } from './tech.js';
 import { allowedLevel, progressProject, buildingSmods } from './buildings.js';
 import { buildingDef } from './data.js';
 import { routeMigrants, trySettlers } from './expansion.js';
+import { updateJobs, J } from './jobs.js';
+import { peopleMonthly, peopleYearly } from './peoplenews.js';
 import { fin, div, record, rateOk, civCache, ensureSettlementFields, touched } from './state.js';
 import { theName, peopleOf, pick, peopleCount, seasonWord, approx } from './prose.js';
 
@@ -56,9 +62,7 @@ const FARM_BASE = 1100;    // fully farmed tile, soil 1, ideal climate
 const FARM_MAX = 0.8;
 const FISH_BASE = 150;     // water tile, fish density 1, coastal sea
 const RIVER_FISH = 10;     // per river class on land tiles
-const FARM_WORKERS = 250;  // labourers needed per fully farmed tile (before better tools)
-const GATHER_K = 2.4;      // max food a forager can bring in per month
-const LABOR_SHARE = 0.8;   // working share of the population
+const GATHER_K = 2.4;      // max food a forager can bring in per month (as jobs.js)
 const GRAIN_PER_WEALTH = 40;
 /** Housing ceiling by era before buildings and tech multipliers. */
 const HOUSE_ERA = [3500, 16000, 45000, 110000, 220000, 520000, 2000000, 8000000];
@@ -173,6 +177,8 @@ function scratchX(world) {
     labor: 0, fw: 0, farmLabor: 0, farmFrac: 0, farmMean: 0, left: 0, gPot: 0, gPotMean: 0, gatherNow: 0, gatherMean: 0,
     pressure: 0, prodFood: 0, fed: 1, stockMonths: 0, housing: 0, houseRatio: 0,
     dis: 0, production: 0, foodWorkers: 0, tier: 0, isCap: false,
+    cm: { births: 0, deaths: 0, famine: 0, emig: 0, feud: 0, total: 0 },
+    workers: 0, jobProd: 1, jobTrade: 1, jobMine: 1, tOut: null,
   });
 }
 
@@ -184,17 +190,25 @@ export function updateSettlement(world, s, civ, cctx) {
   ensureSettlementFields(s);
   const pop = fin(s.population, 0);
   if (pop < 8) { abandon(world, s, civ, 'dwindled'); return; }
+  const workers = reconcileCohorts(world, s, civ);
   const X = scratchX(world);
+  X.workers = workers;
   X.mods = cctx.mods || getMods(world, civ);
   X.sm = townMods(world, s);
   X.era = cctx.era | 0;
   X.pop = pop;
   seasonAndLand(world, s, civ, X);
+  updateJobs(world, s, civ, X, civCache(world).bv, X.bo, BV);
   foodPhase(world, s, X);
   demographyPhase(world, s, civ, X);
   healthAndEconomy(world, s, civ, X);
   socialPhase(world, s, civ, cctx, X);
   landUseAndGrowth(world, s, civ, cctx, X);
+  settleCohorts(s);
+  if (COHORT_DEV.verify && s.alive) verifyCohorts(world, s);
+  // the town's people in the Chronicle (peoplenews.js): the month's tallies, the year in its own month
+  peopleMonthly(world, s, X, X.cm);
+  if (monthOf(world) === s.id % 12) peopleYearly(world, s, civ);
 }
 
 /** Season of the harvest, the catchment's potentials (rescanned quarterly) and buildings. */
@@ -237,10 +251,12 @@ function seasonAndLand(world, s, civ, X) {
 function foodPhase(world, s, X) {
   const mods = X.mods, pop = X.pop;
   const bv = civCache(world).bv, bo = X.bo;
-  const labor = pop * LABOR_SHARE;
-  const fw = FARM_WORKERS / Math.pow(Math.max(0.2, mods.production), 0.7);
+  // the hands come from the town's trades (jobs.js): the farmers work the fields, and everyone
+  // else forages part-time (the herders, hunters and fishers are its full-time share)
+  const labor = X.workers;
+  const fw = X.fw;
   const farmNeed = X.farmLoad * fw;
-  const farmLabor = Math.min(labor * 0.95, farmNeed);
+  const farmLabor = Math.min(s.jobs[J.farm], farmNeed);
   const farmFrac = farmNeed > 0 ? farmLabor / farmNeed : 0;
   const farmMean = X.farmCap * farmFrac;
   const left = Math.max(0, labor - farmLabor);
@@ -303,8 +319,9 @@ function demographyPhase(world, s, civ, X) {
     s.flags.famineDeaths = 0;
   }
   // a people's own nature (WP5 demography: elves breed slowly and live long), the town's
-  // effects and the realm's arts
-  const dm = hasProviders('demography') ? mulEachOf('demography', world, s, civ) : null;
+  // effects and the realm's arts; a town whose peoples keep their own age bands (Mythic) runs
+  // each at its own rates instead (core/cohorts.js)
+  const dm = hasProviders('demography') && !isSet(s.cohorts) ? mulEachOf('demography', world, s, civ) : null;
   const houseF = houseRatio < 0.75 ? 1 : Math.pow(clamp01((1 - houseRatio) / 0.25), 1.5);
   const foodF = fed < 1 ? 0.3 * fed : clamp(0.8 + 0.06 * X.stockMonths, 0.8, 1.12);
   // births fall as the people press on what the land can feed (smooth Malthusian check)
@@ -313,10 +330,16 @@ function demographyPhase(world, s, civ, X) {
   let deathA = 0.032 * (1.45 - s.health) + (houseRatio > 1 ? 0.06 * (houseRatio - 1) : 0) + (s.siege ? 0.04 : 0);
   deathA = Math.max(0.004, deathA) * sm.mortality * modValue(mods, 'mortality', 1);
   if (dm) { birthA *= dm.birth; deathA *= dm.mortality; }
-  const births = pop * birthA / 12;
-  const deaths = pop * deathA / 12 + famineDeaths;
   if (houseRatio > 1.02) emig += pop * 0.01 * (houseRatio - 1) * fin(P.migration, 1);
-  const newPop = Math.max(0, pop + births - deaths - emig);
+  // the crude rates are those of a town at the reference age structure: the town's own bands
+  // shape them (women of childbearing age and their partners, the old and the very young), the
+  // famine takes the frail and the emigrants are the young (core/cohorts.js)
+  // the peoples of a town feud as its land runs short (from 70 % of what it can feed to full at
+  // 115 %, where births stop): a young town with room to grow hardly feuds
+  const crowd = clamp01((X.pressure - 0.7) / 0.45);
+  const out = cohortMonth(world, s, civ, birthA, deathA, famineDeaths, emig, X.cm, crowd);
+  famineDeaths = out.famine; emig = out.emig;
+  const newPop = out.total;
   s.growth = clamp(div(newPop - pop, pop, 0) * 12, -1, 1);
   s.emigrants = emig;
   if (famineDeaths > 0) {
@@ -362,7 +385,8 @@ function healthAndEconomy(world, s, civ, X) {
     - 0.07 * Math.log10(Math.max(1, pop / 600)) * (1 - sanEff)
     - 0.35 * (1 - X.fed) - 0.04 * Math.min(6, s.famine)
     - 0.6 * dis + 0.03 * bHospital + 0.02 * bAqueduct
-    - 0.25 * f.pollution[ci] - 0.15 * f.devastation[ci] + X.sm.health;
+    - 0.25 * f.pollution[ci] - 0.15 * f.devastation[ci] + X.sm.health
+    + (hasProviders('townHealth') ? sumOf('townHealth', world, s, civ) : 0);
   ht = clamp(ht, 0.05, 0.98);
   s.health = clamp01(s.health + (ht - s.health) * 0.3);
 
@@ -375,14 +399,19 @@ function healthAndEconomy(world, s, civ, X) {
   const oreOut = mineLvl ? ore * (1.5 + 1.5 * mineLvl) * mods.mining : ore * 0.3 * Math.max(0, mods.mining - 1);
   const timberOut = X.timber * 0.35 * Math.min(1, pop / 600);
   const stratOut = strat * (0.4 + 0.25 * mineLvl) * Math.min(1, pop / 1500);
-  let production = ((pop * 0.004 + nonFood * 0.025) * mods.production + oreOut + timberOut + stratOut)
-    * (0.55 + 0.6 * s.happiness) * (1 - 0.45 * s.unrest) * (s.siege ? 0.5 : 1) * X.sm.production;
+  // the trades (jobs.js): craftsmen, builders and labourers against an unbuilt town's, the miners
+  // the mine asks for
+  // a town's own craft beyond its trades (ext townOutput: the artificers of a Mythic town)
+  X.tOut = hasProviders('townOutput') ? mulEachOf('townOutput', world, s, civ) : null;
+  let production = ((pop * 0.004 + nonFood * 0.025 * X.jobProd) * mods.production + oreOut * X.jobMine + timberOut + stratOut)
+    * (0.55 + 0.6 * s.happiness) * (1 - 0.45 * s.unrest) * (s.siege ? 0.5 : 1) * X.sm.production * (X.tOut ? X.tOut.production : 1);
   production = Math.max(0, fin(production));
   s.production = production;
   X.production = production;
   const commerceT = civ.traits ? fin(civ.traits.commerce, 0.5) : 0.5;
-  const commerce = Math.pow(pop, 0.8) * 0.012 * (0.5 + commerceT) * mods.trade
-    * (1 + 0.3 * bv[bo + BV.market] + 0.25 * bv[bo + BV.bank] + 0.2 * (bv[bo + BV.harbor] > 0 ? 1 : 0) + 0.1 * bRail);
+  // the merchants against an unbuilt town's: markets, banks and a harbour draw more of them
+  // (jobs.js), so their trade grows as the merchants come
+  const commerce = Math.pow(pop, 0.8) * 0.012 * (0.5 + commerceT) * mods.trade * (X.jobTrade + 0.1 * bRail);
   const gross = production * 0.25 + commerce + fin(s.tradeIncome) + X.lux * 1.6 * Math.min(1, pop / 800);
   const taxRate = clamp(civ.taxRate * mods.taxEfficiency, 0, 0.6);
   const tax = Math.max(0, gross * taxRate * (1 - 0.6 * s.unrest) * (s.siege ? 0.3 : 1));
@@ -470,7 +499,7 @@ function socialPhase(world, s, civ, cctx, X) {
   const tier = tierForPop(pop);
   X.tier = tier;
   if (!s.siege) {
-    const defT = (0.5 + 0.12 * tier + 0.55 * bv[bo + BV.walls]) * mods.defense * (1 - 0.5 * f.devastation[ci]) * (1 + X.sm.defense);
+    const defT = (0.5 + 0.12 * tier + 0.55 * bv[bo + BV.walls]) * mods.defense * (1 - 0.5 * f.devastation[ci]) * (1 + X.sm.defense) * (X.tOut ? X.tOut.defense : 1);
     s.defense = Math.max(0, fin(s.defense) + (defT - fin(s.defense)) * 0.1);
     const garT = Math.max(5, pop * 0.012 * (0.6 + 0.8 * fin(tr.militarism, 0.5)) * (1 + 0.5 * bv[bo + BV.barracks]) * mods.military);
     s.garrison = Math.max(0, fin(s.garrison) + (garT - fin(s.garrison)) * 0.06);
@@ -485,7 +514,7 @@ function landUseAndGrowth(world, s, civ, cctx, X) {
   const fishEffort = X.gPot > 0 ? X.gatherNow / X.gPot : 0;
   const pressure = X.pressure, farmFrac = X.farmFrac;
   const expand = X.farming && (pressure > 0.9 || X.stockMonths < 1.5) && farmFrac > 0.97 && X.labor - X.farmLabor > X.fw * 0.05;
-  const rural = Math.min(pop, X.foodWorkers / LABOR_SHARE);
+  const rural = X.workers > 0 ? Math.min(pop, X.foodWorkers * pop / X.workers) : 0;
   const industry = mods.industry * Math.max(0, mods.pollution);
   const urban = pop - rural;
   const ep = s.flags.ep;

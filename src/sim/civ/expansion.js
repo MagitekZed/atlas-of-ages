@@ -15,6 +15,7 @@ import { WATER, BIOMES, TIERS, DAYS_PER_YEAR } from '../../core/constants.js';
 import { createCiv, createSettlement, killCiv, settlementsNear, civSettlements, liveCivs } from '../../core/entities.js';
 import { emitFx, yearOf } from '../../core/world.js';
 import { clamp, smoothstep } from '../../core/util.js';
+import { sliceLike, takePeople, addShaped, shapedSlice } from '../../core/cohorts.js';
 import { habitGrid } from './land.js';
 import { getMods, grantEra, grantTech, refreshMods, TECHS, hasTech } from './tech.js';
 import { fin, record, civCache, div, touchTile, civTowns } from './state.js';
@@ -346,10 +347,10 @@ function findOverseasSite(world, from, civ, opts) {
 // ---------------------------------------------------------------------------
 // Founding
 
-/** Found a settlement for civ and chronicle it. opts: { from, overseas, refugees, divine } */
+/** Found a settlement for civ and chronicle it. opts: { from, overseas, refugees, divine, cohorts (the founders' age bands) } */
 export function foundSettlement(world, civ, x, y, pop, opts = {}) {
   const i0 = Math.round(y) * world.W + Math.round(x);
-  const s = createSettlement(world, civ.id, x, y, { population: pop, food: pop * 4, name: townName(world, civ, i0) });
+  const s = createSettlement(world, civ.id, x, y, { population: pop, food: pop * 4, name: townName(world, civ, i0), cohorts: opts.cohorts });
   if (!s) return null;
   const from = opts.from || null;
   s.housing = pop * 1.6;
@@ -449,10 +450,11 @@ export function trySettlers(world, s, civ, ctx) {
   }
   if (!site) return null;
   const n = clamp(pop * world.rng.float(0.1, 0.18), 40, 5000);
-  s.population -= n;
+  const sl = sliceLike(s);
+  takePeople(world, s, n, 'movers', sl, civ);
   s.flags.lastSettler = day;
   civ.flags.lastSettlerDay = day;
-  return foundSettlement(world, civ, site.x, site.y, n * 0.92, { from: s, overseas: site.overseas });
+  return foundSettlement(world, civ, site.x, site.y, n * 0.92, { from: s, overseas: site.overseas, cohorts: sl });
 }
 
 /**
@@ -473,10 +475,10 @@ export function routeMigrants(world, s, civ, n) {
     const sc = Math.min(6, stock) - d / 8 - hr * 2;
     if (sc > bs) { bs = sc; best = t; }
   }
-  if (best) { best.population += n * 0.85; return n * 0.85; }
+  if (best) { addShaped(world, best, n * 0.85, 'movers', civ); return n * 0.85; }
   if (n >= 50 && world.rng.chance(0.35 * fin(world.params.migration, 1))) {
     const site = findSite(world, s, civ, { minHabit: 0.18, spacing: MIN_SPACING });
-    if (site) { foundSettlement(world, civ, site.x, site.y, n * 0.75, { from: s, refugees: true }); return n * 0.75; }
+    if (site) { foundSettlement(world, civ, site.x, site.y, n * 0.75, { from: s, refugees: true, cohorts: shapedSlice(world, n, 'movers', civ) }); return n * 0.75; }
   }
   return 0;
 }

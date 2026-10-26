@@ -29,6 +29,13 @@
 //   (and an extra one every --kf-every days, default 5 years) verifies the copies keyframes
 //   share (core/keyframe.js KEYFRAME_DEV). Run it at mythLevel 0 and 2.
 //
+// --cohort-check: the age bands (core/cohorts.js). Runs the behaviour checks (at the reference
+//   structure births and deaths equal the crude rates; a famine kills more under-10s and over-60s
+//   than adults; a war that takes 30 % of the men 15–44 leaves a trough in men 35–49 twenty years
+//   on), then the normal run with the invariant |Σ cohorts − population| < 0.5 checked after every
+//   town's monthly pass, and a world summary (median age, children, elders, manpower). --trial
+//   checks the invariant too.
+//
 // --keyframe-check: one world (default medium, 600 years) captures a keyframe every --every days
 //   (default 360) with KEYFRAME_DEV.verify on, so every closed-record copy the keyframes share is
 //   checked against its record (a miss = a code path that edited a closed record without
@@ -49,6 +56,7 @@ import { worldChecksum, jsonHash, captureKeyframe, restoreKeyframe, KEYFRAME_DEV
 import { replayTo } from '../src/core/replay.js';
 import { applyTool } from '../src/core/tools.js';
 import { mythLevel } from '../src/core/params.js';
+import * as cohorts from '../src/core/cohorts.js';
 import { fallbackGenerate } from './fallback-gen.mjs';
 import { now, formatNumber } from '../src/core/util.js';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -63,6 +71,13 @@ const sets = []; argv.forEach((a, k) => { if (a === '--set') sets.push(argv[k + 
 if (flag('determinism')) process.exit(await determinism());
 if (flag('trial')) process.exit(await trial());
 if (flag('keyframe-check')) process.exit(await keyframeCheck());
+const cohortCheck = flag('cohort-check');
+let cohortFails = 0;
+if (cohortCheck) {
+  console.log('Cohort behaviour checks:');
+  for (const [text, ok] of cohortUnitChecks()) { console.log(`  ${ok ? 'ok' : '!!'} ${text}`); if (!ok) cohortFails++; }
+  cohorts.COHORT_DEV.verify = true;
+}
 
 const rewindTest = flag('rewind-test');
 const years = rewindTest ? 50 : Number(opt('years', 300));
@@ -355,6 +370,22 @@ for (const s of systems) {
   }
 }
 
+if (cohortCheck) {
+  const D = cohorts.COHORT_DEV;
+  const tot = cohorts.emptySlice();
+  // summed by band (each people by its own stages of life in a Mythic world)
+  for (const s of liveSettlements(world)) for (const t of cohorts.isSet(s.cohorts) ? Object.values(s.cohorts) : Array.isArray(s.cohorts) ? [s.cohorts] : []) for (let i = 0; i < cohorts.NC; i++) tot[i] += t[i];
+  const sm = cohorts.cohortSummary(tot, 0), T = Math.max(1, sm.total);
+  const mp = liveCivs(world).reduce((a, c) => a + (c.military?.manpower || 0), 0);
+  const popAll = liveCivs(world).reduce((a, c) => a + (c.population || 0), 0);
+  console.log('\nCohorts:');
+  console.log(`  world median age ${sm.median.toFixed(1)}, under 15 ${(100 * sm.children / T).toFixed(1)}%, 65+ ${(100 * sm.elders / T).toFixed(1)}%, men/women 15–44 ${(sm.men / Math.max(1, sm.women)).toFixed(3)}; manpower ${(100 * mp / Math.max(1, popAll)).toFixed(2)}% of the people (3% at the reference shape)`);
+  const ok = D.bad === 0;
+  if (!ok) cohortFails++;
+  console.log('  tallies: ' + Object.entries(D.flows).sort().map(([k, v]) => `${k} ${formatNumber(Math.round(v))}`).join(' · '));
+  console.log(`  ${ok ? 'ok' : '!!'} invariant after every monthly pass: ${D.bad} breaks${D.first ? `, worst ${D.worst.toFixed(3)}, first ${JSON.stringify(D.first)}` : ''}`);
+}
+
 if (opt('save', null)) {
   const ts = now();
   const text = serializeWorldText(world);
@@ -369,7 +400,7 @@ if (flag('fnv')) console.log(`\nFNV ${stateHash(world)}`);
 // that must leave results identical has to keep equal
 if (flag('fullhash')) { const d = serializeWorld(world); delete d.versions; console.log(`\nfullHash ${jsonHash(JSON.stringify(d))}`); }
 
-if (errs.length || bad.length || failedChecks) process.exit(1);
+if (errs.length || bad.length || failedChecks || cohortFails) process.exit(1);
 
 // ---------------------------------------------------------------------------
 // Determinism and rewind checks
@@ -532,6 +563,7 @@ async function trial() {
   // code path that edited a closed record without touchRecord); extra frames every few years
   // keep that cache exercised over long trials
   KEYFRAME_DEV.verify = true; KEYFRAME_DEV.misses.length = 0; KEYFRAME_DEV.hits = 0;
+  cohorts.COHORT_DEV.verify = true; cohorts.COHORT_DEV.bad = 0; cohorts.COHORT_DEV.first = null;
   const kfEvery = Number(opt('kf-every', 5 * Y));
   while (w.time.day < endDay) {
     const d = w.time.day;
@@ -543,9 +575,12 @@ async function trial() {
   }
   const A = full(w), log = w.interventions;
   KEYFRAME_DEV.verify = false;
+  cohorts.COHORT_DEV.verify = false;
   console.log(`Trial: ${p0.worldSize} "${p0.seed}" mythLevel ${w.params.mythLevel}, ${yrs} years, ${acts} acts → ${log.length} logged (${((now() - t0) / 1000).toFixed(1)} s)`);
   const lines = [];
   const ms = KEYFRAME_DEV.misses;
+  const CD = cohorts.COHORT_DEV;
+  lines.push([`age bands match the population after every monthly pass: ${CD.bad} breaks${CD.first ? ' — first ' + JSON.stringify(CD.first) : ''}`, CD.bad === 0]);
   lines.push([`keyframes' shared copies: ${KEYFRAME_DEV.hits} verified, ${ms.length} stale${ms.length ? ' — ' + ms.slice(0, 4).map((m) => `${m.list}#${m.id}${m.path} (day ${m.day})`).join(', ') : ''}`, ms.length === 0]);
   for (const sv of saves) {
     const w2 = deserializeWorld(JSON.parse(sv.text));
@@ -563,6 +598,43 @@ async function trial() {
   const errs = Object.entries(simA.errors);
   if (errs.length) for (const [k, e] of errs) console.log(`  !! system ${k}: ${e.count}× — ${e.last}`);
   return lines.every(([, ok]) => ok) && !errs.length ? 0 : 1;
+}
+
+/** --cohort-check behaviour checks on stand-alone tables (see the header): [[text, ok]]. */
+function cohortUnitChecks() {
+  const C = cohorts, NB = C.NB, NC = C.NC;
+  const w = { time: { day: 0 }, civs: [] };
+  const town = (n) => ({ alive: true, civId: -1, population: n, cohorts: C.seedCohorts(n), flags: {} });
+  const out = { births: 0, deaths: 0, famine: 0, emig: 0 };
+  const lines = [];
+  // 1. at the reference structure the crude rates come out unchanged
+  const a = town(10000);
+  a.cohorts = C.stableShape(0.03, 0.01).map((v) => v * 10000);
+  C.cohortMonth(w, a, null, 0.04, 0.03, 0, 0, out);
+  const eb = 10000 * 0.04 / 12, ed = 10000 * 0.03 / 12;
+  lines.push([`town at its reference shape (birth 4 %, death 3 %): births ${out.births.toFixed(4)} (crude ${eb.toFixed(4)}), deaths ${out.deaths.toFixed(4)} (crude ${ed.toFixed(4)})`,
+    Math.abs(out.births - eb) < 0.01 * eb && Math.abs(out.deaths - ed) < 0.01 * ed]);
+  // 2. a famine takes the frail first
+  const b = town(10000), before = b.cohorts.slice();
+  C.cohortMonth(w, b, null, 0, 0, 500, 0, out);
+  let frail = 0, frail0 = 0, adult = 0, adult0 = 0;
+  for (let i = 0; i < NC; i++) {
+    const band = i % NB, lost = before[i] - b.cohorts[i];
+    if (band < 2 || band >= 12) { frail += lost; frail0 += before[i]; } else { adult += lost; adult0 += before[i]; }
+  }
+  const rf = frail / frail0, ra = adult / adult0;
+  lines.push([`famine of 500 in 10,000: ${(100 * rf).toFixed(1)}% of under-10s and over-60s died, ${(100 * ra).toFixed(1)}% of the rest`, rf > 2 * ra]);
+  // 3. a war takes 30 % of the men 15–44; twenty years on, men 35–49 are short against women
+  const c = town(10000), wt = new Array(NC).fill(0);
+  let men = 0;
+  for (let k = 3; k <= 8; k++) { wt[k] = 1; men += c.cohorts[k]; }
+  C.takePeople(w, c, 0.3 * men, wt, null, null);
+  for (let m = 0; m < 240; m++) { C.cohortMonth(w, c, null, 0.028, 0.028, 0, 0, out); c.population = C.cohortTotal(c.cohorts); }
+  let m3 = 0, f3 = 0, mY = 0, fY = 0;
+  for (let k = 7; k <= 9; k++) { m3 += c.cohorts[k]; f3 += c.cohorts[NB + k]; }
+  for (let k = 0; k <= 2; k++) { mY += c.cohorts[k]; fY += c.cohorts[NB + k]; }
+  lines.push([`war trough: 20 years on, men/women 35–49 ${(m3 / f3).toFixed(3)} (1.05 at birth; children ${(mY / fY).toFixed(3)})`, m3 / f3 < 0.95 && mY / fY > 1.0]);
+  return lines;
 }
 
 /** --keyframe-check (see the header). Returns the exit code. */

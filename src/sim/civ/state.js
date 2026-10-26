@@ -22,6 +22,7 @@
 
 import { chronicle } from '../../core/chronicle.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
+import { seedCohorts, NC } from '../../core/cohorts.js';
 
 export const STATE_VERSION = 2;
 export const DYNASTY_CAP = 400;
@@ -280,10 +281,22 @@ export function adjustHistory(civ, { leftShare = 0, joined = 0, dTowns = 0 } = {
  *   flags.tierSeen last tier announced through the tierChanged hook
  *   flags.famPop0  population when the current famine began (the famine hook's 5 % test)
  */
-const SETTLE_FIELDS_V = 3;
+const SETTLE_FIELDS_V = 9;
 /** Flags every settlement carries from birth, in one order, so their objects share a shape. */
 const SETTLE_FLAG_DEFAULTS = [['res', 0], ['pot', null], ['ep', null], ['grieve', 0], ['planDay', -1], ['noSiteDay', -1], ['noSiteN', 0],
-  ['noSeaDay', -1], ['famineDeaths', 0], ['brev', 0], ['emig', 0], ['conqueredDay', null], ['seceded', null], ['pacified', null], ['famPop0', 0]];
+  ['noSeaDay', -1], ['famineDeaths', 0], ['brev', 0], ['emig', 0], ['conqueredDay', null], ['seceded', null], ['pacified', null], ['famPop0', 0],
+  // the age bands' reference levy share and partner ratio (core/cohorts.js; 0 until the first pass)
+  ['eref', 0], ['mates', 0],
+  // its scholars against an unbuilt town's (jobs.js), for the realm's research
+  ['sch', 1],
+  // its people in the Chronicle (peoplenews.js): births and feud dead this year, months the
+  // fields were short of hands, its birth rate over a decade, booming years running, its hollow
+  ['by', 0], ['fy', 0], ['hn', 0], ['bavg', 0], ['boomN', 0], ['hollow', null],
+  // its magical trades' demand (jobs.js, ext magicJobs), refreshed yearly
+  ['mj', null],
+  // the people it counts for in manpower and its share of 15–24s, from its monthly pass
+  // (core/cohorts.js)
+  ['lb', null], ['yt', null]];
 export function ensureSettlementFields(s) {
   if (s.flags && s.flags.fv === SETTLE_FIELDS_V && Number.isFinite(s.population)) return s;
   s.flags ||= {};
@@ -294,6 +307,7 @@ export function ensureSettlementFields(s) {
   if (!Number.isFinite(s.foodImport)) s.foodImport = 0;
   if (!Number.isFinite(s.emigrants)) s.emigrants = 0;
   if (!Number.isFinite(s.taxes)) s.taxes = 0;
+  if (s.jobs === undefined) s.jobs = null;   // the town's trades (jobs.js), set on its first pass
   if (!Number.isFinite(s.flags.assim)) s.flags.assim = s.originCivId === s.civId ? 1 : 0.3;
   if (!Number.isFinite(s.flags.maxTier)) s.flags.maxTier = s.tier || 0;
   if (!Number.isFinite(s.flags.lastSettler)) s.flags.lastSettler = -1e9;
@@ -308,6 +322,8 @@ export function ensureSettlementFields(s) {
   if (!Number.isFinite(s.unrest)) s.unrest = 0;
   if (!Number.isFinite(s.radius) || s.radius < 1) s.radius = 2;
   if (!Number.isFinite(s.peakPopulation)) s.peakPopulation = s.population;
+  // a town from an older save gets the reference age structure (core/cohorts.js)
+  if (!Array.isArray(s.cohorts) || s.cohorts.length !== NC) s.cohorts = seedCohorts(s.population);
   s.flags.fv = SETTLE_FIELDS_V;
   return s;
 }

@@ -19,7 +19,7 @@ import { registerProvider } from '../../core/ext.js';
 import { addSite } from '../../core/sites.js';
 import { createNoise2D, hash2i } from '../../core/rng.js';
 import { WATER, BIOMES, DAYS_PER_YEAR } from '../../core/constants.js';
-import { isMythic, fin, RACES } from './races.js';
+import { isMythic, fin, RACES, setManaReader } from './races.js';
 import { generateLey, rasterAll, leyRng } from './ley.js';
 
 export const RELAX = 0.04;
@@ -251,6 +251,22 @@ let ARCANE_IDS = [];       // set by arcana.js (tech ids of the arcane branch), 
 let ARCANE_SET = new Set();
 export function setArcaneIds(ids) { ARCANE_IDS = ids.slice(); ARCANE_SET = new Set(ids); }
 export const isArcaneTech = (id) => ARCANE_SET.has(id);
+setManaReader(manaAt);   // races.js: elves breed with the magic around them
+
+/**
+ * What a town's mages (trades.js, s.jobs[11]) are to its drain on mana: their number over a plain
+ * town's (0.4 % of the hands × arts ÷ 4, up to 1.5, × the weave: full mana, no tower, no lean),
+ * 0.5–2; 1 for a town without them.
+ */
+function mageDrainF(world, s, kn) {
+  const j = s.jobs;
+  if (!j || j.length < 15) return 1;
+  let W = 0;
+  for (let t = 0; t < j.length; t++) W += j[t];
+  const plain = 0.004 * Math.min(1.5, kn / 4) * Math.max(0, Math.min(1, fin(world.sys.myth?.weave, 1))) * W;
+  return plain > 0 ? Math.max(0.5, Math.min(2, j[11] / plain)) : 1;
+}
+
 /** How many arcane arts a realm knows. */
 export function arcaneKnown(civ) {
   const k = civ?.tech?.known;
@@ -285,7 +301,9 @@ export function monthlyMana(world) {
     const tower = fin(s.buildings?.magetower, 0), well = fin(s.buildings?.moonwell, 0);
     if (!kn && !tower && !well) continue;
     const popF = Math.sqrt(Math.min(1.6, fin(s.population, 0) / 8000));
-    const drain = 0.0012 * kn * popF + 0.009 * tower - 0.008 * well;
+    // the town's mages (trades.js): a tower or a people of mages draws harder, a town where the
+    // weave runs thin has fewer to draw (their number over a plain town's, 0.5–2)
+    const drain = 0.0012 * kn * popF * mageDrainF(world, s, kn) + 0.009 * tower - 0.008 * well;
     if (!drain) continue;
     const cx0 = Math.min(W2 - 1, s.x >> 1), cy0 = Math.min(H2 - 1, s.y >> 1);
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {

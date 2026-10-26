@@ -18,6 +18,7 @@ import { settlementMods } from '../../core/effects.js';
 import { mulOf } from '../../core/ext.js';
 import { emit } from '../../core/hooks.js';
 import { emitFx } from '../../core/world.js';
+import { addShaped } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR, WATER, BIOME } from '../../core/constants.js';
 import { clamp, clamp01 } from '../../core/util.js';
 import { adjectiveOf } from '../../core/names.js';
@@ -668,7 +669,7 @@ export function foundRealm(world, band, s, realmKind, cause = null) {
   const ok = transferSettlement(world, s.id, civ.id, 'conquest');
   if (!ok) { delete st.realms[civ.id]; killCiv(world, civ.id, 'collapse'); return null; }
   civ.treasury = (civ.treasury || 0) + (band.loot || 0) * 0.6;
-  s.population += Math.max(0, band.strength || 0) * 0.45;
+  addShaped(world, s, Math.max(0, band.strength || 0) * 0.45, 'levy', civ);   // the host settles: fighting men
   st.stats.realms++;
   emitFx(world, { type: 'rebellion', x: s.x, y: s.y, civId: civ.id });
   const L = band.leader ? band.leader.name : null;

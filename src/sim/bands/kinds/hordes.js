@@ -10,6 +10,7 @@
 import { liveCivs, settlementsNear, getBand } from '../../../core/entities.js';
 import { DAYS_PER_YEAR, WATER, BIOME } from '../../../core/constants.js';
 import { clamp } from '../../../core/util.js';
+import { takePeople } from '../../../core/cohorts.js';
 import { registerKind, spawnBand, endBand, banditry, roomFor, capRoom, manpowerOf, aliveOf, isReady, ready } from '../engine.js';
 import { planRoute, tileOf } from '../move.js';
 import { raidTown, ransom, assault, foundRealm } from '../combat.js';
@@ -94,7 +95,10 @@ function riseFromRealm(world, civ, cap0, target) {
   const probe = { kind: 'horde', x: cap0.x, y: cap0.y, data: {} };
   if (!planRoute(world, probe, target.i)) return null;
   // the riders leave their camps: the realm is lighter by their families' share of hands
-  for (const id of civ.settlementIds) { const s = world.settlements[id]; if (s && s.alive) s.population = Math.max(8, s.population - strength * 0.4 * s.population / Math.max(1, civ.population)); }
+  for (const id of civ.settlementIds) {
+    const s = world.settlements[id];
+    if (s && s.alive) takePeople(world, s, Math.min(s.population - 8, strength * 0.4 * s.population / Math.max(1, civ.population)), 'levy', null, civ);
+  }
   const band = spawnBand(world, {
     kind: 'horde', name: hordeName(world, leader, civ.language, cap0.x, cap0.y), leader, x: cap0.x, y: cap0.y, homeI: cap0.i, homeR: 60,
     state: 'roam', strength, morale: 1.05, originCivId: civ.id, targetSid: target.id, targetI: target.i, path: probe.path, pathStep: 0,

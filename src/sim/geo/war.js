@@ -59,6 +59,7 @@ import {
 } from '../../core/entities.js';
 import { emitFx, bumpVersion, latitude, monthOf } from '../../core/world.js';
 import { touchRecord } from '../../core/keyframe.js';
+import { sliceLike, takePeople, roundSlice, returnLevy } from '../../core/cohorts.js';
 import { mulOf, anyOf, concatOf, hasProviders } from '../../core/ext.js';
 import { settlementMods } from '../../core/effects.js';
 import { DAYS_PER_YEAR, DAYS_PER_MONTH, WATER, BIOME, RESOURCES, MONTH_SEASON } from '../../core/constants.js';
@@ -997,12 +998,13 @@ function mobilize(world, civ, war) {
   civ.flags ||= {};
   civ.flags.levyMonth = Math.floor(world.time.day / DAYS_PER_MONTH);
   civ.flags.levyRaised = raised + str;
-  // levies leave the towns (most return when the army disbands)
+  // levies leave the towns (most return when the army disbands): whoever the realm's rule calls
+  // up, by default the young men; their bands ride with the army (flags.levy) and come home aged
   let drawn = 0;
+  const levy = sliceLike(towns[0]);
   for (const s of towns) {
     const take = Math.min(s.population * 0.2, str * 0.6 * s.population / Math.max(1, pop));
-    s.population -= take;
-    drawn += take;
+    drawn += takePeople(world, s, take, 'levy', levy, civ);
   }
   const gen = recruitGeneral(world, civ);
   const era = eraOf(civ);
@@ -1012,6 +1014,7 @@ function mobilize(world, civ, war) {
   // merge: the kernel (damageArmy) and other packages may already keep things on flags
   army.flags = Object.assign(army.flags && typeof army.flags === 'object' ? army.flags : {}, {
     mp: 0, skill: gen.leader.skill, genId: gen.genId, startStr: str, drawn, bad: [], nextPlan: world.time.day + muster, war: war ? war.id : null,
+    levy: roundSlice(levy), levyDay: world.time.day,
   });
   serviceOf(army);
   army.name = armyName(world, civ, stage, gen.leader, str, era);
@@ -1044,12 +1047,13 @@ function disband(world, army, reason = 'home') {
   const civ = world.civs[army.civId];
   let to = home && home.alive && home.civId === army.civId ? home : null;
   if (!to && civ && civ.alive) to = nearestSettlement(world, army.x, army.y, { civId: civ.id });
-  // the surviving share of the levies drawn from the towns goes home (no more than left)
+  // the surviving share of the levies drawn from the towns goes home, to every town of the realm
+  // as they were drawn (core/cohorts.js returnLevy)
   const fl = army.flags || {};
   if (to && fl.merc == null && finite(army.strength) && army.strength > 0) {
     const start = finite(fl.startStr) && fl.startStr > 0 ? fl.startStr : army.strength;
     const drawn = finite(fl.drawn) ? fl.drawn : army.strength * 0.6;
-    to.population += Math.max(0, drawn * clamp01(army.strength / start));
+    returnLevy(world, to, fl, Math.max(0, drawn * clamp01(army.strength / start)));
   }
   clearSiegeBy(world, army, reason === 'routed' || reason === 'destroyed' ? 'broken' : 'lifted');
   removeArmy(world, army.id);

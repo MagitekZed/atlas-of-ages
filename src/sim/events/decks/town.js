@@ -8,6 +8,7 @@
 // comes next (a fire heats 'blame' and 'rebuild', a boom 'crowding', a fair 'crowds').
 
 import { registerEvent } from '../../../core/events.js';
+import { ageShares, youthLean, eldersLean } from '../../../core/cohorts.js';
 import { on } from '../../../core/hooks.js';
 import { damageSettlement, settlementsNear } from '../../../core/entities.js';
 import { settlementMods } from '../../../core/effects.js';
@@ -146,7 +147,9 @@ registerEvent({
     if (s.tier < 2 || !civ || !hungry(ctx)) return 0;
     const sore = (civ.taxRate || 0) > 0.12 || s.unrest > 0.35 || ctx.heatCiv('tax') > 0.3;
     if (!sore) return 0;
-    return 0.03 * TF[s.tier] * (1 + ctx.heat('hunger') + ctx.heatCiv('tax'));
+    // a youth bulge makes the crowd readier, an ageing town calmer (the town's age bands)
+    const ag = ageShares(s.cohorts);
+    return 0.03 * TF[s.tier] * (1 + ctx.heat('hunger') + ctx.heatCiv('tax')) * youthLean(ag.youth) / eldersLean(ag.elders);
   },
   fire(ctx) {
     const { world, s, civ } = ctx;
@@ -193,7 +196,8 @@ registerEvent({
     if (!(lvl(s, 'market') || lvl(s, 'workshop') || hasTrait(s, 'weavers') || hasTrait(s, 'market town'))) return 0;
     const sore = (civ.taxRate || 0) >= 0.12 || ctx.heatCiv('tax') >= 0.3 || s.unrest >= 0.3;
     if (!sore) return 0;
-    return 0.01 * (1 + ctx.heatCiv('tax') + ctx.heat('unrest')) * (s.loyalty < 0.5 ? 2 : 1);
+    const ag = ageShares(s.cohorts);
+    return 0.01 * (1 + ctx.heatCiv('tax') + ctx.heat('unrest')) * (s.loyalty < 0.5 ? 2 : 1) * youthLean(ag.youth) / eldersLean(ag.elders);
   },
   fire(ctx) {
     const { world, s, civ } = ctx;
@@ -483,7 +487,7 @@ registerEvent({
     if (s.tier < 1) return 0;
     const age = Math.floor((world.time.day - (s.foundedDay || 0)) / Y);
     if (age >= 100 && age % 100 === 0) return 0.9;
-    return 0.008 * (1 + ctx.heat('feast')) * (s.food > (s.foodNeed || 1) * 6 ? 1.5 : 1);
+    return 0.008 * (1 + ctx.heat('feast')) * (s.food > (s.foodNeed || 1) * 6 ? 1.5 : 1) * eldersLean(ageShares(s.cohorts).elders);
   },
   fire(ctx) {
     const { world, s, civ } = ctx;
@@ -518,7 +522,7 @@ registerEvent({
   weight(ctx) {
     const s = ctx.s;
     if (s.tier < 3) return 0;
-    return 0.004 * (1 + ctx.heat('rebuild') + ctx.heat('boom'));
+    return 0.004 * (1 + ctx.heat('rebuild') + ctx.heat('boom')) * eldersLean(ageShares(s.cohorts).elders);
   },
   fire(ctx) {
     const { world, s, civ } = ctx;

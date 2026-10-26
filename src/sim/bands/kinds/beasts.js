@@ -426,7 +426,8 @@ function tryTame(world, band) {
   const t = tamingOf(civ);
   if (!civ || t < 0.3) return;
   const aff = TAMABLE[band.kind].includes(civ.race) ? 1 : 0.5;
-  if (world.rng.chance(0.04 * t * aff)) tame(world, band, civ, {});
+  // the town's beast-keepers (ext taming, Mythic) make the binding likelier
+  if (world.rng.chance(0.04 * t * aff * mulOf('taming', world, civ, s))) tame(world, band, civ, {});
 }
 
 /** civ's beast-masters bind the beast. by: { divine } */
