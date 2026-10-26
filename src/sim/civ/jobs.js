@@ -33,6 +33,9 @@
 
 import { firstOf, hasProviders } from '../../core/ext.js';
 import { fin } from './state.js';
+import { monthOf } from '../../core/world.js';
+
+const hund5 = (v) => Math.round(fin(v) * 1e5) / 1e5;
 
 export const TRADES = ['farmers', 'herders', 'fishers', 'miners', 'craftsmen', 'merchants', 'soldiers', 'clergy', 'scholars', 'builders', 'labourers'];
 export const J = { farm: 0, herd: 1, fish: 2, mine: 3, craft: 4, merch: 5, soldier: 6, clergy: 7, scholar: 8, build: 9, labour: 10 };
@@ -108,7 +111,18 @@ export function updateJobs(world, s, civ, X, bv, bo, BV) {
   D[J.farm] = farm; D[J.herd] = gather * wf; D[J.fish] = gather * (1 - wf); D[J.mine] = miners;
   D[J.craft] = craft; D[J.merch] = merch; D[J.soldier] = soldiers; D[J.clergy] = clergy; D[J.scholar] = schol; D[J.build] = build;
   // the magical trades (Mythic): a few of the leftover hands, out of the labourers
-  const magic = hasProviders('magicJobs') ? firstOf('magicJobs', world, s, civ) : null;
+  // asked once a year, in the town's own month, and kept on the town (s.flags.mj): the magic
+  // around a town and its arts change slowly, and the trades follow at 8 % a month anyway
+  let magic = null;
+  if (hasProviders('magicJobs')) {
+    if (!Array.isArray(s.flags.mj) || monthOf(world) === s.id % 12) {
+      // (written only when there is an answer, so a Historical world never sees the field)
+      const m = firstOf('magicJobs', world, s, civ);
+      if (m) s.flags.mj = [hund5(m[0]), hund5(m[1]), hund5(m[2]), hund5(m[3])];
+      else if (s.flags.mj != null) s.flags.mj = null;
+    }
+    magic = Array.isArray(s.flags.mj) ? s.flags.mj : null;
+  }
   const nj = magic ? NJ + NMAGIC : NJ;
   if (magic) {
     const room = Math.max(0, left - craft - merch - clergy - schol - build);

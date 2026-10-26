@@ -281,7 +281,7 @@ export function adjustHistory(civ, { leftShare = 0, joined = 0, dTowns = 0 } = {
  *   flags.tierSeen last tier announced through the tierChanged hook
  *   flags.famPop0  population when the current famine began (the famine hook's 5 % test)
  */
-const SETTLE_FIELDS_V = 6;
+const SETTLE_FIELDS_V = 9;
 /** Flags every settlement carries from birth, in one order, so their objects share a shape. */
 const SETTLE_FLAG_DEFAULTS = [['res', 0], ['pot', null], ['ep', null], ['grieve', 0], ['planDay', -1], ['noSiteDay', -1], ['noSiteN', 0],
   ['noSeaDay', -1], ['famineDeaths', 0], ['brev', 0], ['emig', 0], ['conqueredDay', null], ['seceded', null], ['pacified', null], ['famPop0', 0],
@@ -291,7 +291,12 @@ const SETTLE_FLAG_DEFAULTS = [['res', 0], ['pot', null], ['ep', null], ['grieve'
   ['sch', 1],
   // its people in the Chronicle (peoplenews.js): births and feud dead this year, months the
   // fields were short of hands, its birth rate over a decade, booming years running, its hollow
-  ['by', 0], ['fy', 0], ['hn', 0], ['bavg', 0], ['boomN', 0], ['hollow', null]];
+  ['by', 0], ['fy', 0], ['hn', 0], ['bavg', 0], ['boomN', 0], ['hollow', null],
+  // its magical trades' demand (jobs.js, ext magicJobs), refreshed yearly
+  ['mj', null],
+  // the people it counts for in manpower and its share of 15–24s, from its monthly pass
+  // (core/cohorts.js)
+  ['lb', null], ['yt', null]];
 export function ensureSettlementFields(s) {
   if (s.flags && s.flags.fv === SETTLE_FIELDS_V && Number.isFinite(s.population)) return s;
   s.flags ||= {};

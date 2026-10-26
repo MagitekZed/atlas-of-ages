@@ -146,7 +146,15 @@ export const schoolTechs = (school) => ARCANE_TECHS.filter((t) => t.school === s
 
 const knows = (civ, id) => Boolean(civ?.tech?.known && civ.tech.known[id] != null);
 /** Does the realm know any art of the school? */
-export const knowsSchool = (civ, school) => schoolTechs(school).some((t) => knows(civ, t.id));
+const SCHOOL_IDS = {};
+export function knowsSchool(civ, school) {
+  const known = civ?.tech?.known;
+  if (!known) return false;
+  let ids = SCHOOL_IDS[school];
+  if (!ids || !ids.length) ids = SCHOOL_IDS[school] = schoolTechs(school).map((t) => t.id);   // the arts are registered once
+  for (let k = 0; k < ids.length; k++) if (known[ids[k]] != null) return true;
+  return false;
+}
 const nativeSchool = (civ) => SCHOOL_OF_RACE[civ?.race] || 'wizardry';
 
 /** Can this realm study the school at all (natively, by teaching, or by dark choice)? */

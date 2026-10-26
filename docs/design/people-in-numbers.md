@@ -918,6 +918,34 @@ Built on `sim/people-in-numbers`:
   - One Mythic world ends Year 1000 with two great realms (the meadow seed). Main has 11 there,
     and phase 3 had 9: a world where empires swallowed the rest.
 
+## Speed pass (2026-10-25)
+
+Found by profiling 40 years of the Year-900 saves, function by function, against main.
+- **The magical trades' demand** is asked once a year per town, in its own month, and kept on
+  the town (`s.flags.mj`). It is written only when there is an answer, so a Historical world
+  never sees the field.
+- **Feuds** die in the same pass over the bands as natural deaths.
+- **Urban drift** moves people straight between the two towns' tables for each people
+  (`movePeople`), with no slices.
+- **A town's manpower count and youth share** come from its own monthly pass (`s.flags.lb`,
+  `s.flags.yt`), so the realm's monthly pass no longer re-reads every table.
+- **Ageing returns the rounded total and the largest band**, so the town's new population and
+  the end-of-month settle need no further passes when nothing else moved its people.
+- **Smaller fixes:** the yearly people check tests its cheap conditions first, and the school
+  lookups no longer build arrays.
+
+`tools/timeab.mjs`, 100 years from Year 900 against main (3 rounds; the two runs take different
+paths, so read it with the profile):
+
+| | Before the pass | After |
+| --- | --- | --- |
+| Historical | +7.1 % | **+2.6 %** (within the budget) |
+| Mythic | +20.9 % | **+18.4 %** |
+
+The Mythic cost is structural: about 3.4 tables a town, each through the births, deaths,
+ageing, emigration and reconcile passes every month. Further gains need a different storage or
+cadence for the minority peoples' tables. That decision is the user's.
+
 ## Decisions (2026-10-25)
 
 1. **Children's work: yes.** Children 10–14 work at half in eras 0–3 (the default **who works**

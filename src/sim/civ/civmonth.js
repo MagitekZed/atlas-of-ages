@@ -11,7 +11,7 @@
 
 import { civSettlements, killCiv } from '../../core/entities.js';
 import { monthOf } from '../../core/world.js';
-import { ruleOf, levyBase, scratchSlice, isSet, takePeople, addPeople, ageShares } from '../../core/cohorts.js';
+import { ruleOf, levyBase, movePeople, ageShares } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR as DPY, RESOURCES } from '../../core/constants.js';
 import { refreshMods, researchMonthly, hasTech, getMods } from './tech.js';
 import { targetTax, evaluateGovernment, styleName, canReformNow } from './government.js';
@@ -56,9 +56,9 @@ export function aggregate(world, civ) {
   for (const s of ss) {
     const p = Math.max(0, fin(s.population));
     pop += p; wealth += fin(s.wealth); culture += fin(s.culture);
-    levyPop += levyBase(s, levy);
+    levyPop += Number.isFinite(s.flags?.lb) ? s.flags.lb : levyBase(s, levy);   // from the town's own pass (core/cohorts.js)
     sch += p * fin(s.flags?.sch, 1);
-    youth += p * ageShares(s.cohorts).youth;
+    youth += p * (Number.isFinite(s.flags?.yt) ? s.flags.yt : ageShares(s.cohorts).youth);
     happy += p * fin(s.happiness, 0.5); loyal += p * fin(s.loyalty, 0.5); unrest += p * fin(s.unrest);
     if (civ.stateReligion != null && s.dominantReligion != null && s.dominantReligion !== civ.stateReligion) faithOff += p;
     if (fin(s.flags?.assim, 1) < 0.5) foreign += p;
@@ -155,9 +155,7 @@ function urbanDrift(world, civ, agg) {
     // a town's draw (fairs, booms, plague fear: the attract modifier) pulls or holds its people
     const pull = Math.max(0.2, Math.min(3, ba / Math.max(0.2, agg.sms[k].attract)));
     const n = v.population * rate * (0.5 + best.happiness) * pull;
-    const sl = isSet(v.cohorts) ? {} : scratchSlice();
-    takePeople(world, v, n, 'movers', sl, civ);
-    addPeople(world, best, sl, n);
+    movePeople(world, v, best, n, 'movers', civ);
   }
 }
 

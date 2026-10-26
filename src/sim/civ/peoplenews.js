@@ -139,10 +139,11 @@ export function peopleYearly(world, s, civ) {
   };
   const n = (b) => B[b] + B[NB + b];
   // a hollow among the young men: a ten-year span against the spans either side
-  if (pop >= 2000 && may(world, 'hollow', s, civ)) {
+  if (pop >= 2000) {
     for (let b = 3; b <= 7; b++) {
       const span = B[b] + B[b + 1], before = B[b - 2] + B[b - 1], after = B[b + 2] + B[b + 3];
       if (before + after > 0 && span < HOLLOW * (before + after) / 2) {
+        if (!may(world, 'hollow', s, civ)) break;
         const w = bloodiestWar(world, civ, day - 60 * Y);
         const plague = !w && fin(s.hist?.plagues) > 0;
         if (!w && !plague) break;
@@ -159,7 +160,10 @@ export function peopleYearly(world, s, civ) {
     const w = bloodiestWar(world, civ, day - 20 * Y);
     if (w) { tell('widows', 2, { cause: warName(w), ratio: (women / men).toFixed(1).replace(/\.0$/, '') }); return; }
   }
-  if (fin(fl.boomN) >= 3 && pop >= 500 && sincePeace(world, civ) <= 10 * Y && sincePeace(world, civ) > 0 && may(world, 'boom', s, civ)) { tell('boom', 2, {}); return; }
+  if (fin(fl.boomN) >= 3 && pop >= 500) {
+    const sp = sincePeace(world, civ);
+    if (sp > 0 && sp <= 10 * Y && may(world, 'boom', s, civ)) { tell('boom', 2, {}); return; }
+  }
   if (fin(fl.hn) >= 6 && pop >= 500 && may(world, 'hands', s, civ)) { tell('hands', 2, {}); return; }
   if (feudDead >= 0.006 * pop && feudDead >= 10 && may(world, 'feuds', s, civ)) {
     tell('feuds', feudDead >= 0.015 * pop ? 2 : 1, { people: (RACE_META[s.race]?.plural || 'people').toLowerCase(), n: approx(feudDead) });

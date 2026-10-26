@@ -42,7 +42,7 @@ import { latitude, monthOf, emitFx } from '../../core/world.js';
 import { emit } from '../../core/hooks.js';
 import { neutralSettlementMods, SETTLEMENT_MOD_KEYS } from '../../core/effects.js';
 import { mulEachOf, sumOf, hasProviders } from '../../core/ext.js';
-import { reconcileCohorts, cohortMonth, cohortTotal, settleCohorts, verifyCohorts, isSet, COHORT_DEV } from '../../core/cohorts.js';
+import { reconcileCohorts, cohortMonth, settleCohorts, verifyCohorts, isSet, COHORT_DEV } from '../../core/cohorts.js';
 import { clamp, clamp01, smoothstep, majorToll } from '../../core/util.js';
 import { proxies, climGrid, BIO_WILD, BIO_VEGMAX, BIO_HERB, BIO_WOOD, BIO_FARM, BIO_FISH } from './land.js';
 import { getMods, hasTech, modValue } from './tech.js';
@@ -177,7 +177,7 @@ function scratchX(world) {
     labor: 0, fw: 0, farmLabor: 0, farmFrac: 0, farmMean: 0, left: 0, gPot: 0, gPotMean: 0, gatherNow: 0, gatherMean: 0,
     pressure: 0, prodFood: 0, fed: 1, stockMonths: 0, housing: 0, houseRatio: 0,
     dis: 0, production: 0, foodWorkers: 0, tier: 0, isCap: false,
-    cm: { births: 0, deaths: 0, famine: 0, emig: 0, feud: 0 },
+    cm: { births: 0, deaths: 0, famine: 0, emig: 0, feud: 0, total: 0 },
     workers: 0, jobProd: 1, jobTrade: 1, jobMine: 1, tOut: null,
   });
 }
@@ -339,7 +339,7 @@ function demographyPhase(world, s, civ, X) {
   const crowd = clamp01((X.pressure - 0.7) / 0.45);
   const out = cohortMonth(world, s, civ, birthA, deathA, famineDeaths, emig, X.cm, crowd);
   famineDeaths = out.famine; emig = out.emig;
-  const newPop = cohortTotal(s.cohorts);
+  const newPop = out.total;
   s.growth = clamp(div(newPop - pop, pop, 0) * 12, -1, 1);
   s.emigrants = emig;
   if (famineDeaths > 0) {
