@@ -943,8 +943,14 @@ paths, so read it with the profile):
 | Mythic | +20.9 % | **+18.4 %** |
 
 The Mythic cost is structural: about 3.4 tables a town, each through the births, deaths,
-ageing, emigration and reconcile passes every month. Further gains need a different storage or
-cadence for the minority peoples' tables. That decision is the user's.
+ageing, emigration and reconcile passes every month.
+- *Tried and dropped (2026-10-26):* stepping minority peoples (under a quarter of their town)
+  every third month, three months at a time. Mythic measured +19.0 % against +18.4 %, with no gain
+  beyond noise. The heavy part of a minority's month is a small share; the cost is spread over
+  every pass a town makes (reconcile, emigrants, the trades, settling, the yearly checks).
+- What would still move it: storing each town's peoples as one flat block instead of an object
+  of tables, so every pass runs on one typed array. That is a broad refactor of the core and the
+  peoples module, and the user's decision.
 
 ## Decisions (2026-10-25)
 
