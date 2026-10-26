@@ -24,6 +24,7 @@ import { loansOf, housesOf, houseName } from '../sim/geo/debt.js';
 import { hostagesOf } from '../sim/geo/terms.js';
 import { roleName, GEAR_NAMES } from '../sim/geo/army.js';
 import { armyBill, SYS_WORDS } from '../sim/geo/raising.js';
+import { displayName } from '../sim/geo/regiments.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -1268,7 +1269,7 @@ function civView(app, sel, b) {
   // its standing regiments (geo/raising.js)
   const regRows = rows(b, () => (c.forces?.regs || []).slice().sort((p, q) => q.n - p.n || p.id - q.id).map((r) => ({
     key: `rg${r.id}:${Math.round(r.n / 10)}:${r.out ?? ''}:${(r.honours || []).length}`, icon: 'army',
-    label: r.name.replace(/^the /, 'The '), n: F.people(r.n),
+    label: displayName(r).replace(/^the /, 'The '), n: F.people(r.n),
     s: [roleName(r.role, r.gear), r.out != null ? 'in the field' : 'at home', r.xp >= 0.6 ? 'veterans' : r.xp >= 0.3 ? 'seasoned' : 'green', r.won ? `${F.int(r.won)} victories` : ''].filter(Boolean).join(' · '),
   })), 'It keeps no standing regiments.', app);
   b.hide(regRows, () => !(c.forces?.regs || []).length);
@@ -1347,6 +1348,7 @@ function civView(app, sel, b) {
       { k: 'Since', v: () => F.year(c.forces.since), hide: () => !c.forces || !ok(c.forces.since) },
       { k: 'Pay for its soldiers', v: () => F.num(armyBill(w, c), 1) + ' / mo', tip: 'What its armies in the field, its standing regiments and its garrisons cost this month, counted in its expenses.', hide: () => !c.forces || c.alive === false },
       { k: 'Unpaid for', v: () => `${F.int(c.forces.arrears)} months`, hide: () => !(c.forces?.arrears > 0) },
+      { k: 'Veterans at home', v: () => F.people(c.forces.vets), tip: 'Men home from its wars who will stiffen its next levy; fewer each year as they age.', hide: () => !(c.forces?.vets >= 1) },
       { k: 'Towns taken', v: () => F.int(cq().taken), tip: 'Every conquest in the chains of title of the world’s settlements.' },
       { k: 'Towns lost', v: () => F.int(cq().lost) },
     ]), regRows, cqRows),

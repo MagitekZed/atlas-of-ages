@@ -37,12 +37,13 @@ import { registerProvider, firstOf, mulOf, hasProviders } from '../../core/ext.j
 import { takePeople, sliceLike, roundSlice, returnLevy } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR, DAYS_PER_MONTH } from '../../core/constants.js';
 import { clamp, clamp01 } from '../../core/util.js';
-import { civName, capFirst, capitalOf, townsOf, eraOf, hashPick, rateOk, rulerHas, finite, ordinalWord } from './common.js';
+import { civName, capFirst, capitalOf, townsOf, eraOf, hashPick, rateOk, rulerHas, finite } from './common.js';
 import { govFamily } from './diplomacy.js';
-import { mixFor, gearTier, gearQuality, roleName, coSync, NR } from './army.js';
+import { mixFor, gearTier, gearQuality, coSync, NR } from './army.js';
+import { regimentName, noteFirstRegiment, drill } from './regiments.js';
 
 // A levied soldier's month costs what PAY_K of the realm's subjects pay in a month.
-const PAY_K = 40;
+const PAY_K = 30;
 const STANDING_SHARE = 0.2;    // of its income a standing realm spends on its regiments at peace
 export const MAX_REGS = 12;
 const FIELD = { levy: 1, feudal: 0.6, standing: 1, hired: 1 };
@@ -143,14 +144,6 @@ function weighSystem(world, civ, f) {
 // ---------------------------------------------------------------------------
 // Standing regiments
 
-function regimentName(world, civ, f, role) {
-  f.raised ||= new Array(NR).fill(0);
-  const n = ++f.raised[role];
-  const cap = capitalOf(world, civ);
-  const word = roleName(role, gearTier(civ)).replace(/^./, (c) => c.toUpperCase());
-  return `the ${ordinalWord(n).replace(/^./, (c) => c.toUpperCase())} ${word} of ${cap ? cap.name : civ.baseName || civ.name}`;
-}
-
 /** Recruit or trim the regiments toward what the realm can pay at peace (a fifth of its income). */
 function keepRegiments(world, civ, f, atWar) {
   const w = soldierPay(world, civ);
@@ -181,6 +174,7 @@ function keepRegiments(world, civ, f, atWar) {
     f.nextReg = (f.nextReg || 0) + 1;
     reg = { id: f.nextReg, name: regimentName(world, civ, f, role), role, n: 0, gear: gearTier(civ), q: gearQuality(civ), xp: 0.2, founded: world.time.day, battles: 0, won: 0, honours: [], out: null, levy: null, levyDay: world.time.day };
     f.regs.push(reg);
+    noteFirstRegiment(world, civ, reg);
   }
   const levy = sliceLike(towns[0]);
   const pop = towns.reduce((a, s) => a + s.population, 0);
@@ -260,6 +254,7 @@ export function raisingMonthly(world, st, atWar) {
     if (!war) f.deserted = 0;
     f.arrears = (finite(civ.treasury) ? civ.treasury : 0) < 0 ? f.arrears + 1 : 0;
     if (f.arrears > 0) unpaid(world, st, civ, f);
+    drill(f);
     if (f.sys === 'standing') { coupCheck(world, st, civ, f, rng); keepRegiments(world, civ, f, war); }
     else if (f.regs.length && !war) { const r = f.regs.find((x) => x.out == null); if (r) disbandRegiment(world, civ, f, r, 'reform'); }
   }
@@ -274,8 +269,8 @@ function unpaid(world, st, civ, f) {
     const co = coSync(world, army);
     let levy = 0;
     for (const c of co) if (c[5] == null) levy += c[1];
-    // the levies wait two months for their pay, then drift home (1 % a month more each month, at most 4 %)
-    const d = f.arrears >= 2 ? levy * Math.min(0.04, 0.01 * (f.arrears - 1)) : 0;
+    // the levies wait two months for their pay, then drift home (1 % a month more each month, at most 3 %)
+    const d = f.arrears >= 2 ? levy * Math.min(0.03, 0.01 * (f.arrears - 1)) : 0;
     if (!(d >= 1)) continue;
     const took = damageArmy(world, army, d, 'attrition');
     let left = took;
@@ -298,16 +293,20 @@ function unpaid(world, st, civ, f) {
 }
 
 /**
- * A standing army three months unpaid, or serving a realm in crisis, may take power (2 % a month,
- * more under a cruel or craven ruler). civ/rulers.js answers the armyCoup hook.
+ * A standing army three months unpaid (0.6 % a month), or serving a realm in crisis (0.3 %), may
+ * take power, more readily under a cruel or craven ruler, and never twice in twenty years.
+ * civ/rulers.js answers the armyCoup hook.
  */
 function coupCheck(world, st, civ, f, rng) {
-  if (!(f.arrears >= 3 || (finite(civ.stability) && civ.stability < 0.3)) || !f.regs.some((r) => r.n > 0) || !civ.ruler) return;
-  let coup = 1;
+  const unpaid = f.arrears >= 3, crisis = finite(civ.stability) && civ.stability < 0.25;
+  if (!(unpaid || crisis) || !f.regs.some((r) => r.n > 0) || !civ.ruler) return;
+  if (world.time.day - (finite(f.coupDay) ? f.coupDay : -1e9) < 20 * DAYS_PER_YEAR) return;
+  let coup = unpaid ? 0.006 : 0.003;
   if (rulerHas(civ, 'cruel')) coup *= 1.6;
   if (rulerHas(civ, 'craven')) coup *= 1.3;
-  if (!rng.chance(0.02 * coup)) return;
+  if (!rng.chance(coup)) return;
   st.coups = (st.coups || 0) + 1;
   f.arrears = 0;
+  f.coupDay = world.time.day;
   emit(world, 'armyCoup', civ);
 }

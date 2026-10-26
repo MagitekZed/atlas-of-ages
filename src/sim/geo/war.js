@@ -79,7 +79,8 @@ import {
 } from './common.js';
 import { bestClaimOn, renounceClaims, hardenClaims, claimOf } from './claims.js';
 import { remember, memoryOf } from './memory.js';
-import { coFor, coSync, coShares, coGear, coTake, forcePower, mixFor, gearTier, gearQuality, siegeMul, ROLE } from './army.js';
+import { coFor, coSync, coShares, coGear, coTake, forcePower, companyShares, mixFor, gearTier, gearQuality, siegeMul, ROLE } from './army.js';
+import { battleExperience, veteransHome, levyXp } from './regiments.js';
 import { forcesOf, deployRegiments, regimentsHome, raisingMonthly } from './raising.js';
 import { aimFor, defenderAim, aimsFromCause, aimMet, winnerAim, peaceAllows, takeHostage, hostageHeld, killHostage } from './terms.js';
 import { addReparations, monthlyIncome, debtClaim, settleDebtClaim } from './debt.js';
@@ -1045,7 +1046,9 @@ function mobilize(world, civ, war) {
   const feudal = forces.sys === 'feudal';
   let mix = mixFor(world, civ);
   if (feudal) { mix = mix.slice(); mix[ROLE.HHORSE] *= 1.5; mix[ROLE.BLADE] *= 1.2; const t = mix.reduce((a, b) => a + b, 0); mix = mix.map((x) => x / t); }
-  army.co = coFor(str, mix, gearTier(civ), gearQuality(civ), feudal ? 0.2 : 0.1);
+  // veterans of its last wars join the levy (regiments.js); a lord's retinue has fought before
+  const xp0 = levyXp(civ, str);
+  army.co = coFor(str, mix, gearTier(civ), gearQuality(civ), feudal ? Math.max(0.2, xp0) : xp0);
   // levies take weeks to gather, arm and provision before they can march; lords' hosts come sooner
   const muster = Math.round((feudal ? 20 + world.rng.next() * 30 : 40 + world.rng.next() * 60) / Math.max(0.5, m.movement));
   // merge: the kernel (damageArmy) and other packages may already keep things on flags
@@ -1089,6 +1092,7 @@ function disband(world, army, reason = 'home') {
   const fl = army.flags || {};
   // its regiments go back to the realm's standing army (raising.js); the levies to their towns
   const regMen = regimentsHome(world, army);
+  if (fl.merc == null && finite(army.strength) && army.strength > regMen) veteransHome(world, civ, army, army.strength - regMen);
   if (to && fl.merc == null && finite(army.strength) && army.strength > regMen) {
     const start = Math.max(1, (finite(fl.startStr) && fl.startStr > 0 ? fl.startStr : army.strength) - (finite(fl.regStart) ? fl.regStart : 0));
     const drawn = finite(fl.drawn) ? fl.drawn : army.strength * 0.6;
@@ -1486,6 +1490,10 @@ function battle(world, st, A, B) {
   const d = Math.abs(pA - 0.5) * 2;
   const lossL = clamp(0.08 + 0.3 * d + rng.next() * 0.08, 0.04, 0.7);
   const lossW = clamp(0.03 + 0.1 * (1 - d) + rng.next() * 0.04, 0.02, 0.3);
+  // before the losses: each company of the beaten side, and what each of the victor's did to win
+  const coL = L === A ? coA : coB, coW = Wn === A ? coA : coB;
+  const beforeL = coL.map((c) => c[1]);
+  const powW = companyShares(coW, Wn === A ? shB : shA, Wn === A ? gB : gA);
   const deadL = casualty(world, L, L.strength * lossL, 'battle');
   const deadW = casualty(world, Wn, Wn.strength * lossW, 'battle');
   // the dead fall where the enemy was strong: horse on the pikes, foot under the knights
@@ -1578,6 +1586,8 @@ function battle(world, st, A, B) {
     if (Wn.flags.genId == null && bname && (decisive || (g0.wins >= PROMOTE_WINS && g0.honours >= 2))) promoteGeneral(world, st, Wn, cw, decisive ? 'great' : 'wins', bname, entry ? entry.seq : null);
   }
   if (L.general && typeof L.general === 'object') L.general.battles = (L.general.battles | 0) + 1;
+  // experience, honours and last stands (regiments.js)
+  if (!naval) battleExperience(world, { W: Wn, L, coW, coL, cw, cl, bname, before: beforeL, powW, entry });
   // the town whose siege this victory breaks remembers who saved it (memory.js)
   const relieved = L.state === 'sieging' && L.targetId != null ? world.settlements[L.targetId] : null;
   if (relieved && relieved.alive && relieved.siege && relieved.siege.armyId === L.id) remember(world, relieved, Wn.civId, 0.4, 'r');

@@ -17,7 +17,7 @@
 // is drawn here.
 //
 // Exports: ROLE, NR, ROLE_NAMES, roleName, GEAR_NAMES, gearTier, gearQuality, mixFor, coFor, coSync,
-//          coShares, coGear, forcePower, coTake, siegeMul, hireMix
+//          coShares, coGear, forcePower, companyShares, coTake, siegeMul, hireMix
 
 import { firstOf, hasProviders } from '../../core/ext.js';
 import { BIOME } from '../../core/constants.js';
@@ -209,6 +209,13 @@ export function forcePower(co, enemyShares, enemyGear, rf = null) {
     p += n * BASE[r] * m * gear * xp * clamp(c[3], 0.4, 1.2) * (rf ? rf(r) : 1);
   }
   return p;
+}
+
+/** Each company's share of the army's power against an enemy (forcePower's terms, summing to 1). */
+export function companyShares(co, enemyShares, enemyGear) {
+  const out = co.map((c) => forcePower([c], enemyShares, enemyGear));
+  const t = out.reduce((x, y) => x + y, 0);
+  return t > 0 ? out.map((x) => x / t) : out;
 }
 
 /**

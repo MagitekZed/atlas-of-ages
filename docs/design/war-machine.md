@@ -174,7 +174,8 @@ A realm that cannot pay in full falls into arrears:
 - **Desertion.** A levy melts away (1 % a month for each month owed).
 - **Hired companies** turn as today.
 - **A standing army** may overthrow its ruler after three months unpaid, or when stability falls
-  below 0.3 (decision 3). The coup is rare: 2 % a month, times the ruler's coup factor.
+  below 0.25 (decision 3). The coup is rare: 0.6 % a month while unpaid, 0.3 % in a crisis, times
+  the ruler's coup factor, and never twice in twenty years.
 
 Chunk 3's borrowing reads the expenses, so a realm at war with its pay outrunning its income
 borrows, and one that cannot borrow sues for peace sooner.
