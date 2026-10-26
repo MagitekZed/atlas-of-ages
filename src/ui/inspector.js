@@ -17,6 +17,7 @@ import { sitesNear, SITE_KINDS } from '../core/sites.js';
 import { NB, NC, cohortSummary, isSet, ratesOf } from '../core/cohorts.js';
 import { NJ, TRADE_LABELS } from '../sim/civ/jobs.js';
 import { manpowerReason } from '../sim/civ/peoplenews.js';
+import { claimantsOf, claimsOfCiv, CLAIM_WHY } from '../sim/geo/claims.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -745,6 +746,13 @@ function settlementView(app, sel, b) {
     const c = w.civs[o.civId];
     return { key: `${o.day}:${o.civId}:${o.code}:${k}`, swatch: c?.colorHex || 'var(--ink-4)', node: c ? linkBtn(app, { kind: 'civ', id: c.id }, c.name, { strike: !c.alive }) : textNode('A forgotten people'), n: F.year(o.day), s: F.ownHow(o.code) };
   }), 'Its holders are not recorded.', app);
+  // realms that claim the town (geo/claims.js)
+  const claimRows = rows(b, () => claimantsOf(w, s).map((q) => ({
+    key: `cl${q.civ.id}:${Math.round(q.w * 20)}`, swatch: q.civ.colorHex, node: linkBtn(app, { kind: 'civ', id: q.civ.id }, q.civ.name),
+    n: claimWord(q.w), s: claimHow(w, q),
+  })), 'No one claims it.', app);
+  const claimSec = section('Claimed by', claimRows);
+  b.hide(claimSec, () => !claimantsOf(w, s).length);
   const story = rows(b, () => settlementStory(w, s).map((it) => ({ key: it.key + it.text, icon: it.key.startsWith('o') ? 'crown' : 'chronicle', label: it.text, n: it.day != null ? 'Y' + yearOf(it.day) : '', sel: it.sel })), 'An uneventful life, so far.', app);
   const near = rows(b, () => siteItems(app, s.x, s.y, 3.5), 'No battlefields or ruins nearby.', app);
   const nearSec = section('Remembered nearby', near);
@@ -774,6 +782,7 @@ function settlementView(app, sel, b) {
     section('Its life', ledgerChart(app, b, 's', s.id, { marks: conquestMarks, color: civ()?.colorHex })),
     hideFor(b, () => !s.alive || !s.cohorts, section('People', agePyramid(app, b, townPeople(app, s)))),
     section('Chain of title', titleBar(app, b, s), chain),
+    claimSec,
     section('Story', story),
     // a ruin has no livelihood: its last day's cares are not shown as if they were today's
     hideFor(b, () => !s.alive, section('Livelihood', kv(b, [
@@ -1238,6 +1247,15 @@ function civView(app, sel, b) {
   const figs = rows(b, () => w.figures.filter((q) => q.civId === c.id).slice(-10).reverse().map((q) => figureItem(w, q)), 'No great people are remembered.', app);
   const figSec = section('Great people', figs);
   b.hide(figSec, () => !w.figures.some((q) => q.civId === c.id));
+  // towns it claims (geo/claims.js)
+  const claimsSec = section('Claims', rows(b, () => claimsOfCiv(w, c).map((q) => {
+    const holder = w.civs[q.s.civId];
+    return {
+      key: `cl${q.s.id}:${q.s.civId}:${Math.round(q.w * 20)}`, icon: 'scroll', label: q.s.name, sel: { kind: 'settlement', id: q.s.id },
+      n: claimWord(q.w), s: [claimHow(w, q), q.s.alive && holder ? `held by ${holder.name}` : ''].filter(Boolean).join(' · '),
+    };
+  }), 'It claims no lost towns.', app));
+  b.hide(claimsSec, () => !claimsOfCiv(w, c).length);
 
   return h('div.tabpanel', null,
     title(b, { color: c.colorHex, name: () => c.name, sub: () => `${F.titleCase(c.government || 'tribe')} · ${F.eraName(c.tech?.era)}`, actions: standardActions(app) }),
@@ -1292,6 +1310,7 @@ function civView(app, sel, b) {
       { k: 'Known', v: () => { const n = Object.keys(c.tech?.known || {}).length; const T = techMod?.TECHS; const total = Array.isArray(T) ? T.length : T ? Object.keys(T).length : 0; return total ? `${n} of ${total}` : String(n); } },
     ]), techBox, modsBox),
     section('Relations', relations),
+    claimsSec,
     section('Wars', warList),
     section('Settlements', townList),
     figSec,
@@ -1446,6 +1465,16 @@ function warTransfers(w, war) {
     out.push({ day, sid, from, to, code });
   }
   return out;
+}
+
+/** A claim's strength in words. */
+function claimWord(v) { return v >= 0.66 ? 'Strong' : v >= 0.33 ? 'Living' : 'Fading'; }
+/** Why and since when a realm claims a town: "Lost it in war, Y612", "Inherited from Varn, Y700". */
+function claimHow(w, q) {
+  const from = q.why === 'i' && q.from != null ? w.civs[q.from] : null;
+  const how = CLAIM_WHY[q.why] || 'claims it';
+  const why = from ? `Inherited from ${from.name}` : how[0].toUpperCase() + how.slice(1);
+  return `${why}, Y${yearOf(q.since)}`;
 }
 
 /** "The 14th war between these realms; the Varathi have won 9." */

@@ -6,7 +6,8 @@
 // A realm with appetite then weighs every contacted neighbour not under truce: hostility (low
 // opinion), the balance of power (counting the target's allies and overlord), reach, the
 // ext 'warAppetite' of the pair, and the strongest casus belli — border disputes, holy war
-// against another faith, dynastic or secession claims, reconquest of lost towns, coveted
+// against another faith, dynastic or secession claims, reconquest of the towns it claims
+// (claims.js: lost in war, at a treaty or to a rising, fading over generations), coveted
 // resources, trade quarrels, opportunism against a neighbour already at war, revenge, a
 // vassal's bid for independence, or the claims other packages raise (ext 'casusBelli': dynastic
 // claims, restorations, ancient enmities, prophecies …) — and attacks the most tempting one if
@@ -76,6 +77,7 @@ import {
   ordinalWord, bare, landscapeAt, nearestFeature, hashPick, seasonWord, activeWarList, enemySet, civsAtWar, worldPopulation,
   emitHook, peekMods,
 } from './common.js';
+import { bestClaimOn } from './claims.js';
 import { bindWar } from './acts.js';   // the geopolitical divine acts (they call back into this module at use time)
 
 const MONTH_DAY = 25;
@@ -467,13 +469,9 @@ function casusBelli(world, a, b, r, ctx) {
     if (pa > 0.5 * pb || (b.warWeariness || 0) > 0.5 || (finite(b.stability) && b.stability < 0.35)) opts.push({ key: 'liberation', w: 2.2 });
     return opts.length ? opts[0] : null;
   }
-  // reconquest of towns founded by a, now held by b
-  let lost = null;
-  for (const sid of b.settlementIds) {
-    const s = world.settlements[sid];
-    if (s && s.alive && s.originCivId === a.id && (!lost || s.population > lost.population)) lost = s;
-  }
-  if (lost) opts.push({ key: 'reconquest', w: 1.7, goalSid: lost.id, place: lost.name });
+  // reconquest: the strongest claim a holds on a town b holds now (claims.js)
+  const lost = bestClaimOn(world, a, b);
+  if (lost) opts.push({ key: 'reconquest', w: 0.9 + 1.1 * lost.w, goalSid: lost.s.id, place: lost.s.name });
   // succession and secession claims
   if (b.parentId === a.id && (world.time.day - b.foundedDay) < 150 * DAYS_PER_YEAR) opts.push({ key: 'succession', w: 1.6 });
   else if (a.ruler && b.ruler && a.ruler.dynasty && a.ruler.dynasty === b.ruler.dynasty) opts.push({ key: 'succession', w: 1.5 });

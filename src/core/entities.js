@@ -111,6 +111,7 @@ export function createCiv(world, opts = {}) {
     effects: [], effectsV: 0, // timed effects (core/effects.js only)
     style: null,            // architecture style (WP3 style.js)
     claims: {},             // dynastic claims { [civId]: 0..1 } (WP3)
+    landClaims: {},         // claims on lost towns { [sid]: [w, why, since, tau, from?] } (geo/claims.js)
     flags: {},
     // fields other modules add, declared here in the order they arrive so every civ keeps one
     // hidden class (undefined until set, and never saved; keep in step with CIV_SHAPE, world.js)

@@ -54,6 +54,8 @@ export const EXT_POINTS = {
   allied: { combine: 'any', sig: '(w, a, b)' },
   warAppetite: { combine: 'mul', clamp: [0.2, 3], sig: '(w, a, b)' },
   casusBelli: { combine: 'concat', sig: '(w, a, b) → [{cb, w, name?}]' },
+  claimRule: { combine: 'first', sig: '(w, civ) → { tau, foundedTau } years a lost town is claimed (e-folding) | null (geo/claims.js)' },
+  memoryRule: { combine: 'first', sig: '(w, s) → { grudge, thanks } years a town remembers (e-folding) | null (geo/memory.js)' },
   rates: { combine: 'mul', clamp: [0, 5], sig: '(w, key)' },
   vegCap: { combine: 'mul', clamp: [0.2, 1.5], sig: '(w, i)' },
   routeValue: { combine: 'mul', clamp: [0, 2], sig: '(w, route)' },
