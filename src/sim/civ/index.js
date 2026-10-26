@@ -58,6 +58,7 @@ import { habitGrid, updateProxies, proxies } from './land.js';
 import { placeGenesis, emergence, routeMigrants } from './expansion.js';
 import { updateSettlement } from './settlement.js';
 import { milestonesYearly } from './milestones.js';
+import { peopleWorldYear } from './peoplenews.js';
 import { monthlyCiv } from './civmonth.js';
 import { wondersOnDestroyed, wondersOnTransferred } from './buildings.js';
 import { ensureTemper } from './temper.js';
@@ -140,6 +141,7 @@ export const system = {
       soilRecovery(world);
       emergence(world);
       milestonesYearly(world);
+      peopleWorldYear(world);
       figuresYearly(world);
       dynastyYearly(world);
       pruneRateLimits(world);

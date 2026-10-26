@@ -17,7 +17,6 @@
 // Every provider is neutral below mythLevel 2. Pure: no world.rng.
 
 import { registerProvider } from '../../core/ext.js';
-import { bandsNear } from '../../core/bands.js';
 import { BAND_KINDS } from '../../core/constants.js';
 import { isMythic, fin } from './races.js';
 import { manaAt, arcaneKnown, isArcaneTech } from './mana.js';
@@ -38,17 +37,24 @@ const LEAN = {
 const OUT = new Float64Array(NMAGIC);
 const weaveOf = (world) => Math.max(0, Math.min(1, fin(world.sys.myth?.weave, 1)));
 
-/** Do great beasts range near town s this year? (cached per town per year: bands move slowly) */
+/**
+ * Do great beasts range near town s? A coarse map of where beasts are (cells of BEAST_CELL
+ * tiles), rebuilt once a day at its first use: the same point of the same day in a world
+ * continued from a save, so the cache never changes an answer (a cache kept longer would).
+ */
+const BEAST_CELL = 8;
 function beastsNear(world, s) {
-  const c = (world.cache.mtBeasts ||= { y: -1, m: new Map() });
-  const y = Math.floor(world.time.day / 360);
-  if (c.y !== y) { c.y = y; c.m.clear(); }
-  let v = c.m.get(s.id);
-  if (v === undefined) {
-    v = bandsNear(world, s.x, s.y, BEAST_R, (b) => BAND_KINDS[b.kind]?.family === 'beast').length > 0;
-    c.m.set(s.id, v);
+  const c = (world.cache.mtBeasts ||= { day: -1, cols: 0, set: new Set() });
+  if (c.day !== world.time.day) {
+    c.day = world.time.day;
+    c.cols = Math.ceil(world.W / BEAST_CELL);
+    c.set.clear();
+    for (const b of world.bands) if (b && BAND_KINDS[b.kind]?.family === 'beast') c.set.add(Math.floor(b.y / BEAST_CELL) * c.cols + Math.floor(b.x / BEAST_CELL));
   }
-  return v;
+  if (!c.set.size) return false;
+  const cx = Math.floor(s.x / BEAST_CELL), cy = Math.floor(s.y / BEAST_CELL), rr = Math.ceil(BEAST_R / BEAST_CELL);
+  for (let dy = -rr; dy <= rr; dy++) for (let dx = -rr; dx <= rr; dx++) if (c.set.has((cy + dy) * c.cols + cx + dx)) return true;
+  return false;
 }
 
 /** The four trades' shares of town s's working hands (ext 'magicJobs'). */

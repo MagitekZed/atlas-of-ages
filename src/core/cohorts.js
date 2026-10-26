@@ -139,6 +139,22 @@ export function stableShape(d, r, out = new Array(NC)) {
   return out;
 }
 
+/**
+ * Life expectancy at birth, in years, of the default schedules at crude death rate d growing at r
+ * (the reference shape's hazards c·M[b], each band left at the ageing pace): the statistics'
+ * "as if this year's death rates held".
+ */
+export function lifeExpectancy(d, r) {
+  const sh = new Array(NC);
+  const lam = 1 + Math.max(0, r) / 12;
+  let lo = 1e-8, hi = 0.08;
+  for (let k = 0; k < 44; k++) { const mid = (lo + hi) / 2; if (stable(mid, lam, sh) < d) lo = mid; else hi = mid; }
+  const c = (lo + hi) / 2;
+  let E = 1 / (c * M[NB - 1]);   // months left in the open band
+  for (let b = NB - 2; b >= 0; b--) E = (1 + AGE_G * E) / (c * M[b] + AGE_G);
+  return E / 12;
+}
+
 const dot = (w, n) => { let s = 0; for (let i = 0; i < NC; i++) s += w[i] * n[i]; return s; };
 const span = (n, o, lo, hi) => { let s = 0; for (let b = lo; b <= hi; b++) s += n[o + b]; return s; };
 
@@ -822,6 +838,42 @@ export function cohortSummary(c, era = 0, lifeOf = null) {
   out.median = (lo + hi) / 2;
   return out;
 }
+
+/** A town's cohorts summed by band into out (34 numbers; a set's peoples by their own stages of life). Returns the total. */
+export function bandTotals(c, out) {
+  out.fill(0);
+  if (!c) return 0;
+  let tot = 0;
+  for (const t of isSet(c) ? Object.values(c) : [c]) {
+    if (!isTable(t)) continue;
+    for (let i = 0; i < NC; i++) { out[i] += t[i]; tot += t[i]; }
+  }
+  return tot;
+}
+
+/**
+ * The young (15–24) and the old (65 and over) of a town's cohorts as shares of it, into a shared
+ * object ({ youth, elders }, valid until the next call; zeros without a table). A set's peoples
+ * by their own stages of life.
+ */
+const AGES = { youth: 0, elders: 0 };
+export function ageShares(c) {
+  AGES.youth = 0; AGES.elders = 0;
+  if (!c) return AGES;
+  let y = 0, e = 0, tot = 0;
+  for (const t of isSet(c) ? Object.values(c) : [c]) {
+    if (!isTable(t)) continue;
+    y += t[3] + t[4] + t[NB + 3] + t[NB + 4];
+    for (let b = 13; b < NB; b++) e += t[b] + t[NB + b];
+    tot += total1(t);
+  }
+  if (tot > 0) { AGES.youth = y / tot; AGES.elders = e / tot; }
+  return AGES;
+}
+/** The event deck's lean for a youth bulge (15–24 above 20 %): × up to 1.2 on riots, revolts and border skirmishes. */
+export const youthLean = (youth) => 1 + Math.min(0.2, 2 * Math.max(0, youth - 0.2));
+/** …and for an ageing town (65+ above 8 %): × up to 1.2 on festivals and great works, ÷ as much on riots. */
+export const eldersLean = (elders) => 1 + Math.min(0.2, 2 * Math.max(0, elders - 0.08));
 
 /** Band labels for display. */
 export const BAND_LABELS = Array.from({ length: NB }, (_, b) => (b === NB - 1 ? '80+' : `${5 * b}–${5 * b + 4}`));

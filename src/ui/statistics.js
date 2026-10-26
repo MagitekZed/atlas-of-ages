@@ -114,7 +114,11 @@ export function createStatistics(app) {
   const tradeC = new TimeChart({ title: 'Trade roads', sub: 'in use each year', height: 96, intTicks: true, yFormat: (v) => F.int(v), tipFormat: (v) => F.int(v), ...C0 });
   const wealthC = new TimeChart({ title: 'The wealth of nations', sub: 'treasuries in all', height: 96, yFormat: F.axis, tipFormat: (v) => F.money(v), ...C0 });
   const landUse = new TimeChart({ title: 'Land use', sub: 'share of all land', height: 110, yFormat: (v) => Math.round(v * 100) + '%', tipFormat: (v) => F.pct(v, 1), ...C0 });
-  const charts = [pop, stack, toll, pulse, tempC, seaC, co2C, skyC, life, fishC, scars, conflict, townsC, urbC, faithC, tradeC, wealthC, landUse];
+  // the world's people by age and trade (yearly record .people, sim/civ/peoplenews.js)
+  const agesC = new TimeChart({ title: 'Ages', sub: 'median age · life expectancy at birth, years', height: 100, yFormat: (v) => F.int(v), tipFormat: (v) => v.toFixed(1) + ' years', ...C0 });
+  const vitalC = new TimeChart({ title: 'Births and deaths', sub: 'a year per 1,000 people (deaths of age, sickness, hunger and feuds; war and plague above)', height: 100, yFormat: (v) => F.int(v), tipFormat: (v) => v.toFixed(1) + ' ‰', ...C0 });
+  const workC = new TimeChart({ title: 'Working hands by trade', sub: 'share of all working hands', height: 130, mode: 'stack', yFormat: (v) => Math.round(v * 100) + '%', tipFormat: (v) => F.pct(v, 1), ...C0 });
+  const charts = [pop, stack, toll, pulse, tempC, seaC, co2C, skyC, life, fishC, scars, conflict, townsC, urbC, faithC, agesC, vitalC, workC, tradeC, wealthC, landUse];
   const logBtn = h('button.chip', { type: 'button', text: 'Log scale', 'aria-pressed': String(logPop) });
   tip(logBtn, 'Show the population on a logarithmic scale, so the first tribal centuries read as clearly as the great empires.');
   logBtn.addEventListener('click', () => { logPop = !logPop; setPref('records.statsLog', logPop); logBtn.setAttribute('aria-pressed', String(logPop)); pop.setLog(logPop); });
@@ -129,6 +133,7 @@ export function createStatistics(app) {
     h('h4.rule-head', { text: 'Climate' }), tempC.el, seaC.el, co2C.el, skyC.el,
     h('h4.rule-head', { text: 'Life' }), life.el, fishC.el, scars.el,
     h('h4.rule-head', { text: 'Peoples' }), conflict.el, townsC.el, urbC.el, faithC.el,
+    h('h4.rule-head', { text: 'Ages and trades' }), agesC.el, vitalC.el, workC.el,
     h('h4.rule-head', { text: 'Trade and wealth' }), tradeC.el, wealthC.el, landUse.el,
   );
   const tableBox = h('div.table-wrap', { hidden: true });
@@ -296,6 +301,22 @@ export function createStatistics(app) {
     const ftop = [...fpeak.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([rid]) => rid);
     faithC.el.hidden = !ftop.length;
     if (ftop.length) faithC.setData({ xs, series: ftop.map((rid) => { const r = w.religions[rid]; return { label: r ? F.headName(r.name) + (r.alive === false ? ' †' : '') : 'A faith', color: r?.colorHex || C[3], values: ys.map((q) => fin(q.rel?.[rid])) }; }) });
+    const pp = (k) => ys.map((r) => (Number.isFinite(r.people?.[k]) ? r.people[k] : NaN));
+    agesC.setData({ xs, series: [{ label: 'Median age', color: C[0], values: pp('med') }, { label: 'Life expectancy at birth', color: C[3], values: pp('le') }] });
+    vitalC.setData({ xs, series: [{ label: 'Births', color: C[1], values: pp('bpk') }, { label: 'Deaths', color: C[2], values: pp('dpk') }] });
+    // the trades in groups (jobs.js order), per mille → shares
+    const tr = (idx) => ys.map((r) => { const t = r.people?.tr; return Array.isArray(t) ? idx.reduce((a, k) => a + (t[k] || 0), 0) / 1000 : NaN; });
+    const magic = tr([11, 12, 13, 14]);
+    workC.setData({ xs, series: [
+      { label: 'Farmers, herders and fishers', color: C[1], values: tr([0, 1, 2]) },
+      { label: 'Craftsmen, miners and builders', color: C[0], values: tr([3, 4, 9]) },
+      { label: 'Merchants', color: C[3], values: tr([5]) },
+      { label: 'Clergy and scholars', color: '#b884d8', values: tr([7, 8]) },
+      { label: 'Soldiers', color: C[2], values: tr([6]) },
+      { label: 'Labourers', color: 'rgba(143,136,119,0.75)', values: tr([10]) },
+      // the magical trades only where the world has them (Mythic)
+      ...(magic.some((v) => v > 0) ? [{ label: 'Magical trades', color: '#a98be6', values: magic }] : []),
+    ] });
     tradeC.setData({ xs, series: [{ label: 'Trade roads', color: C[0], values: col('routes') }] });
     wealthC.setData({ xs, series: [{ label: 'Treasuries', color: C[1], values: col('wealth') }] });
     landUse.setData({ xs, series: [

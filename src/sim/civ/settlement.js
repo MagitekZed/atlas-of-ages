@@ -50,6 +50,7 @@ import { allowedLevel, progressProject, buildingSmods } from './buildings.js';
 import { buildingDef } from './data.js';
 import { routeMigrants, trySettlers } from './expansion.js';
 import { updateJobs, J } from './jobs.js';
+import { peopleMonthly, peopleYearly } from './peoplenews.js';
 import { fin, div, record, rateOk, civCache, ensureSettlementFields, touched } from './state.js';
 import { theName, peopleOf, pick, peopleCount, seasonWord, approx } from './prose.js';
 
@@ -205,6 +206,9 @@ export function updateSettlement(world, s, civ, cctx) {
   landUseAndGrowth(world, s, civ, cctx, X);
   settleCohorts(s);
   if (COHORT_DEV.verify && s.alive) verifyCohorts(world, s);
+  // the town's people in the Chronicle (peoplenews.js): the month's tallies, the year in its own month
+  peopleMonthly(world, s, X, X.cm);
+  if (monthOf(world) === s.id % 12) peopleYearly(world, s, civ);
 }
 
 /** Season of the harvest, the catchment's potentials (rescanned quarterly) and buildings. */

@@ -11,7 +11,7 @@
 
 import { civSettlements, killCiv } from '../../core/entities.js';
 import { monthOf } from '../../core/world.js';
-import { ruleOf, levyBase, scratchSlice, isSet, takePeople, addPeople } from '../../core/cohorts.js';
+import { ruleOf, levyBase, scratchSlice, isSet, takePeople, addPeople, ageShares } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR as DPY, RESOURCES } from '../../core/constants.js';
 import { refreshMods, researchMonthly, hasTech, getMods } from './tech.js';
 import { targetTax, evaluateGovernment, styleName, canReformNow } from './government.js';
@@ -52,12 +52,13 @@ export function aggregate(world, civ) {
   let k = 0;
   const mods = getMods(world, civ);
   const levy = ruleOf(world, 'levy', civ);
-  let levyPop = 0, sch = 0;
+  let levyPop = 0, sch = 0, youth = 0;
   for (const s of ss) {
     const p = Math.max(0, fin(s.population));
     pop += p; wealth += fin(s.wealth); culture += fin(s.culture);
     levyPop += levyBase(s, levy);
     sch += p * fin(s.flags?.sch, 1);
+    youth += p * ageShares(s.cohorts).youth;
     happy += p * fin(s.happiness, 0.5); loyal += p * fin(s.loyalty, 0.5); unrest += p * fin(s.unrest);
     if (civ.stateReligion != null && s.dominantReligion != null && s.dominantReligion !== civ.stateReligion) faithOff += p;
     if (fin(s.flags?.assim, 1) < 0.5) foreign += p;
@@ -75,7 +76,7 @@ export function aggregate(world, civ) {
   }
   const n = ss.length;
   return {
-    ss, sms, n, nEff, cap, pop, levyPop,
+    ss, sms, n, nEff, cap, pop, levyPop, youth: div(youth, pop, 0),
     wealth, culture,
     avgHappy: div(happy, pop, 0.5), avgLoyal: div(loyal, pop, 0.5), avgUnrest: div(unrest, pop, 0),
     // research: the towns' own modifiers, and their scholars against an unbuilt town's (jobs.js, ±10 %)
@@ -209,6 +210,8 @@ export function monthlyCiv(world, civ) {
   // manpower: 3 % of the people, counted by those the realm's levy rule names (by default the
   // young men) against the town's reference shape (core/cohorts.js levyBase)
   civ.military.manpower = agg.levyPop * 0.03 * mods.military;
+  civ.flags.mpr = agg.pop > 0 ? Math.round(agg.levyPop / agg.pop * 1000) / 1000 : 1;   // its young men against its people (peoplenews.js manpowerReason)
+  civ.flags.yth = Math.round(agg.youth * 1000) / 1000;   // its share of 15–24s (the event deck's youth lean)
   civ.military.strength = Math.round(armyStrength(world, civ.id));
 
   researchMonthly(world, civ, agg);

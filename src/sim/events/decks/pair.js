@@ -8,6 +8,7 @@
 // arrangeMarriage when it exists.
 
 import { registerEvent } from '../../../core/events.js';
+import { youthLean } from '../../../core/cohorts.js';
 import { addOpinion, rel, areAtWar } from '../../../core/entities.js';
 import { DAYS_PER_YEAR } from '../../../core/constants.js';
 import { record, heat, effect, T, marry, evState } from '../engine.js';
@@ -43,7 +44,9 @@ registerEvent({
   label: 'Border skirmish', icon: 'battle', hint: ['opinion −6, grievance +5', 'feud: war grows likelier'],
   weight(ctx) {
     if (!peaceable(ctx) || !(ctx.ra && ctx.ra.border > 0) || op(ctx.ra) > 20) return 0;
-    return 0.015 * (1 + ctx.heat('feud')) * (1 + Math.max(0, Math.min(1, ctx.ra.tension || 0)));
+    // a realm full of restless young men is quicker to blows (its youth share, civ.flags.yth)
+    const yl = Math.max(youthLean(ctx.a.flags?.yth || 0), youthLean(ctx.b.flags?.yth || 0));
+    return 0.015 * (1 + ctx.heat('feud')) * (1 + Math.max(0, Math.min(1, ctx.ra.tension || 0))) * yl;
   },
   fire(ctx) {
     const { world, a, b } = ctx;

@@ -706,6 +706,9 @@ svg.pyramid .pyr-m { fill: var(--brass); }
 svg.pyramid .pyr-f { fill: var(--verdigris); }
 svg.pyramid .pyr-age { fill: var(--ink-3); font-family: var(--font-ui); font-size: 8.5px; font-variant-numeric: tabular-nums; }
 svg.pyramid .pyr-key { fill: var(--ink-3); font-family: var(--font-sc); font-size: 9.5px; letter-spacing: .07em; }
+svg.pyramid .pyr-mark { fill: none; stroke: var(--brass-hi); stroke-width: 1; stroke-dasharray: 3 2; }
+.pyr-hollow { margin: 0; font-size: var(--t-small); color: var(--ink-2); font-style: italic; }
+.pyr-hollow:empty { display: none; }
 .pyr-peoples { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: var(--t-small); color: var(--ink-2); }
 .pyr-peoples:empty { display: none; }
 .pyr-people { display: inline-flex; gap: 6px; align-items: center; }

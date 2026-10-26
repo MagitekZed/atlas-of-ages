@@ -648,6 +648,34 @@ New heat tags for the event deck:
 
 Both are small (×1.2 at most) and decay like all heat.
 
+**As built (phase 4, `src/sim/civ/peoplenews.js`):**
+- **The yearly check.** Each town is checked once a year, in its own month (`s.id mod 12`), and
+  tells at most one mark.
+  - It works from monthly tallies on `s.flags`: births this year, dead in feuds this year, and
+    months running that the fields have been short of hands.
+  - A boom compares the town's birth rate per head with its own ten-year average.
+- **The hollow** is measured on the men alone. A ten-year span of men aged 15–44 under 60 % of
+  the spans either side counts.
+  - Wars kill men, and the sexes together barely showed a gap: a war that takes a third of the
+    young men leaves the span only about 17 % short.
+  - The cause named is the realm's bloodiest war of the last 60 years, or "the great sickness"
+    if the town has known plague.
+  - The hollow is kept on `s.flags.hollow`, so the pyramid marks the gap as it ages ("The gap at
+    35–44: the Saqaq War.").
+- **A seventh entry, `people.feuds`** (Mythic): a people's in-fighting killed 0.6 % of its town in
+  a year, named for the town's main people.
+- **Rate limits.** Once per town per 40 years and about three a realm a century, as designed,
+  plus a world-wide limit per kind: once in 12 years for the stronger marks, once in 6 for youth,
+  ageing and feuds. Without it a 600-year world told 64 tales of widows.
+- **Text** is chosen by the town and the year, never by `world.rng`.
+- **Youth and elders** are read straight from the age bands rather than kept as heat. The event
+  weights ask `ageShares`, `youthLean` and `eldersLean` in `src/core/cohorts.js`:
+  - Riots and guild revolts get × the town's youth lean ÷ its elders lean.
+  - Festivals and great works get × the elders lean.
+  - Border skirmishes get × the stronger youth lean of the two realms (`civ.flags.yth`, monthly).
+  - The effect is the same, up to ×1.2, with no state to save or decay, and the age structure
+    changes slowly enough that heat's memory adds nothing.
+
 ## Interface
 
 - **Town dossier, new "People" section.**
@@ -665,6 +693,17 @@ Both are small (×1.2 at most) and decay like all heat.
   - births and deaths per thousand
   - life expectancy at birth (computed from the death schedule)
   - the share in each trade
+
+  *As built:* world series only, in the yearly record (ext `yearRecord` → `rec.people`) and three
+  charts in the Statistics tab:
+  - Ages: median age and life expectancy at birth, from the reference shape's hazards at the
+    year's natural death and growth rates.
+  - Births and deaths per 1,000, natural only. War and plague have their own charts.
+  - Working hands by trade, in groups.
+
+  Realm series would change the shape of the saved entity ledger, so the realm dossier shows the
+  realm's summed pyramid and trades instead, with a reason beside its manpower ("Few young men:
+  the hollow left by the Saqaq War").
 - **Map mode (optional, later).** "Ages": median age by town.
 
 ## Saves, keyframes and old worlds
@@ -846,6 +885,38 @@ Built on `sim/people-in-numbers`:
   A Historical world costs about 2.5 ms. Both are over the 2 ms budget: a speed pass is due
   before the chunk merges.
 - **Size.** Mythic towns save one 34-number table per people present (about three).
+
+## Phase 4 results (2026-10-25)
+
+Built on `sim/people-in-numbers`:
+- The town's people in the Chronicle (`src/sim/civ/peoplenews.js`, seven kinds).
+- The youth and elders leans in the event deck.
+- The world's ages, births and deaths, life expectancy and trades, in the yearly record and in
+  three Statistics charts.
+- The realm dossier's summed pyramid and trades, and the reason beside its manpower.
+- The pyramid marks a told hollow as it ages.
+
+- **Entries.** In a 600-year world: about 25 tales of widows and 25 of booms, ten of fields short
+  of hands, three to five hollows and a few of youth, ageing and (Mythic) feuds. That is about
+  one entry in eighty.
+- **Gates.** `npm test` passes. So do long Mythic trials on three seeds (`deep`, `trial`,
+  `amber`, 300 years) and a long Historical one.
+  - They caught a phase 3 bug. The beast-keepers' demand read a "beasts near this town" answer
+    cached for a year in `world.cache`, so a world continued from a save mid-year disagreed.
+  - The cache is now a coarse map of beasts rebuilt once a day, at its first use. That is the
+    same point of the same day in both runs.
+- **Calibration**, twelve worlds against main:
+
+  | | Population | Realms | Towns | Wars |
+  | --- | --- | --- | --- | --- |
+  | Historical, Year 500 | +6 % | −8 % | 0 % | −6 % |
+  | Historical, Year 1000 | +5 % | −7 % | −7 % | −7 % |
+  | Mythic, Year 500 | −38 % | +2 % | −14 % | −10 % |
+  | Mythic, Year 1000 | −16 % | −34 % | −13 % | −24 % |
+
+  - The leans move history a little; the rest is phase 3.
+  - One Mythic world ends Year 1000 with two great realms (the meadow seed). Main has 11 there,
+    and phase 3 had 9: a world where empires swallowed the rest.
 
 ## Decisions (2026-10-25)
 
