@@ -276,6 +276,89 @@ user's:
    in the ledger and the prose, tactics copied, the war dossier and battlefields.
 5. **Calibration, speed, gates and results**, then the Ledger and the Deep Dive.
 
+## Results (2026-10-26)
+
+Built in one go on `sim/war-machine` while the user was away, one commit per phase, with the
+questions kept for the end (below, "Open for the user").
+
+### Calibration
+
+Twelve worlds against main (the chunk 1 matrix), totals summed per group:
+
+| | Population | Realms | Towns | Wars | Time at war | Average war |
+| --- | --- | --- | --- | --- | --- | --- |
+| Historical, Year 500 | +11 % | +3 % | +2 % | +1 % | 17.3 → 17.9 % | 2.7 → 2.6 years |
+| Mythic, Year 500 | −15 % | +15 % | −5 % | 0 % | 12.9 → 13.6 % | 2.6 → 2.5 years |
+| Historical, Year 1000 | +3 % | −23 % | −4 % | +4 % | 24.2 → 24.5 % | 2.2 → 2.1 years |
+| Mythic, Year 1000 | −1 % | +77 % | +13 % | +92 % | 14.8 → 23.9 % | 2.1 → 2.1 years |
+
+No world came near failing (at least 5 realms and 125 towns everywhere at Year 1000).
+
+Over the twelve worlds by Year 1000:
+- **Battles and towns.** Battles +41 % (186,936 against 132,741) and towns taken +30 %.
+- **Money.** The median realm holds 20 years of income, against about 100 on main.
+  - A realm that mobilises fully pays about its income again in soldiers' pay. With two years of
+    income saved, it runs dry in about four years, as decision 1 asked; a richer one lasts longer.
+  - Realms at peace that raise levies still pile up money, as before (see open question 2).
+- **Debt.** 1,713 loans and 1,175 defaults, against 152 and 132 on main. About 3.3 million
+  soldiers deserted unpaid over the twelve worlds.
+- **Raising.** By Year 1000: 141 realms raise levies, 21 keep standing armies, 18 hire swords, and
+  none yet keeps a feudal host (Feudalism, the Medieval Age, is rarely reached by Year 1000). 143
+  standing regiments. One coup.
+
+### What changed while building
+
+- **Engineers** are measured against their era's usual share: an ordinary army sieges as before.
+  Making early armies without engineers 20 % slower had stalled captures.
+- **Pay** settled at PAY_K = 30: a levied soldier's month costs what 30 of the realm's subjects pay
+  in a month. 60 and 40 emptied treasuries within a year or two of most wars.
+- **Arrears** add to war weariness (+0.01 a month owed, up to 0.06), so a realm that cannot pay sues
+  for peace.
+- **Desertion** starts after two months unpaid, 1 % a month more each month, at most 3 %.
+- **Coups** are 0.6 % a month while a standing army is three months unpaid, and 0.3 % in a crisis
+  (stability below 0.25), never twice in twenty years. 2 % gave 19 coups in 200 years in one world.
+- **War loans** (chunk 3) are repaid once the war is over: nearly every loan taken at war
+  defaulted while the war still drained the treasury.
+- **A people's own way of war** keeps its own mounts (wolves, ponies) without Horseback Riding.
+- **Honours** name the battlefield ("the Shashaashic Guard, of the Crossing at Nuatl").
+- **Battle accounts** are kept as a small eighth entry on the war ledger's battle records.
+
+### Speed
+
+`tools/timeab.mjs`, 100 years from the Year-900 saves made on main:
+
+| | Main | Branch | |
+| --- | --- | --- | --- |
+| Historical | 133.1 ms | 140.2 ms | +5.3 % |
+| Mythic | 150.1 ms | 149.6 ms | −0.3 % |
+
+The chunk's own work (companies, pay, regiments, plans) is about 0.6 ms a sim-year. The rest of the
+Historical rise is the war system's ordinary work on more armies in the field (standing regiments
+and longer mobilisations): war 7.6 → 11.1 ms. This is over the +2 % budget (open question 3).
+
+### Gates and size
+
+All passing: `npm test` (determinism with and without the myth module, rewind, trial), `--trial` at
+myth level 2, the 300-year Mythic trials on seeds deep, trial and amber, the keyframe check and the
+cohort check. The chunk's own state in the Historical Year-1000 save is about 28 KB (companies 2 KB,
+the realms' war footing 16 KB, battle accounts 10 KB), against a budget of 150 KB.
+
+### Open for the user
+
+1. **Mythic worlds fragment and fight more:** realms +77 % and wars +92 % by Year 1000, with the share
+   at war rising from 15 % to 24 %, the world's own target (23 %). Historical worlds stay close.
+   - The cause is a loop: more wars, more weariness, lower stability, more secessions, more realms,
+     more wars. Main's Mythic worlds sat well below the target, so the loop had room to run.
+   - Halving the debt penalty to stability changed little (realms +72 %, wars +101 %).
+   - Keep it, or damp it (for example lighter weariness from arrears)?
+2. **Treasuries split in two.** Levy realms at peace still pile up decades or centuries of income,
+   because surplus is only spent on building projects, while a few realms are stuck broke: most war
+   loans still default, and desertion is heavy.
+   - Options: a spending outlet for a rich realm at peace (court, display, tribute; perhaps chunk 7),
+     softer loan terms, or leave it.
+3. **Speed:** Historical worlds +5.3 % against a +2 % budget, because more armies are in the field.
+   Accept, or look for savings in the war system?
+
 ## Decisions
 
 The user's choices, recorded when made:
