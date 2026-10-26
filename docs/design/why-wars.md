@@ -434,6 +434,84 @@ between phases. Stops happen only for decisions that are the user's.
 5. **Calibration and speed.** Twelve worlds against main; the gates; `timeab`; the design
    results recorded here.
 
+## Results (2026-10-26)
+
+Built in one go on `sim/why-wars`: one commit per phase, then a fix commit from the dossier check.
+
+### Calibration
+
+Twelve worlds against main (the chunk 1 matrix: atlas, vane, north-fen and deck at myth levels
+0 and 2, atlas at 1, meadow small at 2, orchid at 0, tern at 2), totals summed per group:
+
+| | Population | Realms | Towns | Wars | Time at war | Average war |
+| --- | --- | --- | --- | --- | --- | --- |
+| Historical, Year 500 | +9 % | +2 % | +2 % | −2 % | 16.0 → 17.1 % | 2.5 → 2.7 years |
+| Mythic, Year 500 | −2 % | +4 % | 0 % | −13 % | 14.0 → 13.1 % | 2.3 → 2.6 years |
+| Historical, Year 1000 | −4 % | +3 % | +6 % | +17 % | 21.1 → 23.7 % | 2.0 → 2.1 years |
+| Mythic, Year 1000 | −3 % | +7 % | −3 % | −14 % | 17.4 → 15.8 % | 2.0 → 2.1 years |
+
+No world came near failing: at least 4 realms and 98 towns in every world at both years.
+
+What the chunk adds, over the twelve worlds by Year 1000:
+- **Claims.** About 4.9 claims a realm. Wars of reconquest rose from 174 to 254.
+- **Aims.** Towns 2,120 (the prize and the towns claimed); subjugate 653; freedom 294; faith 211;
+  tribute 195; to humble 130; a crown 120; debts 4. "Aim met" ended 185 wars.
+- **Terms.** Hostages in 1,521 treaties, claims renounced in 1,155, harsh peaces 835,
+  reparations 670, faiths imposed 65, crowns joined 15.
+- **Memory.** About 1.5 memories a town. 12 towns opened their gates.
+- **Debt.** 145 loans and 130 defaults (most on reparations), 4 wars over debt.
+
+Holy wars fell from 318 to 211. Most of main's holy wars came from three worlds where one
+militant faith took hold, and those worlds went other ways here. Wars of liberation rose from
+226 to 263, following the vassals a war to subjugate makes.
+
+### Speed and size
+
+`tools/timeab.mjs`, 100 years from fresh Year-900 saves made on main (3 rounds; the two sides
+fight different wars, so the war system's share moves either way):
+
+| | Main | Branch | |
+| --- | --- | --- | --- |
+| Historical | 160.5 ms | 153.2 ms | −4.5 % |
+| Mythic | 171.5 ms | 170.4 ms | −0.6 % |
+
+The chunk's own cost is in diplomacy: claims, loans, houses and hostages, about +0.4 ms a
+sim-year. Save size: the chunk's own state is about 15 KB in the Historical Year-1000 save
+(claims 3 KB, memories 4 KB, aims and terms 9 KB, debts under 1 KB), against a budget of 100 KB.
+
+Gates, all passing: `npm test` (determinism with and without the myth module, rewind, trial),
+`--trial` at myth level 2, 300-year Mythic trials on seeds deep, trial and amber, the keyframe
+check and the cohort check.
+
+### Changes made while building
+
+- **Renounced claims linger.** Dropping a renounced claim outright cut claims to half a realm and
+  wars of reconquest to none. The crown's claim is now given up, but the memory stays at a third
+  of its strength and keeps fading.
+- **A towns aim is met** when every goal town still standing is held, or the first, the prize,
+  with a score above 30 (the old "goal taken").
+- **A towns aim records whether it is a reconquest** (`back`) at the declaration, so its words
+  stay true after the claims are renounced.
+- **Restoration wars** aim at the exiled house's home towns; the existing restoration path brings
+  the house back.
+- **Reparations** weigh like tribute: (terms − 30) / 20 years of the loser's income, capped at 3
+  years, paid over 8 to 15 years. They replace tribute for a war to humble or to recover debts,
+  and come on top of it at a score of 75 or more.
+- **A faith imposed at a peace** is kept by the crown while the truce lasts (`flags.faithHeld`).
+- **One hostage per realm at a time.** A realm that lost two wars was giving the same heir to both.
+- **Loading** reshapes records whose fields appear in the shape's order with gaps, not only as a
+  prefix. A new field in the middle (`landClaims`, `mem`) would otherwise leave every record of an
+  older save in a slower shape, and a town that gains its first memory after a load would save its
+  fields in another order than an unbroken run.
+
+### Left for later
+
+- **Loans are rarer than the design hoped.** Treasuries run very full: armies cost only a one-off
+  levy fee, expenses are a flat third of income, and surplus goes only to building projects, so
+  most realms hold years of income and seldom need to borrow. Debt shows mostly as reparations
+  and their defaults. The user's note (2026-10-26): chunk 2 should make armies cost money every
+  month, so war drains treasuries and loans follow on their own.
+
 ## Decisions
 
 The user's choices, recorded when made:
