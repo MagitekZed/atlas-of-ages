@@ -151,8 +151,8 @@ function maxId(list) { let m = 0; for (const o of list) if (o && Number.isFinite
 // hidden class and the code that walks them stays monomorphic. A record from a save (or a
 // keyframe) lacks the fields that were undefined when it was saved; normalizeWorld rebuilds it
 // through these literals — the same keys in the same order, hence the same class — but only
-// when its keys are a prefix of that order, so its saved key order and the place of every field
-// set later stay exactly what they were (undefined is never saved). Keep in step with entities.js.
+// when its keys appear in that order (gaps allowed), so every field set later takes the place it
+// has in a record never saved (undefined is never saved). Keep in step with entities.js.
 const CIV_SHAPE = (c) => ({
   id: c.id, alive: c.alive, name: c.name, baseName: c.baseName, adjective: c.adjective, language: c.language, race: c.race,
   hue: c.hue, color: c.color, colorHex: c.colorHex, foundedDay: c.foundedDay, fallenDay: c.fallenDay, fallCause: c.fallCause,
@@ -162,7 +162,7 @@ const CIV_SHAPE = (c) => ({
   stability: c.stability, legitimacy: c.legitimacy, warWeariness: c.warWeariness, prestige: c.prestige, military: c.military,
   relations: c.relations, allies: c.allies, vassalOf: c.vassalOf, stateReligion: c.stateReligion, goldenAge: c.goldenAge,
   darkAge: c.darkAge, population: c.population, territory: c.territory, wealth: c.wealth, peakPopulation: c.peakPopulation,
-  peakTerritory: c.peakTerritory, effects: c.effects, effectsV: c.effectsV, style: c.style, claims: c.claims, flags: c.flags,
+  peakTerritory: c.peakTerritory, effects: c.effects, effectsV: c.effectsV, style: c.style, claims: c.claims, landClaims: c.landClaims, flags: c.flags,
   culture: c.culture, temperLog: c.temperLog, arcane: c.arcane,
 });
 const SETTLEMENT_SHAPE = (s) => ({
@@ -176,15 +176,24 @@ const SETTLEMENT_SHAPE = (s) => ({
   race: s.race, effects: s.effects, effectsV: s.effectsV, traits: s.traits, epithet: s.epithet, legend: s.legend,
   hist: s.hist, own: s.own, flags: s.flags, cohorts: s.cohorts,
   project: s.project, farmland: s.farmland, growth: s.growth, capacity: s.capacity,
-  foodImport: s.foodImport, emigrants: s.emigrants, taxes: s.taxes, jobs: s.jobs,
+  foodImport: s.foodImport, emigrants: s.emigrants, taxes: s.taxes, jobs: s.jobs, mem: s.mem,
   peoples: s.peoples, peoplesPast: s.peoplesPast,
 });
 const CIV_KEYS = Object.keys(CIV_SHAPE({})), SETTLEMENT_KEYS = Object.keys(SETTLEMENT_SHAPE({}));
-/** rec through shape when its own keys are a prefix of keys, else rec itself. */
+/**
+ * rec through shape when its own keys appear in keys in the same order (a prefix, or with gaps
+ * where a field was unset when saved, or is newer than the save), else rec itself. Every key
+ * keeps its place relative to the others, so a gap is only a field the record did not hold.
+ */
 function reshape(rec, keys, shape) {
   const ks = Object.keys(rec);
   if (ks.length > keys.length) return rec;
-  for (let j = 0; j < ks.length; j++) if (ks[j] !== keys[j]) return rec;
+  let j = 0;
+  for (const k of ks) {
+    while (j < keys.length && keys[j] !== k) j++;
+    if (j === keys.length) return rec;
+    j++;
+  }
   return shape(rec);
 }
 
@@ -240,6 +249,8 @@ export function normalizeWorld(world) {
     if (!('style' in c)) c.style = null;
     if (!c.claims || typeof c.claims !== 'object') c.claims = {};
     civs[n] = reshape(c, CIV_KEYS, CIV_SHAPE);
+    // newer than many saves: set after the reshape, so it takes its place in the shape
+    if (!civs[n].landClaims || typeof civs[n].landClaims !== 'object') civs[n].landClaims = {};
   }
   for (let n = 0; n < settlements.length; n++) {
     const s = settlements[n];

@@ -17,6 +17,11 @@ import { sitesNear, SITE_KINDS } from '../core/sites.js';
 import { NB, NC, cohortSummary, isSet, ratesOf } from '../core/cohorts.js';
 import { NJ, TRADE_LABELS } from '../sim/civ/jobs.js';
 import { manpowerReason } from '../sim/civ/peoplenews.js';
+import { claimantsOf, claimsOfCiv, CLAIM_WHY } from '../sim/geo/claims.js';
+import { aimWords } from '../sim/geo/terms.js';
+import { memoriesOf, MEM_WHY } from '../sim/geo/memory.js';
+import { loansOf, housesOf, houseName } from '../sim/geo/debt.js';
+import { hostagesOf } from '../sim/geo/terms.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -745,6 +750,24 @@ function settlementView(app, sel, b) {
     const c = w.civs[o.civId];
     return { key: `${o.day}:${o.civId}:${o.code}:${k}`, swatch: c?.colorHex || 'var(--ink-4)', node: c ? linkBtn(app, { kind: 'civ', id: c.id }, c.name, { strike: !c.alive }) : textNode('A forgotten people'), n: F.year(o.day), s: F.ownHow(o.code) };
   }), 'Its holders are not recorded.', app);
+  // realms that claim the town (geo/claims.js)
+  const claimRows = rows(b, () => claimantsOf(w, s).map((q) => ({
+    key: `cl${q.civ.id}:${Math.round(q.w * 20)}`, swatch: q.civ.colorHex, node: linkBtn(app, { kind: 'civ', id: q.civ.id }, q.civ.name),
+    n: claimWord(q.w), s: claimHow(w, q),
+  })), 'No one claims it.', app);
+  const claimSec = section('Claimed by', claimRows);
+  b.hide(claimSec, () => !claimantsOf(w, s).length);
+  // what it remembers of other realms (geo/memory.js)
+  const memSec = section('Remembers', rows(b, () => memoriesOf(w, s).map((m) => {
+    const c = w.civs[m.civId];
+    const how = MEM_WHY[m.why] || 'remembers';
+    return {
+      key: `m${m.civId}:${m.why}:${m.day}:${Math.round(m.v * 10)}`, swatch: c?.colorHex || 'var(--ink-4)',
+      label: `${how[0].toUpperCase() + how.slice(1)} ${c ? c.name : 'a forgotten realm'}`, sel: c ? { kind: 'civ', id: c.id } : null,
+      n: 'Y' + yearOf(m.day), s: m.v <= -0.45 ? 'a bitter memory' : m.v < 0 ? 'a grudge' : m.v >= 0.45 ? 'a warm memory' : 'gratitude',
+    };
+  }), 'Nothing it holds against anyone.', app));
+  b.hide(memSec, () => !memoriesOf(w, s).length);
   const story = rows(b, () => settlementStory(w, s).map((it) => ({ key: it.key + it.text, icon: it.key.startsWith('o') ? 'crown' : 'chronicle', label: it.text, n: it.day != null ? 'Y' + yearOf(it.day) : '', sel: it.sel })), 'An uneventful life, so far.', app);
   const near = rows(b, () => siteItems(app, s.x, s.y, 3.5), 'No battlefields or ruins nearby.', app);
   const nearSec = section('Remembered nearby', near);
@@ -774,6 +797,8 @@ function settlementView(app, sel, b) {
     section('Its life', ledgerChart(app, b, 's', s.id, { marks: conquestMarks, color: civ()?.colorHex })),
     hideFor(b, () => !s.alive || !s.cohorts, section('People', agePyramid(app, b, townPeople(app, s)))),
     section('Chain of title', titleBar(app, b, s), chain),
+    claimSec,
+    memSec,
     section('Story', story),
     // a ruin has no livelihood: its last day's cares are not shown as if they were today's
     hideFor(b, () => !s.alive, section('Livelihood', kv(b, [
@@ -1238,6 +1263,34 @@ function civView(app, sel, b) {
   const figs = rows(b, () => w.figures.filter((q) => q.civId === c.id).slice(-10).reverse().map((q) => figureItem(w, q)), 'No great people are remembered.', app);
   const figSec = section('Great people', figs);
   b.hide(figSec, () => !w.figures.some((q) => q.civId === c.id));
+  // towns it claims (geo/claims.js)
+  const claimsSec = section('Claims', rows(b, () => claimsOfCiv(w, c).map((q) => {
+    const holder = w.civs[q.s.civId];
+    return {
+      key: `cl${q.s.id}:${q.s.civId}:${Math.round(q.w * 20)}`, icon: 'scroll', label: q.s.name, sel: { kind: 'settlement', id: q.s.id },
+      n: claimWord(q.w), s: [claimHow(w, q), q.s.alive && holder ? `held by ${holder.name}` : ''].filter(Boolean).join(' · '),
+    };
+  }), 'It claims no lost towns.', app));
+  b.hide(claimsSec, () => !claimsOfCiv(w, c).length);
+  // what it owes and is owed, its banking houses, and the hostages it holds or has given (debt.js, terms.js)
+  const lenderName = (from) => { if (from >= 0) return w.civs[from]?.name || 'a forgotten realm'; const hs = w.sys.diplomacy?.houses || []; const hh = hs.find((q) => q.id === -1 - from); return hh ? houseName(w, hh) : 'a banking house'; };
+  const debtItems = () => {
+    const out = [];
+    for (const l of loansOf(w, c.id)) {
+      const owes = l.to === c.id;
+      const other = owes ? lenderName(l.from) : w.civs[l.to]?.name || 'a forgotten realm';
+      const what = l.kind === 'reparations' ? 'reparations' : `${Math.round(l.rate * 100)} %`;
+      out.push({ key: `d${l.id}:${Math.round(l.owed)}:${l.arrears}`, icon: 'coin', label: owes ? `Owes ${other}` : `Owed by ${other}`, n: F.money(l.owed), s: [what, l.arrears ? `${l.arrears} months behind` : ''].filter(Boolean).join(' · '), sel: l.from >= 0 || !owes ? { kind: 'civ', id: owes ? l.from : l.to } : null });
+    }
+    for (const hh of housesOf(w, c.id)) out.push({ key: `h${hh.id}:${Math.round(hh.capital)}`, icon: 'coin', label: houseName(w, hh).replace(/^the /, 'The '), n: F.money(hh.capital), s: 'a banking house', sel: { kind: 'settlement', id: hh.seat } });
+    for (const q of hostagesOf(w, c.id)) {
+      const held = q.at === c.id;
+      out.push({ key: `q${q.civ}:${q.at}:${q.since}`, icon: 'crown', label: held ? `Holds ${q.name} of ${w.civs[q.civ]?.name || 'a fallen realm'}` : `${q.name} held by ${w.civs[q.at]?.name || 'a fallen realm'}`, n: 'until Y' + yearOf(q.until), s: 'a hostage', sel: { kind: 'civ', id: held ? q.civ : q.at } });
+    }
+    return out;
+  };
+  const debtSec = section('Debts and hostages', rows(b, debtItems, 'It owes no one.', app));
+  b.hide(debtSec, () => !debtItems().length);
 
   return h('div.tabpanel', null,
     title(b, { color: c.colorHex, name: () => c.name, sub: () => `${F.titleCase(c.government || 'tribe')} · ${F.eraName(c.tech?.era)}`, actions: standardActions(app) }),
@@ -1292,6 +1345,8 @@ function civView(app, sel, b) {
       { k: 'Known', v: () => { const n = Object.keys(c.tech?.known || {}).length; const T = techMod?.TECHS; const total = Array.isArray(T) ? T.length : T ? Object.keys(T).length : 0; return total ? `${n} of ${total}` : String(n); } },
     ]), techBox, modsBox),
     section('Relations', relations),
+    claimsSec,
+    debtSec,
     section('Wars', warList),
     section('Settlements', townList),
     figSec,
@@ -1448,6 +1503,17 @@ function warTransfers(w, war) {
   return out;
 }
 
+/** A claim's strength in words. */
+function claimWord(v) { return v >= 0.66 ? 'Strong' : v >= 0.33 ? 'Living' : 'Fading'; }
+/** Why and since when a realm claims a town: "Lost it in war, Y612", "Founded it; lost Y640", "Inherited from Varn, Y700". */
+function claimHow(w, q) {
+  const from = q.why === 'i' && q.from != null ? w.civs[q.from] : null;
+  if (from) return `Inherited from ${from.name}, Y${yearOf(q.since)}`;
+  if (q.why === 'f') return `Founded it; lost Y${yearOf(q.since)}`;
+  const how = CLAIM_WHY[q.why] || 'claims it';
+  return `${how[0].toUpperCase() + how.slice(1)}, Y${yearOf(q.since)}`;
+}
+
 /** "The 14th war between these realms; the Varathi have won 9." */
 function rivalryLine(w, war) {
   const a = war.attackers[0], d = war.defenders[0];
@@ -1520,8 +1586,16 @@ function warView(app, sel, b) {
     { k: 'Returned', ref: () => termsRef(app, g().terms?.returned), hide: () => !g().terms?.returned?.length },
     { k: 'Tribute', v: () => (g().terms?.tribute ? (typeof g().terms.tribute === 'number' ? F.num(g().terms.tribute, 1) + ' a month' : 'Yes') : 'None'), hide: () => !g().terms },
     { k: 'Vassalage', v: () => (g().terms?.vassal ? 'The loser bent the knee' : 'None'), hide: () => !g().terms },
+    { k: 'Reparations', v: () => F.money(g().terms.reparations), hide: () => !g().terms?.reparations },
+    { k: 'Hostage', v: () => `${g().terms.hostage}, the loser’s heir`, txt: true, hide: () => !g().terms?.hostage },
+    { k: 'Crown', v: () => 'The victor’s ruler was crowned there too', txt: true, hide: () => !g().terms?.crown },
+    { k: 'Faith imposed', ref: () => religionRef(app, g().terms.faith), hide: () => g().terms?.faith == null },
+    { k: 'Claims given up', v: () => g().terms.renounced.join(', '), txt: true, hide: () => !g().terms?.renounced?.length },
+    { k: 'A harsh peace', v: () => 'Yes: it will not be forgiven', txt: true, hide: () => !(g().terms?.harsh > 0.5) },
     { k: 'Cause', v: () => F.humanize(war.cause || 'conquest') },
-    { k: 'War aim', ref: () => settleRef(app, g().goalSid), hide: () => g().goalSid == null },
+    { k: 'Attackers’ aim', v: () => aimWords(w, war, 1) || '—', txt: true, hide: () => !aimWords(w, war, 1) },
+    { k: 'Defenders’ aim', v: () => aimWords(w, war, -1) || '—', txt: true, hide: () => !g().aims },
+    { k: 'Prize', ref: () => settleRef(app, g().goalSid), hide: () => g().goalSid == null },
     { k: 'Began', v: () => dateString(w, war.startDay) },
     { k: 'Ended', v: () => (war.endDay != null ? dateString(w, war.endDay) : '—') },
   ]);
@@ -1590,7 +1664,7 @@ function warView(app, sel, b) {
   const parts = new Set([...war.attackers, ...war.defenders]);
   return h('div.tabpanel', null,
     title(b, { icon: 'war', name: () => war.name, sub: () => (war.active ? `Ongoing for ${F.span(w.time.day - war.startDay)}` : `${F.lifespan(war.startDay, war.endDay)}`), actions: standardActions(app) }),
-    (() => { const p = h('p.ins-lead'); b.text(p, () => `Begun in ${F.year(war.startDay)} over ${F.humanize(war.cause || 'conquest').toLowerCase()}${g().goalSid != null && w.settlements[g().goalSid] ? `, its prize ${w.settlements[g().goalSid].name}` : ''}. ${war.active ? 'The fighting continues.' : F.outcomeName(war.outcome) + '.'}`); return p; })(),
+    (() => { const p = h('p.ins-lead'); b.text(p, () => `Begun in ${F.year(war.startDay)} over ${F.humanize(war.cause || 'conquest').toLowerCase()}${g().aims && aimWords(w, war, 1) ? `: ${aimWords(w, war, 1).replace(/^./, (c) => c.toLowerCase())}` : g().goalSid != null && w.settlements[g().goalSid] ? `, its prize ${w.settlements[g().goalSid].name}` : ''}. ${war.active ? 'The fighting continues.' : F.outcomeName(war.outcome) + '.'}`); return p; })(),
     rivalry,
     cells(b, [
       { k: 'Battles', v: () => F.int(war.battles || 0) },

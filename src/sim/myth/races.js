@@ -51,6 +51,8 @@ export const isMythic = (w) => w != null && w.params != null && w.params.mythLev
  * strife: how the people fights among itself (core/cohorts.js in-fighting): k extra deaths a year
  * in a town wholly of that people (less as it shares the town), and who dies: its young men, its
  * men and women of fighting age ('adults') or young and old alike ('all');
+ * memory: how long the people remembers, in years (e-folding): a town's grudges and gratitude
+ * (geo/memory.js) and a realm's claims on lost towns and on towns it founded (geo/claims.js);
  * elder: an old race that wakes first when magic returns; blurb: one line for the Inspector;
  * identity: the race's character and gifts in a few plain clauses (Legends race cards).
  */
@@ -58,6 +60,7 @@ export const RACES = {
   human: {
     key: 'human', life: 1, birth: 1, mortality: 1, elder: false, school: 'wizardry', adapt: 2, jitter: 1.4,
     strife: { k: 0.003, who: 'youngMen' },   // brawls and blood feuds among the young men
+    memory: { grudge: 40, thanks: 25, claim: 60, founded: 120 },   // remembers within two generations
     temper: { innovation: 0.12, expansion: 0.08, commerce: 0.05 },
     mods: { trade: 0.05, research: 0.06, expansionRange: 1 },
     blurb: 'Short-lived, restless and everywhere: the people who change, and who learn from everyone they meet.',
@@ -70,6 +73,7 @@ export const RACES = {
   elf: {
     key: 'elf', life: 5, birth: 0.58, mortality: 0.42, elder: true, school: 'sylvan', adapt: 0.5, jitter: 1,
     strife: { k: 0.001, who: 'adults' },     // rare, cold quarrels of the old houses
+    memory: { grudge: 200, thanks: 200, claim: 250, founded: 400 },   // remembers slights and kindnesses alike, for lifetimes of men
     temper: { aggression: -0.2, isolation: 0.25, innovation: 0.1, religiosity: 0.05, tolerance: 0.05, expansion: -0.15 },
     mods: { gatherYield: 0.3, culture: 0.15, farmYield: -0.05, research: 0.05, defense: 0.25, stability: 0.05, housing: 0.08, forestFarm: 0.3 },
     blurb: 'Long-lived wardens of the old forests; slow to breed, slow to forget.',
@@ -78,6 +82,7 @@ export const RACES = {
   dwarf: {
     key: 'dwarf', life: 3, birth: 0.8, mortality: 0.5, elder: true, school: 'runecraft', adapt: 0.6, jitter: 1,
     strife: { k: 0.002, who: 'youngMen' },   // clan grudges, settled in the halls
+    memory: { grudge: 250, thanks: 60, claim: 300, founded: 500 },   // remembers a grudge for centuries; a lost hall forever
     temper: { militarism: 0.15, commerce: 0.15, expansion: -0.15, isolation: 0.15, tolerance: -0.05 },
     mods: { mining: 0.5, defense: 0.35, production: 0.1, gatherYield: 0.25, housing: 0.12, stability: 0.05, deepHalls: 0.5 },
     blurb: 'Delvers of the hills, stubborn as stone; their halls outlast kingdoms.',
@@ -86,6 +91,7 @@ export const RACES = {
   orc: {
     key: 'orc', life: 0.7, birth: 1.4, mortality: 1.25, elder: false, school: 'shamanism', adapt: 1, jitter: 1,
     strife: { k: 0.012, who: 'adults' },     // clan wars and challenges; the women fight too
+    memory: { grudge: 25, thanks: 12, claim: 35, founded: 70 },   // remembers the last war, not the one before
     temper: { aggression: 0.3, militarism: 0.3, innovation: -0.2, tolerance: -0.2, expansion: 0.15, commerce: -0.1 },
     mods: { military: 0.25, movement: 0.1, research: -0.15, gatherYield: 0.1 },
     blurb: 'Fierce, fast-breeding clans of the open steppe; they live hard and die young.',
@@ -94,6 +100,7 @@ export const RACES = {
   halfling: {
     key: 'halfling', life: 1.3, birth: 1.15, mortality: 0.9, elder: true, school: 'hearth', adapt: 0.8, jitter: 1,
     strife: { k: 0.006, who: 'all' },        // feuds between families over land and inheritance, young and old alike
+    memory: { grudge: 25, thanks: 50, claim: 50, founded: 100 },   // remembers kindness longer than slights
     temper: { aggression: -0.3, commerce: 0.2, militarism: -0.25, tolerance: 0.15, expansion: -0.05 },
     mods: { farmYield: 0.2, storage: 0.3, military: -0.2, happiness: 0.04 },
     blurb: 'Small, merry farmers of the green river lands, who want only to be left alone.',
@@ -102,6 +109,7 @@ export const RACES = {
   lizardfolk: {
     key: 'lizardfolk', life: 0.9, birth: 1.2, mortality: 1.08, elder: true, school: 'serpent', adapt: 0.7, jitter: 1,
     strife: { k: 0.007, who: 'all' },        // brood wars take the young and the old
+    memory: { grudge: 60, thanks: 15, claim: 80, founded: 150 },   // remembers a wrong long after a favour
     temper: { religiosity: 0.25, isolation: 0.2, commerce: -0.1, tolerance: -0.05 },
     mods: { fishYield: 0.3, plagueResist: 0.1, gatherYield: 0.1 },
     blurb: 'Cold-eyed broods of the steaming swamps, keepers of the oldest sun rites.',
@@ -546,6 +554,23 @@ function peopleRates(world, key, s) {
  * How a people fights among itself (core/cohorts.js 'strife'): its race's strife. A realm's own
  * ways (a code of law, a warrior faith, an era of order) may vary it later, through this point.
  */
+/** claimRule: a realm remembers its lost towns for its people's span. */
+function claimRule(world, civ) {
+  if (!isMythic(world) || !civ || !civ.race) return null;
+  const m = RACES[civ.race]?.memory;
+  return m ? { tau: m.claim, foundedTau: m.founded } : null;
+}
+
+/** memoryRule: a town remembers for the span of its largest people (its race when unmixed). */
+function memoryRule(world, s) {
+  if (!isMythic(world) || !s) return null;
+  let race = s.race;
+  const p = s.peoples;
+  if (p && typeof p === 'object') { let best = 0; for (const r in p) if (p[r] > best && RACES[r]) { best = p[r]; race = r; } }
+  const m = race ? RACES[race]?.memory : null;
+  return m ? { grudge: m.grudge, thanks: m.thanks } : null;
+}
+
 function strife(world, key, civ) {
   if (!isMythic(world)) return null;
   const R = RACES[key];
@@ -672,6 +697,8 @@ export function registerRaceProviders() {
   registerProvider('lifespan', 'myth', lifespan);
   registerProvider('peopleRates', 'myth', peopleRates);
   registerProvider('strife', 'myth', strife);
+  registerProvider('claimRule', 'myth', claimRule);
+  registerProvider('memoryRule', 'myth', memoryRule);
   registerProvider('mods', 'myth', raceMods);
   registerProvider('loyalty', 'myth', loyalty);
 }

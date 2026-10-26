@@ -39,6 +39,9 @@ import { clamp01, clamp, dist } from '../../core/util.js';
 import { sharesSea } from './pathfinding.js';
 import { seedContactPlague } from './disease.js';
 import { faithOf } from './religion.js';
+import { claimSums, claimsMonthly } from './claims.js';
+import { debtsMonthly, housesMonthly } from './debt.js';
+import { hostagesMonthly } from './terms.js';
 import {
   modsOf, civById, civName, peopleOf, rulerName, rulerHas, pairKey, addTreaty, removeTreaty,
   pickOne, rateOk, pruneRates, eraOf, finite, capFirst, capitalOf, townsOf, civPopulation, hashPick, spanPhrase, countWord,
@@ -297,7 +300,7 @@ function meet(world, st, ca, cb, how, at) {
 
 function monthlyContext(world) {
   const civs = liveCivs(world);
-  const ctx = { enemies: {}, power: {}, fam: {}, rul: {} };
+  const ctx = { enemies: {}, power: {}, fam: {}, rul: {}, claims: claimSums(world) };
   for (const c of civs) {
     ctx.enemies[c.id] = enemySet(world, c.id);
     ctx.power[c.id] = civPower(world, c);
@@ -343,8 +346,10 @@ function targetOpinion(world, a, b, r, ctx) {
   if (a.vassalOf === b.id) T -= 8;
   if (b.vassalOf === a.id) T += 10;
   if (tr.includes('tribute')) T -= 6;
-  // old wounds
+  // old wounds, and lost towns b holds that a still claims (claims.js)
   T -= (r.grievance || 0) * 0.6;
+  const cl = ctx.claims.get(a.id);
+  if (cl && cl[b.id]) T -= Math.min(25, 10 * cl[b.id]);
   // rulers
   const ra = ctx.rul[a.id], rb = ctx.rul[b.id];
   if (ra) {
@@ -747,6 +752,10 @@ export const system = {
     treaties(world, st, ctx);
     tributes(world, st);
     vassalUpkeep(world, st, ctx);
+    claimsMonthly(world, st);
+    debtsMonthly(world, st);
+    housesMonthly(world);
+    hostagesMonthly(world);
     if (month % 12 === 7) {
       pruneRelations(world);
       // rate-limit keys outlive their purpose once older than the longest limit (120 years,

@@ -111,6 +111,7 @@ export function createCiv(world, opts = {}) {
     effects: [], effectsV: 0, // timed effects (core/effects.js only)
     style: null,            // architecture style (WP3 style.js)
     claims: {},             // dynastic claims { [civId]: 0..1 } (WP3)
+    landClaims: {},         // claims on lost towns { [sid]: [w, why, since, tau, from?] } (geo/claims.js)
     flags: {},
     // fields other modules add, declared here in the order they arrive so every civ keeps one
     // hidden class (undefined until set, and never saved; keep in step with CIV_SHAPE, world.js)
@@ -221,9 +222,11 @@ export function createSettlement(world, civId, x, y, opts = {}) {
     // fields other modules add, declared here in the order they arrive so every settlement keeps
     // one hidden class (undefined until set, and never saved; keep in step with SETTLEMENT_SHAPE,
     // world.js): the civ module's (ensureSettlementFields) as the town is founded, then in Mythic
-    // worlds its mix of peoples (myth/peoples.js) and, a decade on, that mix's history
+    // worlds its mix of peoples (myth/peoples.js) and, a decade on, that mix's history; its memories
+    // (geo/memory.js) sit before them, set at the first
     project: undefined, farmland: undefined, growth: undefined, capacity: undefined,
     foodImport: undefined, emigrants: undefined, taxes: undefined, jobs: undefined,
+    mem: undefined,         // what it remembers of other realms (geo/memory.js), from its first memory
     peoples: undefined, peoplesPast: undefined,
   };
   addIndexed(world, 'settlements', s);

@@ -15,6 +15,7 @@ import { civSettlements, transferSettlement, areAtWar, settlementsNear, enemiesO
 import { DAYS_PER_YEAR } from '../../core/constants.js';
 import { emitFx } from '../../core/world.js';
 import { takePeople } from '../../core/cohorts.js';
+import { firstOf, hasProviders } from '../../core/ext.js';
 import { getMods, refreshMods } from './tech.js';
 import { govCapacity, revolutionTarget, govDef } from './government.js';
 import { overthrow, noteDeed } from './rulers.js';
@@ -145,11 +146,13 @@ export function revolt(world, civ, s, opts = {}) {
   if (!s || !s.alive || s.civId !== civ.id) return false;
   const st = world.sys.civ;
   const day = world.time.day;
-  // return to the old masters?
-  const origin = world.civs[s.originCivId];
-  if (origin && origin.alive && origin.id !== civ.id && !areAtWar(world, origin.id, civ.id)
-    && (borderLength(world, origin.id, civ.id) > 0 || settlementsNear(world, s.x, s.y, 14, (o) => o.civId === origin.id).length)
-    && world.rng.chance(0.55)) {
+  // go over to the realm it remembers best (ext 'revoltTo', geo/memory.js), or back to its old masters?
+  const near = (c) => c && c.alive && c.id !== civ.id && !areAtWar(world, c.id, civ.id)
+    && (borderLength(world, c.id, civ.id) > 0 || settlementsNear(world, s.x, s.y, 14, (o) => o.civId === c.id).length);
+  const favId = hasProviders('revoltTo') ? firstOf('revoltTo', world, s, civ) : null;
+  const fav = favId != null ? world.civs[favId] : null;
+  const origin = near(fav) ? fav : world.civs[s.originCivId];
+  if (near(origin) && world.rng.chance(0.55)) {
     transferSettlement(world, s.id, origin.id, 'defection');
     s.loyalty = 0.7; s.unrest = 0.1; s.flags.assim = 1; s.flags.grieve = 0; s.flags.seceded = day;
     civ.flags.losses = fin(civ.flags.losses) + 1;
