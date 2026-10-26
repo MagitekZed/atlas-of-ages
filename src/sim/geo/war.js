@@ -79,7 +79,8 @@ import {
 } from './common.js';
 import { bestClaimOn, renounceClaims, hardenClaims, claimOf } from './claims.js';
 import { remember, memoryOf } from './memory.js';
-import { coFor, coSync, coShares, coGear, coTake, forcePower, mixFor, gearTier, gearQuality, siegeMul } from './army.js';
+import { coFor, coSync, coShares, coGear, coTake, forcePower, mixFor, gearTier, gearQuality, siegeMul, ROLE } from './army.js';
+import { forcesOf, deployRegiments, regimentsHome, raisingMonthly } from './raising.js';
 import { aimFor, defenderAim, aimsFromCause, aimMet, winnerAim, peaceAllows, takeHostage, hostageHeld, killHostage } from './terms.js';
 import { addReparations, monthlyIncome, debtClaim, settleDebtClaim } from './debt.js';
 import { bindWar } from './acts.js';   // the geopolitical divine acts (they call back into this module at use time)
@@ -981,6 +982,7 @@ function mobilize(world, civ, war) {
   const towns = townsOf(world, civ);
   if (!towns.length) return;
   const m = modsOf(world, civ);
+  const forces = forcesOf(world, civ);
   const pop = civPopulation(world, civ);
   const manpower = civ.military && finite(civ.military.manpower) && civ.military.manpower > 0 ? civ.military.manpower : pop * 0.03 * m.military;
   const mob = manpower * (0.45 + 0.55 * (civ.traits?.militarism ?? 0.5)) * (1 - 0.6 * (civ.warWeariness || 0));
@@ -1004,6 +1006,20 @@ function mobilize(world, civ, war) {
       if (d < bd) { bd = d; stage = s; }
     }
   }
+  // a standing army's regiments at home march out first, ready at once (raising.js)
+  if (forces.regs.some((r) => r.out == null && r.n >= 1)) {
+    const gen0 = recruitGeneral(world, civ);
+    const army0 = createArmy(world, { civId: civ.id, x: stage.x, y: stage.y, homeId: stage.id, strength: 1, warId: war ? war.id : null, general: gen0.leader, state: 'idle' });
+    const dep = deployRegiments(world, civ, army0.id);
+    army0.co = dep.co;
+    army0.strength = dep.men;
+    army0.flags = Object.assign(army0.flags && typeof army0.flags === 'object' ? army0.flags : {}, {
+      mp: 0, skill: gen0.leader.skill, genId: gen0.genId, startStr: dep.men, regStart: dep.men, drawn: 0, bad: [], nextPlan: world.time.day + 5 + Math.round(world.rng.next() * 10), war: war ? war.id : null,
+    });
+    serviceOf(army0);
+    army0.name = armyName(world, civ, stage, gen0.leader, dep.men, eraOf(civ));
+    return;
+  }
   let str = Math.min(Math.max(mob - field, 12), monthCap - raised, Math.max(20, stage.population * 0.15 + 0.05 * pop));
   const cost = str * 0.25;
   const treasury = finite(civ.treasury) ? civ.treasury : 0;
@@ -1024,10 +1040,14 @@ function mobilize(world, civ, war) {
   const gen = recruitGeneral(world, civ);
   const era = eraOf(civ);
   const army = createArmy(world, { civId: civ.id, x: stage.x, y: stage.y, homeId: stage.id, strength: str, warId: war ? war.id : null, general: gen.leader, state: 'idle' });
-  // its companies: the realm's way of war, its gear and how well it is made (army.js)
-  army.co = coFor(str, mixFor(world, civ), gearTier(civ), gearQuality(civ), 0.1);
-  // levies take weeks to gather, arm and provision before they can march
-  const muster = Math.round((40 + world.rng.next() * 60) / Math.max(0.5, m.movement));
+  // its companies: the realm's way of war, its gear and how well it is made (army.js); a feudal
+  // host rides with its lords' retinues, knights and men-at-arms of some experience
+  const feudal = forces.sys === 'feudal';
+  let mix = mixFor(world, civ);
+  if (feudal) { mix = mix.slice(); mix[ROLE.HHORSE] *= 1.5; mix[ROLE.BLADE] *= 1.2; const t = mix.reduce((a, b) => a + b, 0); mix = mix.map((x) => x / t); }
+  army.co = coFor(str, mix, gearTier(civ), gearQuality(civ), feudal ? 0.2 : 0.1);
+  // levies take weeks to gather, arm and provision before they can march; lords' hosts come sooner
+  const muster = Math.round((feudal ? 20 + world.rng.next() * 30 : 40 + world.rng.next() * 60) / Math.max(0.5, m.movement));
   // merge: the kernel (damageArmy) and other packages may already keep things on flags
   army.flags = Object.assign(army.flags && typeof army.flags === 'object' ? army.flags : {}, {
     mp: 0, skill: gen.leader.skill, genId: gen.genId, startStr: str, drawn, bad: [], nextPlan: world.time.day + muster, war: war ? war.id : null,
@@ -1067,10 +1087,12 @@ function disband(world, army, reason = 'home') {
   // the surviving share of the levies drawn from the towns goes home, to every town of the realm
   // as they were drawn (core/cohorts.js returnLevy)
   const fl = army.flags || {};
-  if (to && fl.merc == null && finite(army.strength) && army.strength > 0) {
-    const start = finite(fl.startStr) && fl.startStr > 0 ? fl.startStr : army.strength;
+  // its regiments go back to the realm's standing army (raising.js); the levies to their towns
+  const regMen = regimentsHome(world, army);
+  if (to && fl.merc == null && finite(army.strength) && army.strength > regMen) {
+    const start = Math.max(1, (finite(fl.startStr) && fl.startStr > 0 ? fl.startStr : army.strength) - (finite(fl.regStart) ? fl.regStart : 0));
     const drawn = finite(fl.drawn) ? fl.drawn : army.strength * 0.6;
-    returnLevy(world, to, fl, Math.max(0, drawn * clamp01(army.strength / start)));
+    returnLevy(world, to, fl, Math.max(0, drawn * clamp01((army.strength - regMen) / start)));
   }
   clearSiegeBy(world, army, reason === 'routed' || reason === 'destroyed' ? 'broken' : 'lifted');
   removeArmy(world, army.id);
@@ -1897,6 +1919,10 @@ function weariness(world, st) {
       const pop = Math.max(500, civPopulation(world, civ));
       let inc = 0.006 + 1.5 * cas / pop + 0.015 * occ + 0.02 * Math.max(0, losing) / 100;
       inc *= 1.25 - 0.6 * (civ.traits?.militarism ?? 0.5);
+      // a realm that cannot pay its soldiers tires of the war fast (raising.js arrears)
+      if (civ.forces && civ.forces.arrears > 0) inc += 0.01 * Math.min(6, civ.forces.arrears);
+      // the lords of a feudal host owe a season's service; after it they want to go home
+      if (civ.forces && civ.forces.sys === 'feudal' && world.armies.some((a) => a.civId === civ.id && world.time.day - (a.createdDay || 0) > 90 && !hunting(a))) inc *= 1.33;
       if (rulerHas(civ, 'warlike')) inc *= 0.75;
       w += inc;
     } else {
@@ -2291,6 +2317,7 @@ function commanders(world) {
 function monthly(world, st) {
   sanitize(world);
   commanders(world);
+  raisingMonthly(world, st, civsAtWar(world));
   if (Math.floor(world.time.day / DAYS_PER_MONTH) % 12 === 0) {
     for (const k of Object.keys(st.lastPeace)) if (!world.civs[k] || !world.civs[k].alive) delete st.lastPeace[k];
   }

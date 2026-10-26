@@ -23,6 +23,7 @@ import { memoriesOf, MEM_WHY } from '../sim/geo/memory.js';
 import { loansOf, housesOf, houseName } from '../sim/geo/debt.js';
 import { hostagesOf } from '../sim/geo/terms.js';
 import { roleName, GEAR_NAMES } from '../sim/geo/army.js';
+import { armyBill, SYS_WORDS } from '../sim/geo/raising.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -1264,6 +1265,13 @@ function civView(app, sel, b) {
   const figs = rows(b, () => w.figures.filter((q) => q.civId === c.id).slice(-10).reverse().map((q) => figureItem(w, q)), 'No great people are remembered.', app);
   const figSec = section('Great people', figs);
   b.hide(figSec, () => !w.figures.some((q) => q.civId === c.id));
+  // its standing regiments (geo/raising.js)
+  const regRows = rows(b, () => (c.forces?.regs || []).slice().sort((p, q) => q.n - p.n || p.id - q.id).map((r) => ({
+    key: `rg${r.id}:${Math.round(r.n / 10)}:${r.out ?? ''}:${(r.honours || []).length}`, icon: 'army',
+    label: r.name.replace(/^the /, 'The '), n: F.people(r.n),
+    s: [roleName(r.role, r.gear), r.out != null ? 'in the field' : 'at home', r.xp >= 0.6 ? 'veterans' : r.xp >= 0.3 ? 'seasoned' : 'green', r.won ? `${F.int(r.won)} victories` : ''].filter(Boolean).join(' · '),
+  })), 'It keeps no standing regiments.', app);
+  b.hide(regRows, () => !(c.forces?.regs || []).length);
   // towns it claims (geo/claims.js)
   const claimsSec = section('Claims', rows(b, () => claimsOfCiv(w, c).map((q) => {
     const holder = w.civs[q.s.civId];
@@ -1335,9 +1343,13 @@ function civView(app, sel, b) {
       { k: 'Manpower', v: () => F.people(c.military?.manpower), tip: 'Three in a hundred of its people, counted by those its levy calls up (by default the young men).' },
       { k: 'Why', v: () => manpowerReason(app.world, c) || '—', txt: true, hide: () => !manpowerReason(app.world, c) },
       { k: 'Soldiers in the field', v: () => { const a = w.armies.filter((q) => q.civId === c.id); return a.length ? `${F.people(a.reduce((s, q) => s + (q.strength || 0), 0))} in ${a.length} ${a.length === 1 ? 'army' : 'armies'}` : 'None'; } },
+      { k: 'Raised by', v: () => (c.forces ? SYS_WORDS[c.forces.sys] || '—' : '—'), txt: true, hide: () => !c.forces },
+      { k: 'Since', v: () => F.year(c.forces.since), hide: () => !c.forces || !ok(c.forces.since) },
+      { k: 'Pay for its soldiers', v: () => F.num(armyBill(w, c), 1) + ' / mo', tip: 'What its armies in the field, its standing regiments and its garrisons cost this month, counted in its expenses.', hide: () => !c.forces || c.alive === false },
+      { k: 'Unpaid for', v: () => `${F.int(c.forces.arrears)} months`, hide: () => !(c.forces?.arrears > 0) },
       { k: 'Towns taken', v: () => F.int(cq().taken), tip: 'Every conquest in the chains of title of the world’s settlements.' },
       { k: 'Towns lost', v: () => F.int(cq().lost) },
-    ]), cqRows),
+    ]), regRows, cqRows),
     peopleSec,
     section('Knowledge', kv(b, [
       { k: 'Era', v: () => F.eraName(c.tech?.era) },

@@ -162,7 +162,7 @@ const CIV_SHAPE = (c) => ({
   stability: c.stability, legitimacy: c.legitimacy, warWeariness: c.warWeariness, prestige: c.prestige, military: c.military,
   relations: c.relations, allies: c.allies, vassalOf: c.vassalOf, stateReligion: c.stateReligion, goldenAge: c.goldenAge,
   darkAge: c.darkAge, population: c.population, territory: c.territory, wealth: c.wealth, peakPopulation: c.peakPopulation,
-  peakTerritory: c.peakTerritory, effects: c.effects, effectsV: c.effectsV, style: c.style, claims: c.claims, landClaims: c.landClaims, flags: c.flags,
+  peakTerritory: c.peakTerritory, effects: c.effects, effectsV: c.effectsV, style: c.style, claims: c.claims, landClaims: c.landClaims, forces: c.forces, flags: c.flags,
   culture: c.culture, temperLog: c.temperLog, arcane: c.arcane,
 });
 const SETTLEMENT_SHAPE = (s) => ({

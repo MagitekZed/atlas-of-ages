@@ -24,7 +24,7 @@
 import { makePerson, makeWord, isEnglishWord } from '../../core/names.js';
 import { civSettlements, enemiesOf } from '../../core/entities.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
-import { emit } from '../../core/hooks.js';
+import { emit, on } from '../../core/hooks.js';
 import { mulOf, hasProviders } from '../../core/ext.js';
 import { RULER_TRAITS, GOVERNMENTS, isDynastic } from './data.js';
 import { rulerTitle, govDef, adoptGovernment, revolutionTarget } from './government.js';
@@ -569,6 +569,24 @@ export function overthrow(world, civ, newGov, how = 'revolution') {
   onRulerGone(world, civ, prev, nr, how);
   return { prev, ruler: nr };
 }
+
+/**
+ * A standing army seizes power (geo/raising.js emits armyCoup: three months unpaid, or a realm in
+ * crisis). A republic falls to a dictatorship; a crown passes to the soldiers' man.
+ */
+on('armyCoup', (world, civ) => {
+  if (!civ || !civ.alive || !civ.ruler) return;
+  const prev = civ.ruler;
+  const toDictator = GOVERNMENTS.dictatorship && ['republic', 'democracy', 'constitutional', 'merchant'].includes(civ.government) ? 'dictatorship' : null;
+  const { ruler } = overthrow(world, civ, toDictator, 'coup');
+  record(world, {
+    cat: 'civ', imp: 3, key: 'army.coup', civ, tags: ['coup', 'army'], ref: rulerRef(civ, ruler),
+    text: pick(world, [
+      `The army of ${theName(civ)}, unpaid and unruly, overthrew ${rulerShort(prev)} and set ${rulerName(ruler)} in power.`,
+      `Soldiers marched on the palace of ${theName(civ)}; ${rulerShort(prev)} was deposed, and the generals raised ${rulerName(ruler)}${toDictator ? ' as dictator' : ''}.`,
+    ]),
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Epithets (the words themselves come from epithets.js: themed, combinatorial, world-specific)

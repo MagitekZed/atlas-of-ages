@@ -150,7 +150,8 @@ export function hiring(world) {
       const near = nearestSettlement(world, band.x, band.y, { civId: civ.id, maxDist: 60 });
       if (!near || world.f.landmass[near.i] !== lm) continue;
       const d = Math.hypot(near.x - band.x, near.y - band.y);
-      const sc = Math.sqrt(civ.treasury) * (1 + 0.3 * enemies.length) / (1 + d / 20);
+      // a realm that fights with hired swords (geo/raising.js) looks for them first
+      const sc = Math.sqrt(civ.treasury) * (1 + 0.3 * enemies.length) / (1 + d / 20) * (civ.forces && civ.forces.sys === 'hired' ? 3 : 1);
       if (sc > bs) { bs = sc; best = civ; bd = d; }
     }
     if (best && rng.chance(0.5)) hire(world, band, best, bd);
