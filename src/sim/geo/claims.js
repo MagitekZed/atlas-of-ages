@@ -11,9 +11,10 @@
 // A realm gains a claim when a town it founded, held ten years or more, or kept as its seat
 // leaves it by conquest, treaty, secession or defection (unions and willing annexations leave
 // none). The claim is dropped when the town is razed or abandoned, when the claimant takes it
-// back, when it renounces it at a treaty (war.js), or when it fades under MIN at the realm's
-// yearly pass. A fallen realm's claims pass at ×HEIR to its heir: the realm with the strongest
-// claim on its crown, else a daughter realm, else its parent. A realm keeps its CAP strongest.
+// back, or when it fades under MIN at the realm's yearly pass; a claim renounced at a treaty
+// (war.js) keeps a third of its strength, the people's memory of it. A fallen realm's claims pass
+// at ×HEIR to its heir: the realm with the strongest claim on its crown, else a daughter realm,
+// else its parent. A realm keeps its CAP strongest.
 // Fading times come from the ext 'claimRule' (first; Mythic peoples answer for their own),
 // defaulting to 60 years, and 120 for a town the realm founded.
 //
@@ -38,6 +39,7 @@ const MIN = 0.08;          // a claim weaker than this is forgotten
 const CAP = 12;            // claims a realm keeps (the strongest)
 const HEIR = 0.7;          // what an heir keeps of a fallen realm's claims
 const HELD_MIN = 10;       // years a town must be held before its loss leaves a claim
+const RENOUNCED = 0.35;    // what is left of a claim given up at a peace
 const DEF = { tau: 60, foundedTau: 120 };
 
 export const CLAIM_WHY = { f: 'founded it', l: 'lost it in war', s: 'lost it to a rising', i: 'inherited the claim' };
@@ -199,14 +201,21 @@ export function claimsOfCiv(world, civ) {
 // ---------------------------------------------------------------------------
 // Treaties (war.js)
 
-/** civ gives up its claims on the towns sids (a peace it accepted). Returns the names given up. */
+/**
+ * civ gives up its claims on the towns sids at a peace it accepted. The crown's claim is gone, but
+ * the memory of the towns lingers at RENOUNCED of its strength and keeps fading. Returns the
+ * names given up.
+ */
 export function renounceClaims(world, civ, sids) {
   const lc = civ && civ.landClaims;
   const out = [];
   if (!lc) return out;
   for (const sid of sids) {
-    if (!lc[sid]) continue;
-    delete lc[sid];
+    const c = lc[sid];
+    if (!c) continue;
+    const w = claimStrength(world, c) * RENOUNCED;
+    if (w < MIN) delete lc[sid];
+    else { c[0] = round3(w); c[2] = world.time.day; }
     const s = world.settlements[sid];
     if (s) out.push(s.name);
   }

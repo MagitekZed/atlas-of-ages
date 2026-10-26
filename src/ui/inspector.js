@@ -18,6 +18,7 @@ import { NB, NC, cohortSummary, isSet, ratesOf } from '../core/cohorts.js';
 import { NJ, TRADE_LABELS } from '../sim/civ/jobs.js';
 import { manpowerReason } from '../sim/civ/peoplenews.js';
 import { claimantsOf, claimsOfCiv, CLAIM_WHY } from '../sim/geo/claims.js';
+import { aimWords } from '../sim/geo/terms.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -1549,8 +1550,16 @@ function warView(app, sel, b) {
     { k: 'Returned', ref: () => termsRef(app, g().terms?.returned), hide: () => !g().terms?.returned?.length },
     { k: 'Tribute', v: () => (g().terms?.tribute ? (typeof g().terms.tribute === 'number' ? F.num(g().terms.tribute, 1) + ' a month' : 'Yes') : 'None'), hide: () => !g().terms },
     { k: 'Vassalage', v: () => (g().terms?.vassal ? 'The loser bent the knee' : 'None'), hide: () => !g().terms },
+    { k: 'Reparations', v: () => F.money(g().terms.reparations), hide: () => !g().terms?.reparations },
+    { k: 'Hostage', v: () => `${g().terms.hostage}, the loser’s heir`, txt: true, hide: () => !g().terms?.hostage },
+    { k: 'Crown', v: () => 'The victor’s ruler was crowned there too', txt: true, hide: () => !g().terms?.crown },
+    { k: 'Faith imposed', ref: () => religionRef(app, g().terms.faith), hide: () => g().terms?.faith == null },
+    { k: 'Claims given up', v: () => g().terms.renounced.join(', '), txt: true, hide: () => !g().terms?.renounced?.length },
+    { k: 'A harsh peace', v: () => 'Yes: it will not be forgiven', txt: true, hide: () => !(g().terms?.harsh > 0.5) },
     { k: 'Cause', v: () => F.humanize(war.cause || 'conquest') },
-    { k: 'War aim', ref: () => settleRef(app, g().goalSid), hide: () => g().goalSid == null },
+    { k: 'Attackers’ aim', v: () => aimWords(w, war, 1) || '—', txt: true, hide: () => !aimWords(w, war, 1) },
+    { k: 'Defenders’ aim', v: () => aimWords(w, war, -1) || '—', txt: true, hide: () => !g().aims },
+    { k: 'Prize', ref: () => settleRef(app, g().goalSid), hide: () => g().goalSid == null },
     { k: 'Began', v: () => dateString(w, war.startDay) },
     { k: 'Ended', v: () => (war.endDay != null ? dateString(w, war.endDay) : '—') },
   ]);
@@ -1619,7 +1628,7 @@ function warView(app, sel, b) {
   const parts = new Set([...war.attackers, ...war.defenders]);
   return h('div.tabpanel', null,
     title(b, { icon: 'war', name: () => war.name, sub: () => (war.active ? `Ongoing for ${F.span(w.time.day - war.startDay)}` : `${F.lifespan(war.startDay, war.endDay)}`), actions: standardActions(app) }),
-    (() => { const p = h('p.ins-lead'); b.text(p, () => `Begun in ${F.year(war.startDay)} over ${F.humanize(war.cause || 'conquest').toLowerCase()}${g().goalSid != null && w.settlements[g().goalSid] ? `, its prize ${w.settlements[g().goalSid].name}` : ''}. ${war.active ? 'The fighting continues.' : F.outcomeName(war.outcome) + '.'}`); return p; })(),
+    (() => { const p = h('p.ins-lead'); b.text(p, () => `Begun in ${F.year(war.startDay)} over ${F.humanize(war.cause || 'conquest').toLowerCase()}${g().aims && aimWords(w, war, 1) ? `: ${aimWords(w, war, 1).replace(/^./, (c) => c.toLowerCase())}` : g().goalSid != null && w.settlements[g().goalSid] ? `, its prize ${w.settlements[g().goalSid].name}` : ''}. ${war.active ? 'The fighting continues.' : F.outcomeName(war.outcome) + '.'}`); return p; })(),
     rivalry,
     cells(b, [
       { k: 'Battles', v: () => F.int(war.battles || 0) },

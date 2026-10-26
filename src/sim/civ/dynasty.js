@@ -22,6 +22,7 @@
 // restoration) and allied (realms sharing a crown).
 
 import { createCiv, transferSettlement, addOpinion, rel, areAtWar, startWar, liveCivs } from '../../core/entities.js';
+import { on } from '../../core/hooks.js';
 import { makePerson } from '../../core/names.js';
 import { emitFx } from '../../core/world.js';
 import { registerProvider } from '../../core/ext.js';
@@ -167,6 +168,37 @@ export function unionSuccession(world, civ, prev, cause, died, base) {
   if (cap && capB) emitFx(world, { type: 'thread', x: capB.x, y: capB.y, x2: cap.x, y2: cap.y, tone: 'marriage' });
   return e;
 }
+
+/**
+ * A crown won in war (geo/war.js makePeace emits crownWon): the victor's ruler is crowned in the
+ * loser's realm as well, a personal union like one by marriage, resolved the same way when the
+ * shared ruler is gone. Only between hereditary crowns, neither already joined to another;
+ * otherwise the peace names no crown. The treaty line tells of it.
+ */
+on('crownWon', (world, war, W, L) => {
+  if (!W || !L || !W.alive || !L.alive || !W.ruler || !isDynastic(W.government) || !isDynastic(L.government)) return;
+  if (W.flags?.union || L.flags?.union) return;
+  const day = world.time.day;
+  const shared = makeRuler(world, L, { person: { name: W.ruler.name, born: W.ruler.born, gender: W.ruler.gender }, dynasty: W.ruler.dynasty || W.dynasty });
+  shared.id = W.ruler.id;                         // one person, two crowns
+  shared.traits = (W.ruler.traits || []).slice();
+  shared.epithet = W.ruler.epithet || null;
+  if (W.ruler.gloss) shared.gloss = W.ruler.gloss;
+  shared.relation = 'conqueror';
+  shared.flags = { ...(W.ruler.flags || {}), union: true };
+  if (shared.dynasty) startDynasty(world, L, shared.dynasty, 'union', shared);
+  installRuler(world, L, shared, 'deposed', { how: 'union' });
+  shared.heir = null;
+  shared.spouse = W.ruler.spouse ? { ...W.ruler.spouse } : null;
+  syncRulerDisplay(shared);
+  L.flags.union = { withCivId: W.id, since: day, senior: false };
+  W.flags.union = { withCivId: L.id, since: day, senior: true };
+  L.flags.lastUnionDay = day; W.flags.lastUnionDay = day;
+  L.legitimacy = Math.max(0.35, fin(L.legitimacy) * 0.7);
+  if (W.claims) delete W.claims[L.id];
+  const st = world.sys.civ;
+  if (st) st.counters.unionsByWar = fin(st.counters.unionsByWar) + 1;
+});
 
 /** After any change of ruler: union bookkeeping, regencies of the old reign. */
 export function onRulerGone(world, civ, prev, next, how) {

@@ -68,7 +68,7 @@ import { clamp01, clamp, dist, SQRT2 } from '../../core/util.js';
 import { makePerson, makeEpithet, composeName, possessive } from '../../core/names.js';
 import { findPath, costGrid } from './pathfinding.js';
 import { civPower, addTribute, setVassal, releaseVassal, betrayal } from './diplomacy.js';
-import { faithOf, boostFervor } from './religion.js';
+import { faithOf, boostFervor, imposeFaith } from './religion.js';
 import { expose } from './disease.js';
 import { ledgerOf, noteBattle, noteTransfer, serviceOf, notePeak, noteLoss, noteFight, archiveArmy } from './ledger.js';
 import {
@@ -77,7 +77,9 @@ import {
   ordinalWord, bare, landscapeAt, nearestFeature, hashPick, seasonWord, activeWarList, enemySet, civsAtWar, worldPopulation,
   emitHook, peekMods,
 } from './common.js';
-import { bestClaimOn } from './claims.js';
+import { bestClaimOn, renounceClaims, hardenClaims } from './claims.js';
+import { aimFor, defenderAim, aimsFromCause, aimMet, winnerAim, peaceAllows, takeHostage, hostageHeld, killHostage } from './terms.js';
+import { addReparations, monthlyIncome } from './debt.js';
 import { bindWar } from './acts.js';   // the geopolitical divine acts (they call back into this module at use time)
 
 const MONTH_DAY = 25;
@@ -505,7 +507,7 @@ function casusBelli(world, a, b, r, ctx) {
     for (const c of concatOf('casusBelli', world, a, b)) {
       if (!c || typeof c.cb !== 'string' || !(finite(c.w) && c.w > 0)) continue;
       const goal = c.goalSid != null ? world.settlements[c.goalSid] : null;
-      opts.push({ key: c.cb, w: Math.min(2.5, c.w), name: typeof c.name === 'string' && c.name ? c.name : null, goalSid: goal && goal.alive && goal.civId === b.id ? goal.id : null, place: goal && goal.alive ? goal.name : null, ext: true });
+      opts.push({ key: c.cb, w: Math.min(2.5, c.w), name: typeof c.name === 'string' && c.name ? c.name : null, goalSid: goal && goal.alive && goal.civId === b.id ? goal.id : null, place: goal && goal.alive ? goal.name : null, aim: typeof c.aim === 'string' ? c.aim : null, ext: true });
     }
   }
   let best = opts[0];
@@ -652,7 +654,8 @@ function declarations(world, st, ctx) {
         reachF = 0.4;
       }
       const appF = appetiteExt ? mulOf('warAppetite', world, a, b) : 1;
-      const pre = Math.pow(host, 1.2) * powerF * reachF * (vassalBid ? 1.5 : 1) * appF;
+      // a realm whose heir is held at b's court hardly thinks of war on b (terms.js)
+      const pre = Math.pow(host, 1.2) * powerF * reachF * (vassalBid ? 1.5 : 1) * appF * (hostageHeld(world, a.id, b.id) ? 0.1 : 1);
       if (pre * 2.5 <= bestDesire) continue;                   // cannot beat the best even with the strongest claim
       const cb = casusBelli(world, a, b, r, ctx);
       if (!cb) continue;
@@ -789,6 +792,10 @@ function declare(world, st, a, b, cb, ctx, opts = {}) {
   const war = startWar(world, [a.id], [b.id], cb.key, name);
   const g = geoOf(world, war);
   g.cb = cb.key; g.goalSid = goal ? goal.id : null; g.rid = cb.rid ?? null; g.external = false; g.civil = false;
+  // what each side fights for (terms.js): the attacker's aim follows its casus belli
+  const ratio = (ctx.power[a.id] || 0) / Math.max(1, ctx.power[b.id] || 0);
+  g.aims = { a: aimFor(world, a, b, cb, goal, ratio), d: defenderAim(world, b, a) };
+  if (g.aims.a.k === 'towns' && cb.key === 'reconquest' && g.aims.a.sids.length > 1) place = listJoin(g.aims.a.sids.map((sid) => world.settlements[sid].name));
   st.declared++;
   if (faith) boostFervor(world, faith.id, 0.05);
   let entry = null;
@@ -811,6 +818,7 @@ function declare(world, st, a, b, cb, ctx, opts = {}) {
   }
   if (napBroken) betrayal(world, a.id, b.id, 'nap');
   if (cb.key === 'liberation') betrayal(world, a.id, b.id, 'vassal');
+  killHostage(world, a.id, b.id, war);   // its heir was held at b's court: b puts the hostage to death
   callToArms(world, st, war, ctx);
   g.joined = true;
   mobilize(world, a, war);
@@ -1852,6 +1860,8 @@ function occupation(world) {
     if (hasA && !hasD) bat += 1.5; else if (hasD && !hasA) bat -= 1.5;
     g.bat = clamp(bat, -35, 35);
     rescore(world, war);
+    // since when the attackers have held the upper hand (a score of 40), for terms.js aimMet
+    if (war.warScore >= 40) { if (g.hiDay == null) g.hiDay = world.time.day; } else if (g.hiDay != null) g.hiDay = null;
   }
 }
 
@@ -1966,7 +1976,7 @@ function peace(world, st) {
     else if (score > 25 && wD > 0.5 && rng.chance(0.1 * pf)) { end = 'attackers'; why = 'loser exhausted'; }
     else if (score < -25 && wA > 0.5 && rng.chance(0.1 * pf)) { end = 'defenders'; why = 'loser exhausted'; }
     else if (((wA > 0.65 && wD > 0.45) || (wD > 0.65 && wA > 0.45)) && rng.chance(0.15 * pf)) { end = Math.abs(score) < 20 ? 'white' : score > 0 ? 'attackers' : 'defenders'; why = 'mutual exhaustion'; }
-    else if (g.goalSid != null && dur >= 1 && score > 15 && war.attackers.includes(world.settlements[g.goalSid]?.civId) && rng.chance(0.07 * pf)) { end = 'attackers'; why = 'goal taken'; }
+    else if (dur >= 1 && aimMet(world, war, g, score) && rng.chance(0.07 * pf)) { end = 'attackers'; why = 'aim met'; }
     else if (dur > 3 && Math.abs(score) < 20 && rng.chance((0.008 + dur * 0.003) * pf)) { end = 'white'; why = 'stalemate'; }
     else if (dur > 25) { end = Math.abs(score) < 15 ? 'white' : score > 0 ? 'attackers' : 'defenders'; why = 'endless'; }
     if (end) { g.endReason = why; makePeace(world, st, war, end); }
@@ -2005,8 +2015,12 @@ function makePeace(world, st, war, end, opts = {}) {
   const losers = end === 'attackers' ? war.defenders : end === 'defenders' ? war.attackers : [];
   const Wc = leader(world, winners), Lc = leader(world, losers);
   const A = leader(world, war.attackers), D = leader(world, war.defenders);
-  const ceded = [], returned = [];
+  const ceded = [], cededIds = [], returned = [];
   let tribute = false, vassal = false, reunified = false;
+  // the terms this chunk adds (terms.js, debt.js, claims.js)
+  let reparations = 0, hostageTerm = false, crown = null, faith = null, renounced = [], harsh = 0;
+  const aim = winnerAim(g, end);
+  const aimK = aim ? aim.k : null;
   const back = (sid, to) => {
     const s = world.settlements[sid];
     const c = world.civs[to];
@@ -2023,7 +2037,7 @@ function makePeace(world, st, war, end, opts = {}) {
       if (!s || !s.alive) continue;
       const orig = g.occupied[sid];
       const holderWins = winners.includes(s.civId);
-      if (holderWins && losers.includes(orig)) ceded.push(s.name);
+      if (holderWins && losers.includes(orig)) { ceded.push(s.name); cededIds.push(+sid); }
       else if (losers.includes(s.civId) && winners.includes(orig)) back(+sid, orig);
     }
     if (civMod) {
@@ -2039,32 +2053,78 @@ function makePeace(world, st, war, end, opts = {}) {
         reunified = true;
       }
     } else if (Wc && Lc) {
-      if (terms >= 85 && Lc.settlementIds.length > 2) {
+      if (aimK === 'towns') {
+        // border changes: the aim's towns the winner does not hold yet, one for every 20 points above 30
+        let n = Math.floor((terms - 30) / 20);
+        for (const sid of aim.sids || []) {
+          if (n <= 0) break;
+          const s = world.settlements[sid];
+          if (!s || !s.alive || !losers.includes(s.civId)) continue;
+          const from = s.civId;
+          if (world.civs[from].settlementIds.length <= 2) continue;
+          if (transferSettlement(world, sid, Wc.id, 'treaty')) { ceded.push(s.name); cededIds.push(sid); noteTransfer(world, war, sid, from, Wc.id, 'ceded'); n--; }
+        }
+      } else if (terms >= 85 && Lc.settlementIds.length > 2) {
         const capW = capitalOf(world, Wc);
         const t = capW ? nearestSettlement(world, capW.x, capW.y, { civId: Lc.id, filter: (s) => s.id !== Lc.capitalId }) : null;
-        if (t && transferSettlement(world, t.id, Wc.id, 'treaty')) { ceded.push(t.name); noteTransfer(world, war, t.id, Lc.id, Wc.id, 'ceded'); }
+        if (t && transferSettlement(world, t.id, Wc.id, 'treaty')) { ceded.push(t.name); cededIds.push(t.id); noteTransfer(world, war, t.id, Lc.id, Wc.id, 'ceded'); }
       }
-      if (terms >= 45 && Lc.alive) {
+      // money: reparations for a war to humble or to recover debts, tribute otherwise (sooner
+      // when tribute was the aim), and reparations on top of it after a crushing defeat
+      const humble = aimK === 'humble' || aimK === 'debt';
+      if (Lc.alive && ((humble && terms >= 30) || (!humble && terms >= 75)) && peaceAllows(world, Wc, Lc, 'reparations')) {
+        const years = Math.min(15, 8 + Math.round(terms / 15));
+        reparations = Math.round(clamp((terms - 30) / 20, 0.25, 3) * 12 * monthlyIncome(Lc) * 10) / 10;
+        addReparations(world, Lc.id, Wc.id, reparations, years);
+      }
+      if (Lc.alive && !humble && (terms >= 45 || (aimK === 'tribute' && terms >= 25))) {
         const yrs = Math.round(10 + terms / 5);
         const t = addTribute(world, Lc.id, Wc.id, null, yrs);
         tribute = { amount: t && finite(t.amount) ? Math.round(t.amount * 10) / 10 : true, years: yrs };
       }
+      hostageTerm = Lc.alive && (aimK === 'humble' || terms >= 50);
       const weak = civPower(world, Lc) < (capit ? 0.5 : 0.35) * civPower(world, Wc);
-      if (terms >= 65 || (capit && Lc.settlementIds.length <= 3)) {
+      if ((aimK === 'subjugate' && terms >= 45) || terms >= 65 || (capit && Lc.settlementIds.length <= 3)) {
         if (Lc.alive && Lc.vassalOf == null && weak && rng.chance(capit ? 0.6 : 0.5) && !liveCivs(world).some((c) => c.vassalOf === Lc.id)) {
           if (setVassal(world, Lc.id, Wc.id, 'conquest')) vassal = true;
         }
       }
+      // a crown: the victor's ruler is crowned in the loser's realm as well (civ/dynasty.js, on crownWon)
+      if (aimK === 'crown' && terms >= 55 && Lc.alive && !vassal && peaceAllows(world, Wc, Lc, 'crown')) {
+        emit(world, 'crownWon', war, Wc, Lc);
+        if (Lc.flags?.union && Lc.flags.union.withCivId === Wc.id) crown = 'union';
+      }
+      // a faith: the loser's crown takes the victor's (its towns keep their own, and follow slowly)
+      if (aimK === 'faith' && terms >= 50 && Lc.alive && aim.rid != null && Lc.stateReligion !== aim.rid && peaceAllows(world, Wc, Lc, 'faith')) {
+        if (imposeFaith(world, Lc, aim.rid, 10 + Math.round(terms / 6))) faith = aim.rid;
+      }
       if (g.cb === 'liberation' && end === 'attackers' && A && A.vassalOf === D?.id) releaseVassal(world, A.id, 'independence', true);
+    }
+    // how harsh the peace was: towns beyond the aim, money, a hostage, a crown, a faith
+    if (Lc && Wc && !civil) {
+      const aimed = aimK === 'towns' ? aim.sids || [] : [];
+      const beyond = cededIds.filter((sid) => !aimed.includes(sid)).length;
+      harsh = clamp01(0.2 * beyond + (reparations ? 0.2 : 0) + (hostageTerm && Lc.ruler?.heir ? 0.1 : 0) + (vassal ? 0.3 : 0) + (crown ? 0.4 : 0) + (faith != null ? 0.3 : 0));
     }
     if (Lc && Wc && Lc.alive) {
       const r = rel(world, Lc.id, Wc.id);
-      r.grievance = Math.min(100, (r.grievance || 0) + 15 + sc / 3 + ceded.length * 8);
+      r.grievance = Math.min(100, (r.grievance || 0) + 15 + sc / 3 + ceded.length * 8 + (harsh > 0.5 ? 20 * harsh : 0));
+      if (!civil && harsh > 0.5) hardenClaims(world, Lc, cededIds);   // a harsh peace is not forgiven
+      else if (!civil && end === 'attackers') {
+        // a fair peace the defender accepted: it gives up its claims on the towns the victors hold
+        const held = [];
+        for (const k in Lc.landClaims || {}) { const s = world.settlements[k]; if (s && s.alive && winners.includes(s.civId)) held.push(+k); }
+        renounced = renounceClaims(world, Lc, held);
+      }
     }
   }
   const truce = Math.round((opts.truceYears ?? (10 + sc / 6)) + rng.int(0, 6));
+  const hostage = hostageTerm && Wc && Lc ? takeHostage(world, Lc, Wc, truce) : null;
   const outcome = end === 'white' ? 'white_peace' : end;
-  war.geo.terms = { ceded: ceded.slice(), returned: returned.slice(), tribute: tribute ? tribute.amount : false, tributeYears: tribute ? tribute.years : 0, vassal, reunified, truce };
+  war.geo.terms = {
+    ceded: ceded.slice(), returned: returned.slice(), tribute: tribute ? tribute.amount : false, tributeYears: tribute ? tribute.years : 0, vassal, reunified, truce,
+    reparations, hostage: hostage ? hostage.name : null, faith, crown, renounced, harsh: Math.round(harsh * 100) / 100,
+  };
   endWar(world, war.id, outcome, truce);
   // the treaty town
   const tSrc = Lc && Lc.alive ? capitalOf(world, Lc) : D && D.alive ? capitalOf(world, D) : null;
@@ -2127,6 +2187,19 @@ function makePeace(world, st, war, end, opts = {}) {
     const changed = Math.max((war.captured || []).length, ceded.length + returned.length);
     const years = (world.time.day - war.startDay) / DAYS_PER_YEAR;
     if (!(changed >= 3 || vassal || years >= 10 || (tribute && changed >= 2))) imp = 2;
+  }
+  // the terms this chunk adds, in the treaty's own words
+  if (!civil && Lc && Wc) {
+    const more = [];
+    const L = capFirst(civName(Lc));
+    if (crown === 'union') more.push(`${rulerName(Wc) || capFirst(civName(Wc))} was crowned ruler of ${civName(Lc)} as well, and the two crowns were joined.`);
+    if (faith != null) { const r = faithOf(world, faith); if (r) more.push(`${L} was made to take ${r.name} as its faith.`); }
+    if (reparations > 0) more.push(`${L} was to pay reparations for years to come.`);
+    if (hostage) more.push(`${hostage.name}, heir of ${civName(Lc)}, went to the court of ${civName(Wc)} as a hostage.`);
+    if (renounced.length) more.push(`${L} gave up its claim to ${listJoin(renounced.slice(0, 3))}${renounced.length > 3 ? ' and other towns' : ''}.`);
+    if (harsh > 0.5) more.push(hashPick([`It was a peace that shamed ${peopleOf(Lc)}.`, `${capFirst(peopleOf(Lc))} would not forget so hard a peace.`], war.id, Lc.id));
+    if (more.length) text += ' ' + more.join(' ');
+    if (crown) imp = Math.max(imp, 4); else if (faith != null) imp = Math.max(imp, 3);
   }
   const at = tSrc;
   chronicle(world, {
@@ -2674,7 +2747,11 @@ on('settlementDestroyed', (world, s) => {
 });
 
 // Civil wars and other wars begun outside this module get our bookkeeping at once.
-on('warStarted', (world, war) => { if (war && !war.geo) geoOf(world, war); });
+on('warStarted', (world, war) => {
+  if (!war) return;
+  const g = geoOf(world, war);
+  if (!g.aims) g.aims = aimsFromCause(world, war);   // declare() replaces these with its own
+});
 
 // hand the divine acts (geo/acts.js) the war logic they call at use time
 bindWar({ inciteWar, inciteRefusal, brokerPeace, commandArmy, commandPreview, rallyAlly, sideOf, leaderName });

@@ -38,6 +38,8 @@
 //   siegeStarted   (world, { sid, armyId, civId })
 //   siegeEnded     (world, { sid, armyId, civId, outcome: 'captured'|'razed'|'lifted'|'broken', days })
 //   armyDisbanded  (world, army, reason)                      before the army is removed
+//   crownWon       (world, war, winnerCiv, loserCiv)          war.js makePeace, a war for a crown won;
+//                                                              civ/dynasty.js crowns the victor's ruler there too
 //   plagueStarted  (world, plague)
 //   plagueEnded    (world, plague)
 //   plagueDeaths   (world, { pid, sid, deaths })                monthly per settlement, when deaths ≥ 1

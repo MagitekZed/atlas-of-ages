@@ -677,9 +677,23 @@ function stateReligions(world, byCiv) {
       if (bestShare >= need && rng.chance(0.06 * (0.4 + relig) * hier)) adopt(world, civ, best, null);
     } else {
       const curShare = (cv.by[cur.id] || 0) / cv.pop;
-      if (best != null && best !== cur.id && curShare < 0.12 && bestShare >= 0.45 && rng.chance(0.05 * (0.5 + relig))) adopt(world, civ, best, cur);
+      // (a faith imposed at a peace is kept while the truce lasts: imposeFaith)
+      const held = finite(civ.flags.faithHeld) && civ.flags.faithHeld > world.time.day;
+      if (best != null && best !== cur.id && curShare < 0.12 && bestShare >= 0.45 && !held && rng.chance(0.05 * (0.5 + relig))) adopt(world, civ, best, cur);
     }
   }
+}
+
+/**
+ * A peace makes rid the state faith of civ (war.js, a holy war's terms). Its towns keep their
+ * own faiths and follow slowly; the crown keeps the imposed faith at least `years` (the truce).
+ * The treaty line tells of it. Returns true when the faith changed.
+ */
+export function imposeFaith(world, civ, rid, years = 10) {
+  if (!civ || !faithOf(world, rid) || civ.stateReligion === rid) return false;
+  civ.stateReligion = rid;
+  civ.flags.faithHeld = world.time.day + Math.round(years * DAYS_PER_YEAR);
+  return true;
 }
 
 function adopt(world, civ, rid, old) {
