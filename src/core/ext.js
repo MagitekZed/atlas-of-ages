@@ -57,6 +57,7 @@ export const EXT_POINTS = {
   warAim: { combine: 'first', sig: "(w, a, b, cbKey) → { k: 'towns'|'crown'|'faith'|'tribute'|'subjugate'|'free'|'debt'|'humble'|'hold', sids?, rid?, civ? } | null (geo/terms.js)" },
   peaceTerms: { combine: 'first', sig: "(w, winner, loser, term: 'reparations'|'hostage'|'crown'|'faith') → false to forbid | null (geo/terms.js)" },
   lendingRule: { combine: 'first', sig: '(w, lenderCiv, borrowerCiv) → { allowed?, rateMul? } | null (geo/debt.js)' },
+  armyMix: { combine: 'first', sig: '(w, civ) → 7 shares (spears, blades, bows, light horse, heavy horse, engineers, war beasts) | null (geo/army.js)' },
   claimRule: { combine: 'first', sig: '(w, civ) → { tau, foundedTau } years a lost town is claimed (e-folding) | null (geo/claims.js)' },
   revoltTo: { combine: 'first', sig: '(w, s, civ) → civId | null: the realm a rising town goes over to before its founders (geo/memory.js)' },
   memoryRule: { combine: 'first', sig: '(w, s) → { grudge, thanks } years a town remembers (e-folding) | null (geo/memory.js)' },

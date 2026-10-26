@@ -22,6 +22,7 @@ import { aimWords } from '../sim/geo/terms.js';
 import { memoriesOf, MEM_WHY } from '../sim/geo/memory.js';
 import { loansOf, housesOf, houseName } from '../sim/geo/debt.js';
 import { hostagesOf } from '../sim/geo/terms.js';
+import { roleName, GEAR_NAMES } from '../sim/geo/army.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -45,7 +46,7 @@ try { plateMod = await import('./plate.js'); } catch (e) { /* no theatre maps */
 
 const SETTLEMENT_KEYS = new Set('id name civId originCivId alive x y i foundedDay destroyedDay destroyCause population peakPopulation tier food foodProd foodNeed wealth production tradeIncome housing health happiness unrest loyalty culture defense garrison buildings religion dominantReligion disease immunity coastal harbor siege famine radius flags race effects effectsV traits epithet legend hist own'.split(' '));
 const CIV_KEYS = new Set('id alive name baseName adjective language hue color colorHex foundedDay fallenDay fallCause parentId originX originY capitalId settlementIds government ruler rulerHistory dynasty traits tech mods treasury taxRate income expenses stability legitimacy warWeariness prestige military relations allies vassalOf stateReligion goldenAge darkAge population territory wealth peakPopulation peakTerritory flags race effects effectsV style claims temperLog'.split(' '));
-const ARMY_KEYS = new Set('id civId warId x y homeId targetId strength morale supply path pathStep state naval general createdDay flags'.split(' '));
+const ARMY_KEYS = new Set('id civId warId x y homeId targetId strength morale supply path pathStep state naval general createdDay flags co'.split(' '));
 
 const ok = Number.isFinite;
 const fin = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
@@ -1443,6 +1444,15 @@ function armyView(app, sel, b) {
       { k: 'Morale', v: () => F.pct(a().morale) },
       { k: 'Supply', v: () => F.pct(a().supply) },
     ]),
+    // its companies by role, gear and experience (geo/army.js)
+    section('Companies', rows(b, () => {
+      const co = Array.isArray(a().co) ? a().co : [];
+      return co.filter((c) => c[1] >= 0.5).sort((p, q) => q[1] - p[1] || p[0] - q[0]).map((c) => ({
+        key: `co${c[0]}:${Math.round(c[1] / 10)}:${c[2]}:${Math.round(c[4] * 10)}`, icon: 'army',
+        label: roleName(c[0], c[2]).replace(/^./, (x) => x.toUpperCase()), n: F.people(c[1]),
+        s: [GEAR_NAMES[c[2]] || '', c[4] >= 0.6 ? 'veterans' : c[4] >= 0.3 ? 'seasoned' : 'green', c[3] >= 1.05 ? 'fine gear' : c[3] < 0.75 ? 'poor gear' : ''].filter(Boolean).join(' · '),
+      }));
+    }, 'No companies are recorded.', app)),
     section('Its campaign', ledgerChart(app, b, 'a', sel.id, { color: civ()?.colorHex, live: () => !gone() })),
     section('Service record', (() => { const p = h('p.ins-prose'); b.text(p, () => serviceRecord(w, a())); return p; })()),
     section('Orders', kv(b, [

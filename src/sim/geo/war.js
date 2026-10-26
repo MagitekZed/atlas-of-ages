@@ -79,6 +79,7 @@ import {
 } from './common.js';
 import { bestClaimOn, renounceClaims, hardenClaims, claimOf } from './claims.js';
 import { remember, memoryOf } from './memory.js';
+import { coFor, coSync, coShares, coGear, coTake, forcePower, mixFor, gearTier, gearQuality, siegeMul } from './army.js';
 import { aimFor, defenderAim, aimsFromCause, aimMet, winnerAim, peaceAllows, takeHostage, hostageHeld, killHostage } from './terms.js';
 import { addReparations, monthlyIncome, debtClaim, settleDebtClaim } from './debt.js';
 import { bindWar } from './acts.js';   // the geopolitical divine acts (they call back into this module at use time)
@@ -1023,6 +1024,8 @@ function mobilize(world, civ, war) {
   const gen = recruitGeneral(world, civ);
   const era = eraOf(civ);
   const army = createArmy(world, { civId: civ.id, x: stage.x, y: stage.y, homeId: stage.id, strength: str, warId: war ? war.id : null, general: gen.leader, state: 'idle' });
+  // its companies: the realm's way of war, its gear and how well it is made (army.js)
+  army.co = coFor(str, mixFor(world, civ), gearTier(civ), gearQuality(civ), 0.1);
   // levies take weeks to gather, arm and provision before they can march
   const muster = Math.round((40 + world.rng.next() * 60) / Math.max(0.5, m.movement));
   // merge: the kernel (damageArmy) and other packages may already keep things on flags
@@ -1438,10 +1441,16 @@ function battle(world, st, A, B) {
   const homeA = owner === A.civId || (ca.allies || []).includes(owner);
   const homeB = owner === B.civId || (cb.allies || []).includes(owner);
   const ext = hasProviders('battle');
+  // what each side fights with (army.js): companies by role, gear and experience, matched
+  // against the other's; fleets fight by numbers and the era gap, as ever
+  const coA = coSync(world, A), coB = coSync(world, B);
+  const shA = coShares(coA), shB = coShares(coB);
+  const gA = coGear(coA), gB = coGear(coB);
   const eff = (army, m, civ, other, enemy, home) => {
-    let e = army.strength * m.military * (0.4 + 0.6 * clamp01(army.morale)) * (0.55 + 0.45 * clamp01(army.supply));
+    const mine = army === A;
+    let e = naval ? army.strength * (1 + 0.15 * (eraOf(civ) - eraOf(other))) : forcePower(mine ? coA : coB, mine ? shB : shA, mine ? gB : gA);
+    e *= m.military * (0.4 + 0.6 * clamp01(army.morale)) * (0.55 + 0.45 * clamp01(army.supply));
     e *= finite(army.flags?.skill) ? army.flags.skill : 1;
-    e *= 1 + 0.15 * (eraOf(civ) - eraOf(other));
     if (naval) e *= 1 + 0.25 * m.navigation;
     else if (army.naval) e *= 0.6;                 // caught while landing
     if (home) e *= terrainBonus(world, army, i);
@@ -1457,6 +1466,9 @@ function battle(world, st, A, B) {
   const lossW = clamp(0.03 + 0.1 * (1 - d) + rng.next() * 0.04, 0.02, 0.3);
   const deadL = casualty(world, L, L.strength * lossL, 'battle');
   const deadW = casualty(world, Wn, Wn.strength * lossW, 'battle');
+  // the dead fall where the enemy was strong: horse on the pikes, foot under the knights
+  const byL = coTake(L === A ? coA : coB, deadL, L === A ? shB : shA);
+  const byW = coTake(Wn === A ? coA : coB, deadW, Wn === A ? shB : shA);
   L.morale = clamp(L.morale - (0.25 + 0.35 * d), 0.05, 1.2);
   Wn.morale = clamp(Wn.morale + 0.08, 0.05, 1.2);
   L.flags.battleDay = Wn.flags.battleDay = day;
@@ -1671,7 +1683,7 @@ function siegeTick(world, st, army, idx) {
   for (const a of idx.lines.get(s.id) || [army]) {
     if (a.state !== 'sieging' || a.targetId !== s.id || !areAtWar(world, a.civId, s.civId)) continue;
     const ma = modsOf(world, world.civs[a.civId]);
-    let p = a.strength * ma.siege * (finite(a.flags?.skill) ? a.flags.skill : 1) * (0.5 + 0.5 * clamp01(a.morale));
+    let p = a.strength * ma.siege * (finite(a.flags?.skill) ? a.flags.skill : 1) * (0.5 + 0.5 * clamp01(a.morale)) * siegeMul(coSync(world, a), eraOf(world.civs[a.civId]));
     if (ext) p *= mulOf('siege', world, { army: a, s });
     power += p;
     if (ma.navigation > navy) navy = ma.navigation;

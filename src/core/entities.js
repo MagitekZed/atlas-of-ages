@@ -523,6 +523,7 @@ export function createArmy(world, props) {
     strength: props.strength ?? 100, morale: props.morale ?? 1, supply: 1,
     path: null, pathStep: 0, state: props.state || 'idle', naval: false,
     general: props.general ?? null, createdDay: world.time.day, flags: {},
+    co: null,   // its companies by role (geo/army.js), made at the first read when absent
   };
   return addEntity(world, 'armies', army, 'army');
 }
