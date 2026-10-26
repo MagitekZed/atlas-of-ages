@@ -60,6 +60,10 @@
   pointer-events: none;
 }
 .story-strip > * { pointer-events: auto; }
+/* wide screens: a row of the left column, between the cartouche and the letters (watch.js place) */
+.hud-col > .story-strip.is-docked { position: static; flex: none; pointer-events: none; }
+/* two chips to a row there, so a long watchlist leaves room for the letters */
+.hud-col > .story-strip.is-docked .watch-chip { max-width: calc(50% - 3px); flex: 1 1 calc(50% - 3px); min-width: 0; }
 .watch-chip {
   display: inline-flex; align-items: center; gap: 6px; max-width: 220px; min-height: 28px;
   padding: 3px 10px 3px 8px; border-radius: 0; position: relative;

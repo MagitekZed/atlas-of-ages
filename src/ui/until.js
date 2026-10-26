@@ -25,7 +25,7 @@ import { h } from './dom.js';
 import { iconEl } from './icons.js';
 import { showProgress, openModal, msText, syncRange } from './widgets.js';
 import { openOptions, optRow } from './options.js';
-import { statusToast, actionToast } from './toasts.js';
+import { statusToast, actionToast, pauseAlert, setPauseDesktop } from './toasts.js';
 import { getNotices, setNotices, NOTICE_LEVELS, noticeMin } from './prefs.js';
 import { entrySel, entryPoint } from './app.js';
 import * as F from './format.js';
@@ -324,6 +324,7 @@ export function mount(app) {
     if (r.hit) {
       app.pause();
       const hit = r.hit;
+      pauseAlert(app, hit.text || label);
       const sel = hit.entry ? entrySel(app, hit.entry) : hit.ref ? refSel(hit.ref) : null;
       if (sel) app.select(sel, { frame: sel.kind === 'civ' || sel.kind === 'war' || sel.kind === 'plague', focus: !(sel.kind === 'civ' || sel.kind === 'war' || sel.kind === 'plague') });
       else if (Number.isFinite(hit.x) && Number.isFinite(hit.y)) app.focus(hit.x, hit.y, Math.max(app.renderer?.camera?.zoom || 8, 10));
@@ -496,6 +497,7 @@ export function mount(app) {
       try { r.state = r.def.arm(app, r.args); } catch (e) { /* re-armed next time */ }
       if (app.speed === 0) continue;
       app.pause();
+      pauseAlert(app, hit.text || conditionLabel(r.def, r.args));
       const sel = hit.entry ? entrySel(app, hit.entry) : hit.ref ? refSel(hit.ref) : null;
       actionToast(app, {
         icon: r.def.icon || 'pause', kicker: `Paused · ${conditionLabel(r.def, r.args)}`, title: hit.text, ms: 12000, cls: 'is-arrived',
@@ -577,7 +579,15 @@ export function mount(app) {
         toggle('badgeAfterLeap', 'A leap clears the Chronicle’s unread count', 'After a leap or a run until, the badge on the Chronicle starts again from zero.'),
         h('h3.opt-h', { text: 'Pause when…' }),
         h('p.opt-desc', { text: 'Time stops on its own when one of these happens while you watch.' }),
-        rules));
+        rules,
+        h('h3.opt-h', { text: 'When time pauses' }),
+        toggle('pauseChime', 'A chime when time pauses by itself', 'Two soft bell notes, even with the sound off or the game in another tab; the tab’s title says why.'),
+        optRow({
+          id: 'notice-pauseDesktop', title: 'A desktop notification this visit', checked: Boolean(app.pauseDesktop),
+          desc: typeof Notification === 'undefined' ? 'This browser has no desktop notifications.' : 'Shown while Atlas is in the background. Asked again on every visit, and never kept.',
+          // a browser that refuses leaves the switch off
+          onChange: (v) => { setPauseDesktop(app, v).then((ok) => { const b = document.getElementById('notice-pauseDesktop'); if (v && !ok && b && b.checked) { b.checked = false; b.dispatchEvent(new Event('change')); } }); },
+        })));
   }
   app.noticesPanel = noticesPanel;
   app.resetNotices = () => { setNotices({}); app.emit('notices'); };

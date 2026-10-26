@@ -7,7 +7,8 @@
 // soft "thock", or a dull "thud" when refused. A quiet bed of surf follows how much sea is
 // in view. The audio context starts on a gesture, rests while time is paused or the page is
 // hidden, and fails silently where sound is not allowed. A one-time card offers sound after
-// the first act.
+// the first act. The pause chime (app.sound.chime, toasts.js pauseAlert) stands apart: two soft
+// bell notes when time stops by itself, heard with the soundscape off and the tab hidden.
 
 import { registerCommand } from './registry.js';
 import { getPref, setPref } from './prefs.js';
@@ -174,7 +175,30 @@ export function mount(app) {
     app.emit('sound', prefs.on);
   }
   function setVolume(v) { prefs.vol = Math.max(0, Math.min(1, v)); save(); if (master) master.gain.value = prefs.vol * 0.7; }
-  app.sound = { get on() { return prefs.on; }, setOn, setVolume, get volume() { return prefs.vol; } };
+
+  /** Two falling bell notes; wakes the context for them and lets it rest again after. */
+  function chime() {
+    const c = ensure();
+    if (!c) return;
+    const play = () => {
+      const t = c.currentTime;
+      const out = c.createGain();
+      out.gain.value = 0.7;
+      out.connect(master);
+      for (const [f, at] of [[880, 0], [660, 0.32]]) {
+        for (const [r, a] of [[1, 0.22], [2.76, 0.07], [5.4, 0.03]]) {
+          const o = osc('sine', f * r, t + at, 2);
+          const g = c.createGain(); env(g, t + at, 0.005, a, 1.8); o.connect(g); g.connect(out);
+        }
+      }
+      setTimeout(() => {
+        try { out.disconnect(); } catch (e) { /* gone */ }
+        if (!prefs.on || document.visibilityState === 'hidden') c.suspend().catch(() => {});
+      }, 2600);
+    };
+    if (c.state === 'running') play(); else c.resume().then(play).catch(() => {});
+  }
+  app.sound = { get on() { return prefs.on; }, setOn, setVolume, chime, get volume() { return prefs.vol; } };
 
   // a viewer who chose sound earlier hears it again after their first click
   if (prefs.on) document.addEventListener('pointerdown', () => { const c = ensure(); c?.resume?.().catch(() => {}); }, { once: true, capture: true });

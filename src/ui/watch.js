@@ -102,7 +102,15 @@ export function mount(app) {
       case 'settlement': { const s = w.settlements[sel.id]; return s ? (s.alive === false ? 'ruins' : F.people(s.population)) : '—'; }
       case 'army': { const a = w.armies.find((q) => q.id === sel.id); return a ? F.people(Math.round(a.strength || 0)) : 'gone'; }
       case 'storm': { const s = w.storms.find((q) => q.id === sel.id); return s ? Math.round((s.intensity || 0) * 100) + '%' : 'spent'; }
-      case 'war': { const war = w.wars[sel.id]; return war ? (war.active ? F.span(w.time.day - war.startDay) : 'ended') : '—'; }
+      case 'war': {
+        // who is ahead, by the war score (0–100); who won, once it is over
+        const war = w.wars[sel.id];
+        if (!war) return '—';
+        const short = (id) => { const c = w.civs[id]; return c ? c.baseName || c.adjective || c.name : '?'; };
+        if (!war.active) return war.outcome === 'attackers' ? `${short(war.attackers[0])} won` : war.outcome === 'defenders' ? `${short(war.defenders[0])} won` : 'ended';
+        const sc = Math.round(war.warScore || 0);
+        return Math.abs(sc) < 5 ? 'even' : `${short((sc > 0 ? war.attackers : war.defenders)[0])} +${Math.abs(sc)}`;
+      }
       case 'plague': { const p = w.plagues[sel.id]; return p ? `${F.people(p.deaths || 0)} dead` : '—'; }
       case 'religion': { const r = w.religions[sel.id]; return r ? (r.alive === false ? 'dead' : F.people(r.followers || 0)) : '—'; }
       default: { const d = describeSel(app, sel); return d.alive === false ? 'gone' : ''; }
@@ -144,7 +152,8 @@ export function mount(app) {
     const dot = h('i.news', { hidden: true });
     const sw = d.color ? h('i.swatch', { style: { '--c': d.color } }) : iconEl(d.icon || q.kind, { size: 14, label: d.name });
     const b = h('button.watch-chip', { type: 'button' }, sw, h('span.wn', { text: d.name }), val, dot);
-    tip(b, `${d.sub || ''}${d.sub ? '. ' : ''}Click to go there; right-click for more.`, d.name);
+    const how = q.kind === 'war' ? ' The number is the war score: how far ahead the leading side is, out of 100.' : '';
+    tip(b, `${d.sub || ''}${d.sub ? '. ' : ''}Click to go there; right-click for more.${how}`, d.name);
     b.addEventListener('click', () => {
       markSeen(q);
       if (selectionExists(app, q)) app.select(q, { frame: !isMoverKind(q.kind) && q.kind !== 'settlement', focus: true });
@@ -240,17 +249,31 @@ export function mount(app) {
     ctx.stroke();
   }
 
-  /** Keep the strip just under the cartouche (or the top bar on a phone). */
+  /**
+   * Keep the strip just under the cartouche, never over the letters (the toast column). On a
+   * wide screen it joins the left column between the cartouche and the letters, so they stack;
+   * on a phone it sits under the top bar and the letters move down by its height.
+   */
   function place() {
+    const col = document.querySelector('.hud-col');
+    const letters = document.getElementById('toasts');
+    if (!isCompact() && col && letters) {
+      if (strip.parentNode !== col) col.insertBefore(strip, letters);
+      strip.classList.add('is-docked');
+      strip.style.top = strip.style.left = strip.style.maxWidth = '';
+      letters.style.marginTop = '';
+      return;
+    }
+    if (strip.parentNode !== stage) stage.insertBefore(strip, arrows);
+    strip.classList.remove('is-docked');
     const hud = document.querySelector('.hud-top');
-    const cart = document.getElementById('cartouche');
     const sr = stage.getBoundingClientRect();
-    const ref = isCompact() ? hud : cart;
-    const r = ref?.getBoundingClientRect();
+    const r = hud?.getBoundingClientRect();
     if (!r || !r.height) return;
     strip.style.top = Math.round(r.bottom - sr.top + 8) + 'px';
     strip.style.left = Math.round(r.left - sr.left) + 'px';
-    strip.style.maxWidth = isCompact() ? `calc(100% - ${Math.round(r.left - sr.left) * 2}px)` : Math.round(Math.max(r.width, 360)) + 'px';
+    strip.style.maxWidth = `calc(100% - ${Math.round(r.left - sr.left) * 2}px)`;
+    if (letters) letters.style.marginTop = strip.hidden ? '' : Math.round(strip.getBoundingClientRect().height + 8) + 'px';
   }
   try { new ResizeObserver(() => place()).observe(document.querySelector('.hud-top')); } catch (e) { /* no observer */ }
   window.addEventListener('resize', place);

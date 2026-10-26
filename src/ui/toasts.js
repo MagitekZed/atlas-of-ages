@@ -13,6 +13,12 @@
 // errors) use one slot; action cards (actionToast: deeds, undo, arrivals) stand apart.
 // Offers (offerToast: sound, the Director) are one-time suggestions: one at a time, the rest
 // wait their turn, and none while a deed card is telling what the hand just did.
+// When time stops by itself (an epochal event, a Notices rule, a run until), pauseAlert tells a
+// viewer who may be elsewhere: a chime (audio.js, its own switch in Notices, heard with the
+// soundscape off and the tab hidden), "⏸ Paused" in the tab's title until time runs again, and
+// a desktop notification while the tab is hidden. Desktop notifications are asked for afresh on
+// every visit, the first time time runs (app.pauseDesktop is never saved), and are used only
+// after a yes in this visit, whatever the browser still remembers.
 
 import { CATEGORIES } from '../core/constants.js';
 import { chronicleSince } from '../core/chronicle.js';
@@ -50,7 +56,9 @@ export function mountToasts(app) {
   let digest = null;   // { el, text, n, fromDay, timer, born }
 
   const reset = () => { tokens = BUCKET_MAX; refillAt = performance.now(); digest = null; };
-  app.on('world', (w) => { lastSeq = w.chronicle.seq; clear(root); statusEl = null; reset(); });
+  app.on('world', (w) => { lastSeq = w.chronicle.seq; clear(root); statusEl = null; reset(); restoreTitle(); });
+  // time running again clears the paused title; the first run of a visit offers desktop notices
+  app.on('speed', (k) => { if (k !== 0) { restoreTitle(); offerDesktop(app); } });
   app.on('historySkipped', () => {
     if (app.world) lastSeq = app.world.chronicle.seq;
     for (const t of root.querySelectorAll('.toast:not(.is-status):not(.is-card)')) t.remove();
@@ -67,10 +75,10 @@ export function mountToasts(app) {
     const filtered = getToastFilters().length > 0;
     const fast = app.speed >= FAST_SPEED;
     const major = [], watched = [];
-    let epochal = false, quiet = 0, quietDay = null;
+    let epochal = null, quiet = 0, quietDay = null;
     for (const e of fresh) {
       if (e.fold) continue;
-      if (e.imp >= 5) epochal = true;
+      if (e.imp >= 5) epochal = e;
       const v = filtered ? toastVerdict(app, e) : null;
       if (v?.suppress) continue;
       if (v?.watched && e.imp >= 2) { watched.push(e); continue; }
@@ -82,7 +90,7 @@ export function mountToasts(app) {
     }
     for (const e of watched.slice(-MAX_WATCHED)) pushEntry(app, e, { watched: true });
     if (quiet) addToDigest(quiet, quietDay);
-    if (!major.length) { if (epochal) autoPause(); return; }
+    if (!major.length) { if (epochal) autoPause(epochal); return; }
     const nowT = performance.now();
     while (tokens < BUCKET_MAX && nowT - refillAt >= BUCKET_REFILL_MS) { tokens++; refillAt += BUCKET_REFILL_MS; }
     if (tokens >= BUCKET_MAX) refillAt = nowT;
@@ -97,14 +105,15 @@ export function mountToasts(app) {
     show.sort((a, b) => a.seq - b.seq);
     for (const e of show) pushEntry(app, e);
     if (folded > 0) addToDigest(folded, major[0].day);
-    if (epochal) autoPause();
+    if (epochal) autoPause(epochal);
   });
 
-  function autoPause() {
+  function autoPause(epochal) {
     if (app.pauseRulesArmed) return;   // the Notices' pause rules (until.js) decide
     if (app.autoPause && app.speed !== 0) {
       app.pause();
       statusToast(app, 'Time paused for an epochal event. Press Space to continue.', 'info', { icon: 'pause' });
+      pauseAlert(app, epochal ? epochal.text : 'An epochal event');
     }
   }
 
@@ -133,6 +142,59 @@ export function mountToasts(app) {
     digest.timer = setTimeout(() => { if (digest?.el === el) digest = null; dismiss(el); }, 9000);
     trim();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Time stopped by itself: the chime, the tab's title, a desktop notification
+
+let baseTitle = null;
+const PAUSE_MARK = '⏸ ';
+
+/** Tell a viewer who may be looking elsewhere that time stopped for `text`. */
+export function pauseAlert(app, text) {
+  const line = String(text || 'Time paused').replace(/\s+/g, ' ').trim();
+  if (getNotices().pauseChime) app.sound?.chime?.();
+  if (baseTitle == null) baseTitle = document.title.startsWith(PAUSE_MARK) ? 'Atlas of Ages' : document.title;
+  const short = line.length > 70 ? line.slice(0, 67).replace(/\s+\S*$/, '') + '…' : line;
+  document.title = `${PAUSE_MARK}Paused: ${short} · ${baseTitle}`;
+  if (app.pauseDesktop && document.hidden && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      const note = new Notification('Atlas of Ages: time paused', { body: line, tag: 'atlas-pause' });
+      note.onclick = () => { try { window.focus(); } catch (e) { /* the browser decides */ } note.close(); };
+    } catch (e) { /* notifications unavailable here */ }
+  }
+}
+
+function restoreTitle() {
+  if (baseTitle != null && document.title.startsWith(PAUSE_MARK)) document.title = baseTitle;
+}
+
+/**
+ * Turn desktop notifications on or off for this visit only. Turning them on asks the browser
+ * when it has not been asked; resolves to whether they are on.
+ */
+export async function setPauseDesktop(app, on) {
+  app.pauseDesktop = false;
+  if (!on || typeof Notification === 'undefined') return false;
+  let perm = Notification.permission;
+  if (perm === 'default') { try { perm = await Notification.requestPermission(); } catch (e) { perm = 'denied'; } }
+  app.pauseDesktop = perm === 'granted';
+  if (perm === 'denied') statusToast(app, 'This browser blocks notifications from Atlas. Allow them in the site settings to use them.', 'warn', { icon: 'pause' });
+  return app.pauseDesktop;
+}
+
+let desktopAsked = false;
+/** Once per visit, the first time time runs: ask whether to notify the desktop when it pauses. */
+function offerDesktop(app) {
+  if (desktopAsked || !app.world || app.fastForwarding) return;
+  desktopAsked = true;
+  if (typeof Notification === 'undefined' || Notification.permission === 'denied' || !getNotices().pauseRules.length) return;
+  offerToast(app, {
+    icon: 'pause', kicker: 'Notices', title: 'Tell you when time pauses?',
+    text: 'If you let history run in another tab, a desktop notification can tell you when it stops for something great. Asked each visit; nothing is kept.',
+    ms: 14000,
+    actions: [{ label: 'Notify me this visit', primary: true, run: () => { setPauseDesktop(app, true); } }, { label: 'Not now', run: () => {} }],
+  });
 }
 
 /** A phone's column: few slips at a time, so the map stays in view (one beside an offer card). */
