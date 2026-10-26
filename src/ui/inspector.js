@@ -1346,7 +1346,7 @@ function civView(app, sel, b) {
       { k: 'Why', v: () => manpowerReason(app.world, c) || '—', txt: true, hide: () => !manpowerReason(app.world, c) },
       { k: 'Soldiers in the field', v: () => { const a = w.armies.filter((q) => q.civId === c.id); return a.length ? `${F.people(a.reduce((s, q) => s + (q.strength || 0), 0))} in ${a.length} ${a.length === 1 ? 'army' : 'armies'}` : 'None'; } },
       { k: 'Raised by', v: () => (c.forces ? SYS_WORDS[c.forces.sys] || '—' : '—'), txt: true, hide: () => !c.forces },
-      { k: 'Since', v: () => F.year(c.forces.since), hide: () => !c.forces || !ok(c.forces.since) },
+      { k: 'Since', v: () => F.year(c.forces.since), hide: () => !c.forces || c.forces.sys === 'levy' || !ok(c.forces.since) },
       { k: 'Pay for its soldiers', v: () => F.num(armyBill(w, c), 1) + ' / mo', tip: 'What its armies in the field, its standing regiments and its garrisons cost this month, counted in its expenses.', hide: () => !c.forces || c.alive === false },
       { k: 'Unpaid for', v: () => `${F.int(c.forces.arrears)} months`, hide: () => !(c.forces?.arrears > 0) },
       { k: 'Veterans at home', v: () => F.people(c.forces.vets), tip: 'Men home from its wars who will stiffen its next levy; fewer each year as they age.', hide: () => !(c.forces?.vets >= 1) },

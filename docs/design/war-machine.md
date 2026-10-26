@@ -67,16 +67,19 @@ An array of companies, at most 8 an army: `[role, n, gear, q, xp, reg]`.
 - `gear`: tier 0 to 6 (below). `q`: quality and condition, 0.4 to 1.2. `xp`: experience 0 to 1.
 - `reg`: the regiment's id when the company is a standing regiment, else absent.
 
-### The realm's war footing: `civ.war`
+### The realm's war footing: `civ.forces` (built name)
 
-`{ sys, since, pay, arrears, regs, vets }`:
-- `sys`: `levy`, `feudal`, `standing` or `hired`.
-- `pay`: the month's bill. `arrears`: months it could not pay in full.
-- `regs`: its regiments `[{ id, name, role, n, gear, q, xp, founded, battles, won, honours, levy, levyDay }]`,
-  at most 12. A regiment at home keeps its men out of the towns, as a levy does (`levy` slice).
+`{ sys, since, cand, candN, arrears, regs, vets, deserted, learned, coupDay }`:
+- `sys`: `levy`, `feudal`, `standing` or `hired`; `cand`/`candN` the way it leans toward and for how
+  many years (a reform needs three).
+- `arrears`: months running its treasury has stood below zero after its expenses.
+- `regs`: its regiments `[{ id, name, role, n, gear, q, xp, founded, battles, won, honours, out, levy, levyDay }]`,
+  at most 12. A regiment keeps its men out of the towns while it serves (`levy` is their shape).
 - `vets`: veterans at home, a count that fades as they age (5 % a year).
+- `learned`: battle plans taken up from those who beat it.
 
-A new civ field, set at creation, declared in `CIV_SHAPE` after `landClaims`.
+A new civ field, declared in `CIV_SHAPE` after `landClaims`, set at the realm's first month.
+The month's bill is not stored: the civ module asks the ext `upkeep` (sum) each month.
 
 ### Battles in full
 
