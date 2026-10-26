@@ -951,6 +951,9 @@ ageing, emigration and reconcile passes every month.
 - What would still move it: storing each town's peoples as one flat block instead of an object
   of tables, so every pass runs on one typed array. That is a broad refactor of the core and the
   peoples module, and the user's decision.
+- **Accepted (2026-10-26).** The user took the Mythic cost as it stands. A Year-900 medium Mythic
+  world runs at about 192 ms per sim-year headless (main: about 162), so about 5 years a second
+  at full speed instead of 6. Flat storage stays an option if Mythic speed matters later.
 
 ## Decisions (2026-10-25)
 
