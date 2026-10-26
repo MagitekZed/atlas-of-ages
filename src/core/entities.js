@@ -222,9 +222,11 @@ export function createSettlement(world, civId, x, y, opts = {}) {
     // fields other modules add, declared here in the order they arrive so every settlement keeps
     // one hidden class (undefined until set, and never saved; keep in step with SETTLEMENT_SHAPE,
     // world.js): the civ module's (ensureSettlementFields) as the town is founded, then in Mythic
-    // worlds its mix of peoples (myth/peoples.js) and, a decade on, that mix's history
+    // worlds its mix of peoples (myth/peoples.js) and, a decade on, that mix's history; its memories
+    // (geo/memory.js) sit before them, set at the first
     project: undefined, farmland: undefined, growth: undefined, capacity: undefined,
     foodImport: undefined, emigrants: undefined, taxes: undefined, jobs: undefined,
+    mem: undefined,         // what it remembers of other realms (geo/memory.js), from its first memory
     peoples: undefined, peoplesPast: undefined,
   };
   addIndexed(world, 'settlements', s);

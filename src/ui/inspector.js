@@ -19,6 +19,7 @@ import { NJ, TRADE_LABELS } from '../sim/civ/jobs.js';
 import { manpowerReason } from '../sim/civ/peoplenews.js';
 import { claimantsOf, claimsOfCiv, CLAIM_WHY } from '../sim/geo/claims.js';
 import { aimWords } from '../sim/geo/terms.js';
+import { memoriesOf, MEM_WHY } from '../sim/geo/memory.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -754,6 +755,17 @@ function settlementView(app, sel, b) {
   })), 'No one claims it.', app);
   const claimSec = section('Claimed by', claimRows);
   b.hide(claimSec, () => !claimantsOf(w, s).length);
+  // what it remembers of other realms (geo/memory.js)
+  const memSec = section('Remembers', rows(b, () => memoriesOf(w, s).map((m) => {
+    const c = w.civs[m.civId];
+    const how = MEM_WHY[m.why] || 'remembers';
+    return {
+      key: `m${m.civId}:${m.why}:${m.day}:${Math.round(m.v * 10)}`, swatch: c?.colorHex || 'var(--ink-4)',
+      label: `${how[0].toUpperCase() + how.slice(1)} ${c ? c.name : 'a forgotten realm'}`, sel: c ? { kind: 'civ', id: c.id } : null,
+      n: 'Y' + yearOf(m.day), s: m.v <= -0.45 ? 'a bitter memory' : m.v < 0 ? 'a grudge' : m.v >= 0.45 ? 'a warm memory' : 'gratitude',
+    };
+  }), 'Nothing it holds against anyone.', app));
+  b.hide(memSec, () => !memoriesOf(w, s).length);
   const story = rows(b, () => settlementStory(w, s).map((it) => ({ key: it.key + it.text, icon: it.key.startsWith('o') ? 'crown' : 'chronicle', label: it.text, n: it.day != null ? 'Y' + yearOf(it.day) : '', sel: it.sel })), 'An uneventful life, so far.', app);
   const near = rows(b, () => siteItems(app, s.x, s.y, 3.5), 'No battlefields or ruins nearby.', app);
   const nearSec = section('Remembered nearby', near);
@@ -784,6 +796,7 @@ function settlementView(app, sel, b) {
     hideFor(b, () => !s.alive || !s.cohorts, section('People', agePyramid(app, b, townPeople(app, s)))),
     section('Chain of title', titleBar(app, b, s), chain),
     claimSec,
+    memSec,
     section('Story', story),
     // a ruin has no livelihood: its last day's cares are not shown as if they were today's
     hideFor(b, () => !s.alive, section('Livelihood', kv(b, [

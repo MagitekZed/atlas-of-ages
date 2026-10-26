@@ -55,6 +55,7 @@ export const EXT_POINTS = {
   warAppetite: { combine: 'mul', clamp: [0.2, 3], sig: '(w, a, b)' },
   casusBelli: { combine: 'concat', sig: '(w, a, b) → [{cb, w, name?}]' },
   claimRule: { combine: 'first', sig: '(w, civ) → { tau, foundedTau } years a lost town is claimed (e-folding) | null (geo/claims.js)' },
+  revoltTo: { combine: 'first', sig: '(w, s, civ) → civId | null: the realm a rising town goes over to before its founders (geo/memory.js)' },
   memoryRule: { combine: 'first', sig: '(w, s) → { grudge, thanks } years a town remembers (e-folding) | null (geo/memory.js)' },
   rates: { combine: 'mul', clamp: [0, 5], sig: '(w, key)' },
   vegCap: { combine: 'mul', clamp: [0.2, 1.5], sig: '(w, i)' },

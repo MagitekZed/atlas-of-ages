@@ -77,7 +77,8 @@ import {
   ordinalWord, bare, landscapeAt, nearestFeature, hashPick, seasonWord, activeWarList, enemySet, civsAtWar, worldPopulation,
   emitHook, peekMods,
 } from './common.js';
-import { bestClaimOn, renounceClaims, hardenClaims } from './claims.js';
+import { bestClaimOn, renounceClaims, hardenClaims, claimOf } from './claims.js';
+import { remember, memoryOf } from './memory.js';
 import { aimFor, defenderAim, aimsFromCause, aimMet, winnerAim, peaceAllows, takeHostage, hostageHeld, killHostage } from './terms.js';
 import { addReparations, monthlyIncome } from './debt.js';
 import { bindWar } from './acts.js';   // the geopolitical divine acts (they call back into this module at use time)
@@ -1536,6 +1537,9 @@ function battle(world, st, A, B) {
     if (Wn.flags.genId == null && bname && (decisive || (g0.wins >= PROMOTE_WINS && g0.honours >= 2))) promoteGeneral(world, st, Wn, cw, decisive ? 'great' : 'wins', bname, entry ? entry.seq : null);
   }
   if (L.general && typeof L.general === 'object') L.general.battles = (L.general.battles | 0) + 1;
+  // the town whose siege this victory breaks remembers who saved it (memory.js)
+  const relieved = L.state === 'sieging' && L.targetId != null ? world.settlements[L.targetId] : null;
+  if (relieved && relieved.alive && relieved.siege && relieved.siege.armyId === L.id) remember(world, relieved, Wn.civId, 0.4, 'r');
   if (rout) {
     if (L.strength > 40 && rng.chance(0.4)) { L.state = 'retreating'; L.path = null; clearSiegeBy(world, L, 'broken'); L.targetId = null; L.flags.nextPlan = 0; }
     else { casualty(world, L, L.strength * 0.5, 'battle', false); disband(world, L, 'routed'); }   // the routed scatter
@@ -1674,6 +1678,17 @@ function siegeTick(world, st, army, idx) {
   let rate = 0.0004 + 0.0055 * power / (power + hold * fort);
   if (!(s.food > 0)) rate *= 1.4;                       // starved into surrender
   if (s.harbor && navy < 1) rate *= 0.7;                // supplied from the sea
+  // what the town remembers of the besieger (memory.js): it holds out against a realm it hates,
+  // and may open its gates to one it remembers kindly when it is cold to its own crown
+  if (s.mem && s.mem.length) {
+    const m = memoryOf(world, s, army.civId);
+    if (m < 0) rate *= Math.max(0.6, 1 + 0.5 * m);
+    else if (m >= 0.3 && (memoryOf(world, s, s.civId) <= -0.2 || s.loyalty < 0.3) && world.rng.chance(0.03 * m / DAYS_PER_MONTH)) {
+      st.gates = (st.gates || 0) + 1;
+      capture(world, st, army, s, { gates: true });
+      return;
+    }
+  }
   s.siege.progress = clamp01((s.siege.progress || 0) + rate);
   s.food = Math.max(0, (s.food || 0) - s.population * 0.006);
   if (finite(s.garrison)) s.garrison *= 0.997;
@@ -1681,8 +1696,9 @@ function siegeTick(world, st, army, idx) {
   if (s.siege.progress >= 1) capture(world, st, army, s);
 }
 
-function capture(world, st, army, s) {
+function capture(world, st, army, s, opts = {}) {
   const rng = world.rng;
+  const gates = opts.gates === true;   // the town opened its gates (siegeTick): taken without a sack
   const day = world.time.day;
   const att = world.civs[army.civId];
   const oldId = s.civId;
@@ -1726,6 +1742,11 @@ function capture(world, st, army, s) {
   const grievance = rel(world, att.id, oldId).grievance || 0;
   let pRaze = 0.03 + (rulerHas(att, 'cruel') ? 0.22 : 0) + (holy ? 0.15 : 0) + (grievance > 60 ? 0.12 : 0) + (eraOf(att) === 0 ? 0.04 : 0);
   if ((s.tier || 0) >= 5 || rulerHas(att, 'just')) pRaze *= 0.3;
+  // what the town remembers of its taker (memory.js), and whether this is its old realm come back
+  const priorGrudge = Math.min(0, memoryOf(world, s, att.id));
+  const freed = !gates && (s.originCivId === att.id || claimOf(world, att, s.id) >= 0.2);
+  const thanks = gates ? (s.mem || []).find((m) => m[0] === att.id) : null;   // the memory that opened the gates
+  const assim = finite(s.flags?.assim) ? s.flags.assim : 0;
   const name = s.name, popBefore = s.population;
   const wn = war ? theWar(war) : 'the war';
   const ruler = rulerName(att);
@@ -1744,8 +1765,10 @@ function capture(world, st, army, s) {
   }
   const r = rel(world, oldId, att.id);
   const cause = g && g.seq != null ? { cause: g.seq } : {};
-  if (rng.chance(pRaze)) {
+  if (!gates && rng.chance(pRaze)) {
     st.razed++;
+    // the towns around remember who razed their neighbour
+    for (const t of settlementsNear(world, s.x, s.y, 8)) if (t.id !== s.id && (t.civId === oldId || t.originCivId === s.originCivId)) remember(world, t, att.id, -0.4, 'z');
     r.grievance = Math.min(100, (r.grievance || 0) + 25 + (s.tier || 0) * 3);
     if (war) { g.razed = clamp((g.razed || 0) + side * gain * 0.6, -60, 60); rescore(world, war); noteTransfer(world, war, s.id, oldId, -1, 'razed'); }
     const text = pickOne(world, [
@@ -1762,19 +1785,24 @@ function capture(world, st, army, s) {
     endSiege(world, s, 'razed');
     destroySettlement(world, s.id, 'razed');
   } else {
-    damageSettlement(world, s, { pop: 0.06 + rng.next() * 0.12 + (rulerHas(att, 'cruel') ? 0.1 : 0), wealth: 0.35, food: 0.5, buildings: 0.15, defense: 0.6, cause: 'sack' });
+    if (!gates) damageSettlement(world, s, { pop: 0.06 + rng.next() * 0.12 + (rulerHas(att, 'cruel') ? 0.1 : 0), wealth: 0.35, food: 0.5, buildings: 0.15, defense: 0.6, cause: 'sack' });
     if (!s.alive) { endSiege(world, s, 'razed'); return; }
     if (g && g.occupied[s.id] == null) g.occupied[s.id] = oldId;
     if (war && !war.captured.includes(s.id)) war.captured.push(s.id);
     r.grievance = Math.min(100, (r.grievance || 0) + 6 + (s.tier || 0) * 2);
     if (wasCapital) { s.flags ||= {}; s.flags.wasCapital = oldId; }
     endSiege(world, s, 'captured');
-    transferSettlement(world, s.id, att.id, 'conquest');
+    transferSettlement(world, s.id, att.id, gates ? 'defection' : 'conquest');
     if (war) { rescore(world, war); noteTransfer(world, war, s.id, oldId, att.id, 'cap'); }
+    // the town remembers: a sack, its old realm come back for it, or the gates it opened
+    if (gates) remember(world, s, att.id, 0.1, 'g');
+    else if (freed) remember(world, s, att.id, 0.4 * (1 - assim) - 0.15, 'f');
+    else remember(world, s, att.id, -0.5, 'k');
+    if (priorGrudge < 0) s.unrest = Math.max(s.unrest, 0.25 - 0.3 * priorGrudge);
     s.garrison = Math.max(s.garrison || 0, army.strength * 0.15);
     army.strength *= 0.85;   // the garrison stays behind (not a loss)
     const fallen = !old.alive;
-    const text = fallen
+    const text = gates ? gatesText(world, s, att, old, wn, thanks) : fallen
       ? pickOne(world, [
         `With the fall of ${name}, the last stronghold of ${peopleOf(old)}, ${civName(old)} passed from history into the hands of ${civName(att)}.`,
         `${capFirst(civName(att))} took ${name} after ${spanPhrase(siegeDays)}, and with it the last of ${civName(old)}.`,
@@ -1807,13 +1835,24 @@ function capture(world, st, army, s) {
     const coda = epochalSeat ? (greatestCity ? ' It had been the greatest city in the world.' : ` It had been the seat of the mightiest realm on earth.`) : '';
     chronicle(world, {
       cat: 'war', imp, text: text + coda, x: s.x, y: s.y, civId: att.id, sid: s.id, icon: 'capture',
-      key: fallen ? 'war.conquest' : wasCapital ? 'war.capital' : 'war.capture', ref: war ? { k: 'war', id: war.id } : { k: 'settlement', id: s.id }, ...cause,
-      tags: fallen ? ['realm-fell'] : wasCapital ? ['capital'] : undefined,
+      key: gates ? 'town.gates' : fallen ? 'war.conquest' : wasCapital ? 'war.capital' : 'war.capture', ref: war ? { k: 'war', id: war.id } : { k: 'settlement', id: s.id }, ...cause,
+      tags: gates ? ['memory'] : fallen ? ['realm-fell'] : wasCapital ? ['capital'] : undefined,
     });
     if (fig && fig.died == null) fig.deeds = (fig.deeds || []).concat(`took ${name}`).slice(-12);
   }
   army.state = 'idle'; army.targetId = null; army.path = null;
   army.flags.nextPlan = day + 10;
+}
+
+const GATES_DEED = { r: 'had saved it', f: 'had freed it', g: 'had spared it before' };
+/** The line for a town that opened its gates to a realm it remembered kindly (memory.js). */
+function gatesText(world, s, att, old, wn, mem) {
+  const deed = GATES_DEED[mem ? mem[2] : ''] || 'had dealt well with it';
+  const Y = mem ? ` in Year ${Math.floor(mem[3] / DAYS_PER_YEAR)}` : '';
+  return hashPick([
+    `Remembering how ${civName(att)} ${deed}${Y}, ${s.name} opened its gates to its army in ${wn}.`,
+    `${capFirst(s.name)} would not fight for ${civName(old)}: its people threw open the gates to ${civName(att)}, who ${deed}${Y}.`,
+  ], s.id, att.id, world.time.day);
 }
 
 // ---------------------------------------------------------------------------
@@ -2027,7 +2066,11 @@ function makePeace(world, st, war, end, opts = {}) {
     if (!s || !s.alive || !c || !c.alive || s.civId === to) return;
     if (world.civs[s.civId] && world.civs[s.civId].settlementIds.length <= 1) return;   // never strip a realm's last town in a treaty
     const from = s.civId;
-    if (transferSettlement(world, sid, to, 'treaty')) { returned.push(s.name); noteTransfer(world, war, sid, from, to, 'returned'); }
+    const assim = finite(s.flags?.assim) ? s.flags.assim : 0;
+    if (transferSettlement(world, sid, to, 'treaty')) {
+      returned.push(s.name); noteTransfer(world, war, sid, from, to, 'returned');
+      remember(world, s, to, 0.4 * (1 - assim), 'f');   // handed back to its own realm (memory.js)
+    }
   };
   if (end === 'white') {
     for (const sid in g.occupied) back(+sid, g.occupied[sid]);
@@ -2062,12 +2105,12 @@ function makePeace(world, st, war, end, opts = {}) {
           if (!s || !s.alive || !losers.includes(s.civId)) continue;
           const from = s.civId;
           if (world.civs[from].settlementIds.length <= 2) continue;
-          if (transferSettlement(world, sid, Wc.id, 'treaty')) { ceded.push(s.name); cededIds.push(sid); noteTransfer(world, war, sid, from, Wc.id, 'ceded'); n--; }
+          if (transferSettlement(world, sid, Wc.id, 'treaty')) { ceded.push(s.name); cededIds.push(sid); noteTransfer(world, war, sid, from, Wc.id, 'ceded'); remember(world, s, from, -0.3, 'c'); n--; }
         }
       } else if (terms >= 85 && Lc.settlementIds.length > 2) {
         const capW = capitalOf(world, Wc);
         const t = capW ? nearestSettlement(world, capW.x, capW.y, { civId: Lc.id, filter: (s) => s.id !== Lc.capitalId }) : null;
-        if (t && transferSettlement(world, t.id, Wc.id, 'treaty')) { ceded.push(t.name); cededIds.push(t.id); noteTransfer(world, war, t.id, Lc.id, Wc.id, 'ceded'); }
+        if (t && transferSettlement(world, t.id, Wc.id, 'treaty')) { ceded.push(t.name); cededIds.push(t.id); noteTransfer(world, war, t.id, Lc.id, Wc.id, 'ceded'); remember(world, t, Lc.id, -0.3, 'c'); }
       }
       // money: reparations for a war to humble or to recover debts, tribute otherwise (sooner
       // when tribute was the aim), and reparations on top of it after a crushing defeat
