@@ -20,6 +20,8 @@ import { manpowerReason } from '../sim/civ/peoplenews.js';
 import { claimantsOf, claimsOfCiv, CLAIM_WHY } from '../sim/geo/claims.js';
 import { aimWords } from '../sim/geo/terms.js';
 import { memoriesOf, MEM_WHY } from '../sim/geo/memory.js';
+import { loansOf, housesOf, houseName } from '../sim/geo/debt.js';
+import { hostagesOf } from '../sim/geo/terms.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -1270,6 +1272,25 @@ function civView(app, sel, b) {
     };
   }), 'It claims no lost towns.', app));
   b.hide(claimsSec, () => !claimsOfCiv(w, c).length);
+  // what it owes and is owed, its banking houses, and the hostages it holds or has given (debt.js, terms.js)
+  const lenderName = (from) => { if (from >= 0) return w.civs[from]?.name || 'a forgotten realm'; const hs = w.sys.diplomacy?.houses || []; const hh = hs.find((q) => q.id === -1 - from); return hh ? houseName(w, hh) : 'a banking house'; };
+  const debtItems = () => {
+    const out = [];
+    for (const l of loansOf(w, c.id)) {
+      const owes = l.to === c.id;
+      const other = owes ? lenderName(l.from) : w.civs[l.to]?.name || 'a forgotten realm';
+      const what = l.kind === 'reparations' ? 'reparations' : `${Math.round(l.rate * 100)} %`;
+      out.push({ key: `d${l.id}:${Math.round(l.owed)}:${l.arrears}`, icon: 'coin', label: owes ? `Owes ${other}` : `Owed by ${other}`, n: F.money(l.owed), s: [what, l.arrears ? `${l.arrears} months behind` : ''].filter(Boolean).join(' · '), sel: l.from >= 0 || !owes ? { kind: 'civ', id: owes ? l.from : l.to } : null });
+    }
+    for (const hh of housesOf(w, c.id)) out.push({ key: `h${hh.id}:${Math.round(hh.capital)}`, icon: 'coin', label: houseName(w, hh).replace(/^the /, 'The '), n: F.money(hh.capital), s: 'a banking house', sel: { kind: 'settlement', id: hh.seat } });
+    for (const q of hostagesOf(w, c.id)) {
+      const held = q.at === c.id;
+      out.push({ key: `q${q.civ}:${q.at}:${q.since}`, icon: 'crown', label: held ? `Holds ${q.name} of ${w.civs[q.civ]?.name || 'a fallen realm'}` : `${q.name} held by ${w.civs[q.at]?.name || 'a fallen realm'}`, n: 'until Y' + yearOf(q.until), s: 'a hostage', sel: { kind: 'civ', id: held ? q.civ : q.at } });
+    }
+    return out;
+  };
+  const debtSec = section('Debts and hostages', rows(b, debtItems, 'It owes no one.', app));
+  b.hide(debtSec, () => !debtItems().length);
 
   return h('div.tabpanel', null,
     title(b, { color: c.colorHex, name: () => c.name, sub: () => `${F.titleCase(c.government || 'tribe')} · ${F.eraName(c.tech?.era)}`, actions: standardActions(app) }),
@@ -1325,6 +1346,7 @@ function civView(app, sel, b) {
     ]), techBox, modsBox),
     section('Relations', relations),
     claimsSec,
+    debtSec,
     section('Wars', warList),
     section('Settlements', townList),
     figSec,

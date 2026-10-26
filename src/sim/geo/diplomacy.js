@@ -40,7 +40,7 @@ import { sharesSea } from './pathfinding.js';
 import { seedContactPlague } from './disease.js';
 import { faithOf } from './religion.js';
 import { claimSums, claimsMonthly } from './claims.js';
-import { debtsMonthly } from './debt.js';
+import { debtsMonthly, housesMonthly } from './debt.js';
 import { hostagesMonthly } from './terms.js';
 import {
   modsOf, civById, civName, peopleOf, rulerName, rulerHas, pairKey, addTreaty, removeTreaty,
@@ -754,6 +754,7 @@ export const system = {
     vassalUpkeep(world, st, ctx);
     claimsMonthly(world, st);
     debtsMonthly(world, st);
+    housesMonthly(world);
     hostagesMonthly(world);
     if (month % 12 === 7) {
       pruneRelations(world);

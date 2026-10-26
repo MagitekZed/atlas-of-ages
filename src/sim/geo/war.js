@@ -80,7 +80,7 @@ import {
 import { bestClaimOn, renounceClaims, hardenClaims, claimOf } from './claims.js';
 import { remember, memoryOf } from './memory.js';
 import { aimFor, defenderAim, aimsFromCause, aimMet, winnerAim, peaceAllows, takeHostage, hostageHeld, killHostage } from './terms.js';
-import { addReparations, monthlyIncome } from './debt.js';
+import { addReparations, monthlyIncome, debtClaim, settleDebtClaim } from './debt.js';
 import { bindWar } from './acts.js';   // the geopolitical divine acts (they call back into this module at use time)
 
 const MONTH_DAY = 25;
@@ -499,6 +499,9 @@ function casusBelli(world, a, b, r, ctx) {
   const res = covetedResource(world, a, b);
   if (res) opts.push({ key: 'resource', w: 1.1, goalSid: res.s.id, place: res.s.name, res: res.word });
   if ((r.trade || 0) > 5 && r.opinion < -20) opts.push({ key: 'trade', w: 1.1 });
+  // debts b repudiated (debt.js): a lender may go to collect them
+  const owed = debtClaim(world, a.id, b.id);
+  if (owed) opts.push({ key: 'debt', w: owed.w });
   // opportunism
   const eb = ctx.enemies[b.id];
   if (eb && eb.size > 0 && !eb.has(a.id) && (b.warWeariness || 0) > 0.2) opts.push({ key: 'opportunism', w: 1.4 });
@@ -710,6 +713,10 @@ function declarationText(world, a, b, cb, ctx) {
       `Quarrels between the merchants of ${Ao} and ${B} flared into ${wn}.`,
       `When ${B} doubled its tolls once too often, ${Ao} answered with spears: ${wn} had begun.`,
       `A merchant fleet seized in ${place} was the last straw; ${A} declared ${wn} on ${B}.`,
+    ]);
+    case 'debt': return pickOne(world, [
+      `${A} went to war to recover the debts ${B} had repudiated, beginning ${wn}.`,
+      `When ${B} refused to pay what it owed, ${Ao} sent armies to collect it: ${wn} had begun.`,
     ]);
     case 'opportunism': return pickOne(world, [
       `Seeing ${B} beset by enemies, ${Ao} struck in ${wn}.`,
@@ -2112,12 +2119,13 @@ function makePeace(world, st, war, end, opts = {}) {
         const t = capW ? nearestSettlement(world, capW.x, capW.y, { civId: Lc.id, filter: (s) => s.id !== Lc.capitalId }) : null;
         if (t && transferSettlement(world, t.id, Wc.id, 'treaty')) { ceded.push(t.name); cededIds.push(t.id); noteTransfer(world, war, t.id, Lc.id, Wc.id, 'ceded'); remember(world, t, Lc.id, -0.3, 'c'); }
       }
-      // money: reparations for a war to humble or to recover debts, tribute otherwise (sooner
-      // when tribute was the aim), and reparations on top of it after a crushing defeat
+      // money: reparations for a war to humble or to recover debts (with what was owed), tribute
+      // otherwise (sooner when tribute was the aim), and reparations on top of it after a crushing defeat
       const humble = aimK === 'humble' || aimK === 'debt';
+      const owed = aimK === 'debt' ? settleDebtClaim(world, Wc.id, Lc.id) : 0;
       if (Lc.alive && ((humble && terms >= 30) || (!humble && terms >= 75)) && peaceAllows(world, Wc, Lc, 'reparations')) {
         const years = Math.min(15, 8 + Math.round(terms / 15));
-        reparations = Math.round(clamp((terms - 30) / 20, 0.25, 3) * 12 * monthlyIncome(Lc) * 10) / 10;
+        reparations = Math.round((clamp((terms - 30) / 20, 0.25, 3) * 12 * monthlyIncome(Lc) + owed) * 10) / 10;
         addReparations(world, Lc.id, Wc.id, reparations, years);
       }
       if (Lc.alive && !humble && (terms >= 45 || (aimK === 'tribute' && terms >= 25))) {
@@ -2161,6 +2169,7 @@ function makePeace(world, st, war, end, opts = {}) {
       }
     }
   }
+  if (g.cb === 'debt' && A && D) settleDebtClaim(world, A.id, D.id);   // the quarrel is settled, whoever won
   const truce = Math.round((opts.truceYears ?? (10 + sc / 6)) + rng.int(0, 6));
   const hostage = hostageTerm && Wc && Lc ? takeHostage(world, Lc, Wc, truce) : null;
   const outcome = end === 'white' ? 'white_peace' : end;

@@ -318,7 +318,12 @@ export function createStatistics(app) {
       ...(magic.some((v) => v > 0) ? [{ label: 'Magical trades', color: '#a98be6', values: magic }] : []),
     ] });
     tradeC.setData({ xs, series: [{ label: 'Trade roads', color: C[0], values: col('routes') }] });
-    wealthC.setData({ xs, series: [{ label: 'Treasuries', color: C[1], values: col('wealth') }] });
+    const debt = ys.map((r) => (Number.isFinite(r.debt?.owed) ? r.debt.owed : NaN));
+    wealthC.setData({ xs, series: [
+      { label: 'Treasuries', color: C[1], values: col('wealth') },
+      // what crowns owe each other and the banking houses (geo/debt.js), once anyone has borrowed
+      ...(debt.some((v) => v > 0) ? [{ label: 'Debts of crowns', color: C[2], values: debt }] : []),
+    ] });
     landUse.setData({ xs, series: [
       { label: 'Farmland', color: C[0], values: col('farm') },
       { label: 'Claimed by nations', color: C[3], values: col('owned') },
