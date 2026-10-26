@@ -145,7 +145,7 @@ strongest are kept.
 A new settlement field, added to `createSettlement` and `SETTLEMENT_SHAPE` after `jobs`, so
 the Mythic-only `peoples` fields stay last. Old saves start with no memories.
 
-### Loans: `world.sys.geo.loans` (diplomacy state)
+### Loans: `world.sys.diplomacy.loans`
 
 `{ id, from, to, owed, pay, rate, start, until, arrears, kind }`. The fields:
 - `from` is a realm id, or `-1 − houseId` for a banking house.
@@ -157,7 +157,7 @@ the Mythic-only `peoples` fields stay last. Old saves start with no memories.
 A debtor has at most 3 loans. Defaults are kept per realm in `civ.flags.dflt`, the day of its
 last default.
 
-### Banking houses: `world.sys.geo.houses`
+### Banking houses: `world.sys.diplomacy.houses`
 
 `{ id, name, seat, capital, founded, failed }`. At most one per realm and eight in the world.
 Each is named after a family in its seat's language ("the House of Vell of Oskel").
@@ -177,7 +177,7 @@ If the realm already claimed the town, the claim is renewed to the stronger valu
 **Dropped.** A claim is dropped when:
 - the town is razed or abandoned
 - the claimant takes it back
-- the claimant renounces it at a treaty (see Peace terms)
+- the claimant renounces it at a treaty (see Peace terms; built: the memory lingers at a third)
 - the claim fades below 0.08
 
 The yearly pass drops faded claims in the realm's own month.
@@ -209,7 +209,7 @@ At declaration, each side gets an aim. The attacker's aim comes from its casus b
 | --- | --- |
 | reconquest, border, resource, prophecy, relic, witchstone | `towns`: the goal town plus up to two more the attacker claims, or the nearest border towns |
 | holy | `faith` (the target's crown takes the attacker's faith), plus the holy city as a town when the target holds it |
-| succession, claim, restoration | `crown`: the target's throne for the attacker's house (restoration: for the exiled house) |
+| succession, claim | `crown`: the target's throne for the attacker's house (built: a restoration aims at the exiled house's home towns, and the existing restoration path brings the house back) |
 | trade, opportunism | `tribute` |
 | revenge, enmity, provocation | `humble`: reparations and a hostage |
 | conquest | `subjugate` when the attacker is at least 2.5 times as strong, otherwise `towns` (the richest border towns) |
@@ -395,7 +395,7 @@ there before: reparations, the hostage's name, claims renounced, the crown, the 
   empty in old saves. Old wars with no `aims` read as `towns` (with `goalSid`) or `hold`.
 - **Format.** `SETTLE_FIELDS_V` and the civ shape version move up by one, with the same
   prefix rule as in chunk 1.
-- **Keyframes.** Loans and houses live in `world.sys.geo` and are captured with it. Claims ride
+- **Keyframes.** Loans, houses and hostages live in `world.sys.diplomacy` and are captured with it. Claims ride
   on the civ record and memories on the settlement record, which keyframes already share.
 - **Save size.** Measured on the Year-1000 saves.
 
@@ -442,8 +442,8 @@ The user's choices, recorded when made:
    appear from the Medieval Age and can fail when a crown defaults on them.
 2. **Crown wars: personal union.** A won `crown` aim crowns the victor's ruler in the loser's
    realm too, through the personal unions in `dynasty.js` (`civ.flags.union`). The two realms
-   stay separate under one ruler and may split again at a later succession. For a restoration,
-   the exiled house is restored instead (the existing restoration path).
+   stay separate under one ruler and may split again at a later succession. A restoration war
+   aims at the exiled house's home towns instead (see War aims).
 3. **Holy wars: the crown converts.** A won `faith` aim makes the victor's faith the loser's
    state religion. The towns keep their own faith and convert slowly, so unrest follows.
 4. **Mythic peoples' memory: now.** Each people remembers for its own span, for both a town's

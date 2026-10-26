@@ -1505,12 +1505,13 @@ function warTransfers(w, war) {
 
 /** A claim's strength in words. */
 function claimWord(v) { return v >= 0.66 ? 'Strong' : v >= 0.33 ? 'Living' : 'Fading'; }
-/** Why and since when a realm claims a town: "Lost it in war, Y612", "Inherited from Varn, Y700". */
+/** Why and since when a realm claims a town: "Lost it in war, Y612", "Founded it; lost Y640", "Inherited from Varn, Y700". */
 function claimHow(w, q) {
   const from = q.why === 'i' && q.from != null ? w.civs[q.from] : null;
+  if (from) return `Inherited from ${from.name}, Y${yearOf(q.since)}`;
+  if (q.why === 'f') return `Founded it; lost Y${yearOf(q.since)}`;
   const how = CLAIM_WHY[q.why] || 'claims it';
-  const why = from ? `Inherited from ${from.name}` : how[0].toUpperCase() + how.slice(1);
-  return `${why}, Y${yearOf(q.since)}`;
+  return `${how[0].toUpperCase() + how.slice(1)}, Y${yearOf(q.since)}`;
 }
 
 /** "The 14th war between these realms; the Varathi have won 9." */

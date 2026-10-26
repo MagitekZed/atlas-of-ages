@@ -1,9 +1,10 @@
 // War aims and peace terms (chunk 3, docs/design/why-wars.md): what each side fights for, and
 // the hostages a peace leaves behind.
 //
-//   war.geo.aims = { a: aim, d: aim }   aim = { k, sids?, rid?, civ? }
+//   war.geo.aims = { a: aim, d: aim }   aim = { k, sids?, back?, rid?, civ? }
 //     k     towns · crown · faith · tribute · subjugate · free · debt · humble · hold
-//     sids  up to three goal towns · rid  a faith · civ  the crown sought
+//     sids  up to three goal towns (back: towns it claims, a war to win them back) · rid  a faith
+//     civ   the crown sought
 //   world.sys.diplomacy.hostages = [{ civ, at, name, since, until }]
 //
 // The attacker's aim follows its casus belli (AIM_OF); a casus belli from another package may
@@ -41,6 +42,7 @@ function cleanAim(x) {
   if (Array.isArray(x.sids) && x.sids.length) aim.sids = x.sids.filter(Number.isFinite).slice(0, 3);
   if (x.rid != null) aim.rid = x.rid;
   if (x.civ != null) aim.civ = x.civ;
+  if (x.back) aim.back = true;
   return aim;
 }
 
@@ -62,6 +64,7 @@ export function aimFor(world, a, b, cb, goal = null, ratio = 1) {
     for (const q of claimedTowns(world, a, b, 3)) if (sids.length < 3 && !sids.includes(q.s.id)) sids.push(q.s.id);
     if (!sids.length) return { k: 'tribute' };
     aim.sids = sids;
+    if (sids.some((sid) => a.landClaims && a.landClaims[sid])) aim.back = true;   // towns it lost: a war to win them back
   } else if (k === 'faith') {
     aim.rid = cb.rid ?? a.stateReligion ?? null;
     if (aim.rid == null) return { k: 'humble' };
@@ -74,7 +77,7 @@ export function aimFor(world, a, b, cb, goal = null, ratio = 1) {
 /** The defender d's aim: the towns of the attacker a it claims, or to hold its own. */
 export function defenderAim(world, d, a) {
   const sids = claimedTowns(world, d, a, 3).map((q) => q.s.id);
-  return sids.length ? { k: 'towns', sids } : { k: 'hold' };
+  return sids.length ? { k: 'towns', sids, back: true } : { k: 'hold' };
 }
 
 /** Aims for a war begun outside war.js's declarations (events, acts, the civ module). */
@@ -140,15 +143,13 @@ export function aimWords(world, war, side) {
   const g = war.geo || {};
   const aim = g.aims ? (side > 0 ? g.aims.a : g.aims.d) : null;
   const foe = lead(world, side > 0 ? war.defenders : war.attackers) || world.civs[(side > 0 ? war.defenders : war.attackers)[0]];
-  const self = world.civs[(side > 0 ? war.attackers : war.defenders)[0]];
   const F = foe ? civName(foe) : 'the enemy';
   if (!aim) return side > 0 && g.goalSid != null && world.settlements[g.goalSid] ? `To take ${world.settlements[g.goalSid].name}` : side > 0 ? '' : 'To hold its own';
   const names = (aim.sids || []).map((sid) => world.settlements[sid]).filter(Boolean).map((s) => s.name);
   switch (aim.k) {
     case 'towns': {
       if (!names.length) return `Land from ${F}`;
-      const back = self && (aim.sids || []).some((sid) => self.landClaims && self.landClaims[sid]);
-      return `To ${back ? 'win back' : 'take'} ${listJoin(names)}`;
+      return `To ${aim.back ? 'win back' : 'take'} ${listJoin(names)}`;
     }
     case 'crown': return `The crown of ${F}`;
     case 'faith': { const r = faithOf(world, aim.rid); return `To bring ${r ? r.name : 'its faith'} to ${F}${names.length ? ` and free ${names[0]}` : ''}`; }
@@ -179,6 +180,7 @@ function hostageList(world) {
 export function takeHostage(world, loser, victor, years) {
   const h = loser.ruler && loser.ruler.heir;
   if (!h || !h.name || !peaceAllows(world, victor, loser, 'hostage')) return null;
+  if (hostageList(world).some((q) => q.civ === loser.id)) return null;   // its heir is already held abroad
   const day = world.time.day;
   const rec = { civ: loser.id, at: victor.id, name: h.name, since: day, until: day + Math.round(years * DAYS_PER_YEAR) };
   hostageList(world).push(rec);
