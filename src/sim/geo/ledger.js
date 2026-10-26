@@ -101,8 +101,10 @@ function trimBattles(L) {
 }
 
 /**
- * Record a battle of the war. rec: { day, x, y, winner, loser, dead, name|null }. Named fights
- * and sizeable ones keep their own record; the rest merge into the month's skirmish record.
+ * Record a battle of the war. rec: { day, x, y, winner, loser, dead, name|null, acct? }. Named
+ * fights and sizeable ones keep their own record; the rest merge into the month's skirmish record.
+ * acct (geo/battlefield.js): [ground, weather, the victor's plan, the beaten's, the moment,
+ * prisoners], kept as the record's eighth entry.
  */
 export function noteBattle(world, war, rec) {
   const L = ledgerOf(world, war);
@@ -110,7 +112,11 @@ export function noteBattle(world, war, rec) {
   touchRecord(world, war);
   const dead = Math.max(0, Math.round(fin(rec.dead)));
   if (!rec.name && dead < SIZEABLE_DEAD) mergeSkirmish(L, rec.day, dead, 1);
-  else L.b.push([rec.day, Math.round(fin(rec.x) * 10) / 10, Math.round(fin(rec.y) * 10) / 10, rec.winner ?? -1, rec.loser ?? -1, dead, rec.name ? String(rec.name) : null]);
+  else {
+    const r = [rec.day, Math.round(fin(rec.x) * 10) / 10, Math.round(fin(rec.y) * 10) / 10, rec.winner ?? -1, rec.loser ?? -1, dead, rec.name ? String(rec.name) : null];
+    if (Array.isArray(rec.acct)) r.push(rec.acct);
+    L.b.push(r);
+  }
   trimBattles(L);
 }
 

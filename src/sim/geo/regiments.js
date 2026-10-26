@@ -46,7 +46,7 @@ export function regimentName(world, civ, f, role) {
   return f.regs.some((r) => r.name === name) ? `the ${ord} ${word} of ${seat}` : name;
 }
 
-/** A regiment's name with its first honour: "the Second Lancers of Oskel, of Varn Ford". */
+/** A regiment's name with its first honour (a battlefield): "the Second Lancers of Oskel, of Varn Ford". */
 export function displayName(r) {
   const h = Array.isArray(r.honours) && r.honours.length ? r.honours[0] : null;
   return h ? `${r.name}, of ${h}` : r.name;
@@ -60,7 +60,7 @@ const regOf = (civ, id) => (civ && civ.forces && Array.isArray(civ.forces.regs) 
  * powW: each of the victor's companies' share of its power (same order as its co).
  */
 export function battleExperience(world, ctx) {
-  const { W, L, coW, coL, cw, cl, bname, before, powW, entry } = ctx;
+  const { W, L, coW, coL, cw, cl, bname, site, before, powW, entry } = ctx;
   for (const c of coW) if (c[1] > 0) c[4] = Math.min(1, c[4] + 0.08);
   for (const c of coL) if (c[1] > 0) c[4] = Math.min(1, c[4] + 0.04);
   for (const c of coW) { const r = c[5] != null ? regOf(cw, c[5]) : null; if (r) { r.battles = (r.battles | 0) + 1; r.won = (r.won | 0) + 1; } }
@@ -71,7 +71,7 @@ export function battleExperience(world, ctx) {
     for (let k = 0; k < coW.length; k++) if (coW[k][5] != null && powW[k] > bp) { bp = powW[k]; best = k; }
     const r = best >= 0 && bp >= 0.25 ? regOf(cw, coW[best][5]) : null;
     if (r) {
-      (r.honours ||= []).push(bname.replace(/^the /i, '').replace(/^Battle of /i, ''));
+      (r.honours ||= []).push(site || bname);   // the place: "the Second Lancers of Oskel, of Varn Ford"
       if (r.honours.length > 6) r.honours.length = 6;
       if (rateOk(world, `honour:${cw.id}`, 10 * DAYS_PER_YEAR)) {
         chronicle(world, {

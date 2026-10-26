@@ -25,6 +25,7 @@ import { hostagesOf } from '../sim/geo/terms.js';
 import { roleName, GEAR_NAMES } from '../sim/geo/army.js';
 import { armyBill, SYS_WORDS } from '../sim/geo/raising.js';
 import { displayName } from '../sim/geo/regiments.js';
+import { groundWord, weatherWord, planWord } from '../sim/geo/battlefield.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -1492,8 +1493,8 @@ export function warBattles(w, war) {
     for (const b of L.b) {
       if (!Array.isArray(b)) continue;
       if (b.length === 3) { out.push({ day: b[0], n: b[1], dead: b[2], skirmishes: true }); continue; }
-      const [day, x, y, winner, loser, dead, nameKey] = b;
-      out.push({ day, x, y, winner, loser, dead, name: typeof nameKey === 'string' ? nameKey : null });
+      const [day, x, y, winner, loser, dead, nameKey, acct] = b;
+      out.push({ day, x, y, winner, loser, dead, name: typeof nameKey === 'string' ? nameKey : null, acct: Array.isArray(acct) ? acct : null });
     }
   } else {
     for (const e of war.geo?.log || []) if (e) out.push({ day: e.day, x: e.x, y: e.y, winner: e.winner, loser: e.loser, dead: e.dead, name: e.name && !/^a skirmish/i.test(e.name) ? e.name : null, skirm: /^a skirmish/i.test(e.name || '') ? e.name : null });
@@ -1588,9 +1589,12 @@ function warView(app, sel, b) {
     return shown.map((x, k) => {
       if (x.skirmishes) return { key: `sk${x.day}:${k}`, icon: 'war', label: `${F.int(x.n)} skirmishes`, n: F.people(x.dead) + ' dead', s: F.monthYear(x.day) };
       const wc = w.civs[x.winner];
+      // the account (battlefield.js): ground, weather, the victor's plan, prisoners
+      const ac = x.acct;
+      const told = ac ? [`on ${groundWord(ac[0])}`, ac[1] ? `in ${weatherWord(ac[1])}` : '', ac[2] ? `the victors ${planWord(ac[2])}` : '', ac[5] >= 20 ? `${F.people(ac[5])} taken` : ''].filter(Boolean).join(', ') : '';
       return {
         key: `b${x.day}:${x.x}:${x.y}:${k}`, swatch: wc?.colorHex || 'var(--ink-3)', label: x.name ? F.headName(x.name) : x.skirm ? F.headName(x.skirm) : 'A clash of arms', n: F.people(x.dead) + ' dead',
-        s: `${F.monthYear(x.day)}${wc ? ' · won by ' + wc.name : ''}`,
+        s: `${F.monthYear(x.day)}${wc ? ' · won by ' + wc.name : ''}${told ? ' · ' + told : ''}`,
         run: Number.isFinite(x.x) ? () => { const s0 = sitesNear(w, x.x, x.y, 1.6).find((q) => q.kind === 'battle' || q.kind === 'siege'); if (s0) app.select({ kind: 'site', id: s0.id }, { focus: true }); else app.focus(x.x, x.y, 14); } : null,
       };
     });
