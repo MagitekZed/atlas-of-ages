@@ -43,7 +43,9 @@ export function urlOptions() {
 // { cat: { [category]: minImp (0 = off, 2 all, 3 major, 4 historic, 5 epochal) },
 //   pauseRules: [{ id, args }]  run-until conditions armed during live play (until.js),
 //   quietFast: bool              at Rapid and Max only epochal entries toast,
-//   badgeAfterLeap: bool         a leap clears the Chronicle's unread badge }
+//   badgeAfterLeap: bool         a leap clears the Chronicle's unread badge,
+//   pauseChime: bool             a chime when time stops by itself (toasts.js pauseAlert) }
+// Desktop notifications are not kept here: they are asked for on every visit (toasts.js).
 
 const NOTICES_KEY = 'story.notices';
 export const NOTICE_LEVELS = [[0, 'Off'], [5, 'Epochal'], [4, 'Historic'], [3, 'Major'], [2, 'All']];
@@ -56,6 +58,7 @@ export function getNotices() {
   if (!Array.isArray(n.pauseRules)) n.pauseRules = getPref('autoPause', true) === false ? [] : [{ id: 'epochal', args: {} }];
   if (typeof n.quietFast !== 'boolean') n.quietFast = true;
   if (typeof n.badgeAfterLeap !== 'boolean') n.badgeAfterLeap = true;
+  if (typeof n.pauseChime !== 'boolean') n.pauseChime = true;
   return n;
 }
 
