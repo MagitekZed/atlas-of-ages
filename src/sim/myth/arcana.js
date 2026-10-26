@@ -145,6 +145,8 @@ setArcaneIds(ARCANE_TECHS.map((t) => t.id));
 export const schoolTechs = (school) => ARCANE_TECHS.filter((t) => t.school === school);
 
 const knows = (civ, id) => Boolean(civ?.tech?.known && civ.tech.known[id] != null);
+/** Does the realm know any art of the school? */
+export const knowsSchool = (civ, school) => schoolTechs(school).some((t) => knows(civ, t.id));
 const nativeSchool = (civ) => SCHOOL_OF_RACE[civ?.race] || 'wizardry';
 
 /** Can this realm study the school at all (natively, by teaching, or by dark choice)? */

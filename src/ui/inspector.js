@@ -10,11 +10,11 @@
 // views (route, figure, ruler, dynasty, wonder, fire, site, continent, event, compare) live in
 // ./views/records.js and build from the blocks exported here.
 
-import { WATER, DAYS_PER_YEAR } from '../core/constants.js';
+import { WATER, DAYS_PER_YEAR, RACE_META, RACE_KEYS } from '../core/constants.js';
 import { elevationMeters, seasonName, dateString } from '../core/world.js';
 import { liveCivs, liveSettlements, civSettlements, areAtWar, nearestSettlement } from '../core/entities.js';
 import { sitesNear, SITE_KINDS } from '../core/sites.js';
-import { NB, NC, cohortSummary } from '../core/cohorts.js';
+import { NB, NC, cohortSummary, isSet, ratesOf } from '../core/cohorts.js';
 import { NJ, TRADE_LABELS } from '../sim/civ/jobs.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
@@ -771,7 +771,7 @@ function settlementView(app, sel, b) {
       return box;
     })(),
     section('Its life', ledgerChart(app, b, 's', s.id, { marks: conquestMarks, color: civ()?.colorHex })),
-    hideFor(b, () => !s.alive || !Array.isArray(s.cohorts), section('People', agePyramid(app, b, s))),
+    hideFor(b, () => !s.alive || !s.cohorts, section('People', agePyramid(app, b, s))),
     section('Chain of title', titleBar(app, b, s), chain),
     section('Story', story),
     // a ruin has no livelihood: its last day's cares are not shown as if they were today's
@@ -813,58 +813,74 @@ function settlementView(app, sel, b) {
 // The town's people by age and sex (core/cohorts.js): a two-sided pyramid, men left and women
 // right, the open 80+ band on top, redrawn once a month; the numbers beside it below.
 const PYR_W = 300, PYR_ROW = 10, PYR_MID = 30, PYR_H = NB * PYR_ROW;
+const raceRgb = (r) => { const m = RACE_META[r]; return m ? `rgb(${m.color.join(',')})` : 'var(--brass)'; };
 function agePyramid(app, b, s) {
   const svg = svgNode('svg', { class: 'pyramid', viewBox: `0 0 ${PYR_W} ${PYR_H + 14}`, role: 'img', 'aria-label': 'Age pyramid' });
-  const half = (PYR_W - PYR_MID) / 2, bars = [];
-  for (let k = 0; k < NB; k++) {
-    const y = PYR_H - (k + 1) * PYR_ROW + 1;
-    const m = svgNode('rect', { class: 'pyr-m', x: half, y, width: 0, height: PYR_ROW - 2 });
-    const f = svgNode('rect', { class: 'pyr-f', x: half + PYR_MID, y, width: 0, height: PYR_ROW - 2 });
-    svg.append(m, f);
-    bars.push([m, f]);
-    if (k % 2 === 0 || k === NB - 1) {
-      const t = svgNode('text', { class: 'pyr-age', x: PYR_W / 2, y: y + PYR_ROW - 3, 'text-anchor': 'middle' });
-      t.textContent = k === NB - 1 ? '80+' : String(5 * k);
-      svg.append(t);
-    }
-  }
+  const half = (PYR_W - PYR_MID) / 2;
+  const bars = svgNode('g'), ages = svgNode('g');
   const lm = svgNode('text', { class: 'pyr-key', x: 0, y: PYR_H + 12 }); lm.textContent = 'Men';
   const lf = svgNode('text', { class: 'pyr-key', x: PYR_W, y: PYR_H + 12, 'text-anchor': 'end' }); lf.textContent = 'Women';
-  svg.append(lm, lf);
+  svg.append(bars, ages, lm, lf);
+  // in a Mythic town each people keeps its own bands, stages of its own life: the bars stack the
+  // peoples in their colours, and the ages are the main people's
+  const legend = h('div.pyr-peoples');
   let last = '';
   b.run(() => {
     const c = s.cohorts;
-    const key = Array.isArray(c) ? `${s.id}:${Math.floor(app.world.time.day / 30)}:${Math.round(s.population)}` : 'none';
+    const set = isSet(c);
+    const key = c ? `${s.id}:${Math.floor(app.world.time.day / 30)}:${Math.round(s.population)}:${set ? Object.keys(c).join() : ''}:${s.race}` : 'none';
     if (key === last) return;
     last = key;
+    clear(bars); clear(ages); clear(legend);
+    const tabs = set ? RACE_KEYS.filter((r) => c[r]).map((r) => [r, c[r]]) : Array.isArray(c) && c.length === NC ? [[null, c]] : [];
     let top = 0;
-    if (Array.isArray(c) && c.length === NC) for (let i = 0; i < NC; i++) if (c[i] > top) top = c[i];
+    for (let k = 0; k < NC; k++) { let v = 0; for (const [, t] of tabs) v += t[k]; if (v > top) top = v; }
     for (let k = 0; k < NB; k++) {
-      const wm = top > 0 ? half * c[k] / top : 0, wf = top > 0 ? half * c[NB + k] / top : 0;
-      bars[k][0].setAttribute('x', (half - wm).toFixed(1)); bars[k][0].setAttribute('width', wm.toFixed(1));
-      bars[k][1].setAttribute('width', wf.toFixed(1));
+      const y = PYR_H - (k + 1) * PYR_ROW + 1;
+      let xm = half, xf = half + PYR_MID;
+      for (const [r, t] of tabs) {
+        const wm = top > 0 ? half * t[k] / top : 0, wf = top > 0 ? half * t[NB + k] / top : 0;
+        xm -= wm;
+        const m = svgNode('rect', { class: 'pyr-m', x: xm.toFixed(1), y, width: wm.toFixed(1), height: PYR_ROW - 2 });
+        const f = svgNode('rect', { class: 'pyr-f', x: xf.toFixed(1), y, width: wf.toFixed(1), height: PYR_ROW - 2 });
+        if (r) { m.style.fill = raceRgb(r); f.style.fill = raceRgb(r); f.style.opacity = '0.78'; }
+        xf += wf;
+        bars.append(m, f);
+      }
+    }
+    const L = set ? ratesOf(app.world, s.race && c[s.race] ? s.race : tabs[0]?.[0]).life : 1;
+    for (let k = 0; k < NB; k += 2) {
+      const t = svgNode('text', { class: 'pyr-age', x: PYR_W / 2, y: PYR_H - (k + 1) * PYR_ROW + PYR_ROW - 2, 'text-anchor': 'middle' });
+      t.textContent = k === NB - 1 ? `${Math.round(80 * L)}+` : String(Math.round(5 * k * L));
+      ages.append(t);
+    }
+    if (set && tabs.length) {
+      for (const [r] of tabs) legend.append(h('span.pyr-people', null, h('i.swatch', { style: { '--c': raceRgb(r) } }), RACE_META[r]?.plural || r));
+      if (tabs.some(([r]) => ratesOf(app.world, r).life !== L)) legend.append(h('span.pyr-note', { text: `Ages are ${RACE_META[s.race]?.plural?.toLowerCase() || 'the main people'}’s; each people's bands are stages of its own life.` }));
     }
   });
-  const sum = () => cohortSummary(s.cohorts, townEra(app, s));
+  const sum = () => cohortSummary(s.cohorts, townEra(app, s), (r) => ratesOf(app.world, r).life);
   const share = (v) => { const t = sum(); return t.total > 0 ? `${F.people(t[v])} · ${F.pct(t[v] / t.total)}` : '—'; };
   const facts = kv(b, [
     { k: 'Median age', v: () => { const t = sum(); return t.total > 0 ? `${Math.round(t.median)} years` : '—'; } },
-    { k: 'Children (under 15)', v: () => share('children') },
+    { k: 'Children (under 15)', v: () => share('children'), tip: 'For a long-lived people, the first three stages of its life (an elf is a child until 75).' },
     { k: 'Elders (65 and over)', v: () => share('elders') },
     { k: 'Working hands', v: () => share('working'), tip: 'Ages 15 to 64; before the Medieval Age children of 10 to 14 and elders to 74 work half time too.' },
     { k: 'Men 15–44', v: () => F.people(sum().men), tip: 'Whom the levy calls up, and half of every marriage.' },
     { k: 'Women 15–44', v: () => F.people(sum().women), tip: 'The mothers of the next generation.' },
   ]);
-  return h('div.pyramid-box', null, svg, facts, tradesBar(app, b, s));
+  return h('div.pyramid-box', null, svg, legend, facts, tradesBar(app, b, s));
 }
 
 // The town's working hands by trade (sim/civ/jobs.js): one stacked bar, then each trade.
 const TRADE_COLORS = ['var(--c-nature)', 'var(--brass-lo)', 'var(--info)', 'var(--ink-3)', 'var(--c-trade)', 'var(--brass)',
-  'var(--c-war)', 'var(--c-faith)', 'var(--c-discovery)', 'var(--c-catastrophe)', 'var(--ink-4)'];
+  'var(--c-war)', 'var(--c-faith)', 'var(--c-discovery)', 'var(--c-catastrophe)', 'var(--ink-4)',
+  // the magical trades (Mythic towns): the Myth colour
+  'var(--c-myth)', 'var(--c-myth)', 'var(--c-myth)', 'var(--c-myth)'];
 function tradesBar(app, b, s) {
   const bar = h('div.trades-bar', { role: 'img', 'aria-label': 'Working hands by trade' });
   const segs = [];
-  for (let t = 0; t < NJ; t++) { const g = h('span', { style: { background: TRADE_COLORS[t] } }); segs.push(g); bar.append(g); }
+  for (let t = 0; t < TRADE_COLORS.length; t++) { const g = h('span', { style: { background: TRADE_COLORS[t] } }); segs.push(g); bar.append(g); }
   let last = '';
   b.run(() => {
     const j = s.jobs;
@@ -872,20 +888,22 @@ function tradesBar(app, b, s) {
     if (key === last) return;
     last = key;
     let tot = 0;
-    if (Array.isArray(j)) for (let t = 0; t < NJ; t++) tot += j[t];
-    for (let t = 0; t < NJ; t++) segs[t].style.flexGrow = tot > 0 ? String(j[t] / tot) : '0';
+    const n = Array.isArray(j) ? j.length : 0;
+    for (let t = 0; t < n; t++) tot += j[t];
+    for (let t = 0; t < segs.length; t++) segs[t].style.flexGrow = tot > 0 && t < n ? String(j[t] / tot) : '0';
   });
   const list = h('div.trades');
   b.list(list, () => {
     const j = s.jobs;
     if (!Array.isArray(j)) return [];
     let tot = 0;
-    for (let t = 0; t < NJ; t++) tot += j[t];
+    for (let t = 0; t < j.length; t++) tot += j[t];
     const out = [];
-    for (let t = 0; t < NJ; t++) if (tot > 0 && j[t] / tot >= 0.005) out.push({ t, n: j[t], share: j[t] / tot });
+    // the rare magical trades show from a handful of souls; the others from half a percent
+    for (let t = 0; t < j.length; t++) if (tot > 0 && (t >= NJ ? j[t] >= 1 : j[t] / tot >= 0.005)) out.push({ t, n: j[t], share: j[t] / tot });
     return out;
   }, (it) => `${it.t}:${Math.round(it.n)}`, (it) => h('span.trade', null,
-    h('i.swatch', { style: { '--c': TRADE_COLORS[it.t] } }), h('b', { text: TRADE_LABELS[it.t] }), h('span', { text: `${F.people(it.n)} · ${F.pct(it.share)}` })));
+    h('i.swatch', { style: { '--c': TRADE_COLORS[it.t] } }), h('b', { text: TRADE_LABELS[it.t] }), h('span', { text: `${F.people(it.n)} · ${F.pct(it.share, it.share < 0.01 ? 1 : 0)}` })));
   return h('div.trades-box', null, h('h5.trades-head', { text: 'Trades' }), bar, list);
 }
 /** The era a town's working ages follow (its realm's). */

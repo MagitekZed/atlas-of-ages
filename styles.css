@@ -706,6 +706,10 @@ svg.pyramid .pyr-m { fill: var(--brass); }
 svg.pyramid .pyr-f { fill: var(--verdigris); }
 svg.pyramid .pyr-age { fill: var(--ink-3); font-family: var(--font-ui); font-size: 8.5px; font-variant-numeric: tabular-nums; }
 svg.pyramid .pyr-key { fill: var(--ink-3); font-family: var(--font-sc); font-size: 9.5px; letter-spacing: .07em; }
+.pyr-peoples { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; font-size: var(--t-small); color: var(--ink-2); }
+.pyr-peoples:empty { display: none; }
+.pyr-people { display: inline-flex; gap: 6px; align-items: center; }
+.pyr-note { flex-basis: 100%; font-size: var(--t-micro); color: var(--ink-3); }
 /* the town's trades, under the pyramid */
 .trades-box { display: grid; gap: 7px; }
 .trades-head { margin: 4px 0 0; font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .07em; font-weight: 400; color: var(--ink-3); }

@@ -4,6 +4,12 @@
 //
 //   s.peoples   { [race]: share }, shares in [PEOPLES_MIN, 1] summing to 1 (rounded to 1e-6,
 //               keys in RACE_LIST order), plain JSON. On every live town of a Mythic world.
+//   s.cohorts   one table of age bands per people present (core/cohorts.js): each people is
+//               born, dies and ages at its own rates and pace (races.js 'peopleRates'), so the
+//               mix moves by real births and deaths. s.peoples is the shares of those tables,
+//               rewritten on the town's yearly pass and whenever people move between them. A
+//               people whose share the mix drops (below PEOPLES_MIN, as before) joins its main
+//               people's table in the same bands.
 //   s.race      the dominant people; it changes only when a challenger leads it by HYST
 //               (buildings, plans and identity never flicker). A change is a "turning".
 //   sys.myth.mix  { c: { [civId]: [[year, {race: pct}] …] }, w: [[year, {race: pct}] …] }:
@@ -17,9 +23,11 @@
 //               never twice running).
 //
 // Mechanics, once a year per town on day (s.id · 29) mod 360 of the year (O(towns / 360) a day):
-//   growth      share_r ×= 1 + K_GROWTH·(g_r − ḡ), g_r the race's natural increase per year
-//               (RACES birth and mortality, the Fading on elves and lizardfolk)
-//   migration   the town relaxes toward a target mix: its neighbours within 12 tiles (weight
+//   growth      none here: each people's own table carries its births and deaths (RACES birth
+//               and mortality, the Fading on elves and lizardfolk), so the year's mix is read
+//               from the tables
+//   migration   the town relaxes toward a target mix (as people: those who leave go from
+//               their people's table, the young first; newcomers arrive shaped like movers): its neighbours within 12 tiles (weight
 //               population / (1 + distance)) and its trade partners (weight ∝ route value), each
 //               race weighted by how welcome it is here (kinship and enmity with the dominant
 //               people, the ruling realm's tolerance); rate 0.004 × (1 + 0.5·links) × pull,
@@ -28,12 +36,14 @@
 //               human realm are crossroads: other peoples ×1.15 as welcome, the rate ×1.2.
 //   expulsion   a people of the town other than the ruling race (a minority of the realm), at
 //               20–80 % of the town and at enmity with the ruling race (raceRel ≤ −20), in a
-//               restless town (unrest ≥ 0.45), may be driven out: half of it leaves for the
+//               restless town (unrest ≥ 0.45), may be driven out: half of it (its own table)
+//               leaves for the
 //               nearest town of its own people within 45 tiles, a quarter of those dying on
 //               the road (or all are lost when there is none). Rare, chronicled, world.rng.
-// and on hooks: settlementCreated (settlers carry the mix of the nearest town of their realm
-// within 30 tiles, nudged 15 % toward the realm's race) and settlementTransferred (a conqueror's
-// race gains 4–12 %). A share falling below PEOPLES_MIN is dropped, unless that would take a
+// and on hooks: settlementCreated (settlers carry their peoples, from their town's tables, or
+// else the mix of the nearest town of their realm within 30 tiles; either way nudged 15 % toward
+// the realm's race) and settlementTransferred (a conqueror's race gains 4–12 %: that share of
+// every people's table turns to it, in the same bands). A share falling below PEOPLES_MIN is dropped, unless that would take a
 // people out of the world: mixing alone never ends a race.
 //
 // Published helpers (re-exported by index.js; pure, no rng, cached per month in world.cache):
@@ -44,7 +54,7 @@
 import { on } from '../../core/hooks.js';
 import { liveSettlements, liveCivs, settlementsNear } from '../../core/entities.js';
 import { dayOfYear, bumpVersion } from '../../core/world.js';
-import { emptySlice, takePeople, addPeople } from '../../core/cohorts.js';
+import { isSet, cohortTotal, emptySlice, splitByPeoples, takeOfPeople, addOfPeople, turnPeople, foldPeople } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR, DAYS_PER_MONTH, RACE_META } from '../../core/constants.js';
 import { isMythic, fin, RACES, RACE_LIST, RACE_IDX, NR, raceRel } from './races.js';
 import { record, pickT, fill, yearOfDay, theName, rulerName, seasonAt, placePhrase, aAn } from './prose.js';
@@ -59,7 +69,6 @@ const INV29 = 149;               // 29 · 149 ≡ 1 (mod 360): towns of day d ha
 const FOUND_R = 30;              // settlers come from the nearest town of the realm within this
 const FOUND_NUDGE = 0.15;
 const NEIGH_R = 12;
-const K_GROWTH = 0.09;           // a 2× birth difference moves a 50/50 town ≈ 1 point a decade
 const M_BASE = 0.004;
 const LINK_CAP = 4;
 const ROUTE_W = 10;              // route value → migration weight (a route of 40 ≈ a town of 2,800 six tiles off)
@@ -124,7 +133,7 @@ export function ensurePeoples(world) {
   ppState(world.sys.myth);
   for (const s of world.settlements) {
     if (!s || !s.alive) continue;
-    if (validMix(s.peoples)) continue;
+    if (validMix(s.peoples)) { tablesFor(s); continue; }
     let a = null;
     if (s.peoples && typeof s.peoples === 'object') {
       a = toArr(s.peoples);
@@ -136,6 +145,7 @@ export function ensurePeoples(world) {
       s.peoples = { [r]: 1 };
     } else s.peoples = toObj(a);
     if (!s.race || !RACES[s.race] || s.peoples[s.race] == null) s.race = r && s.peoples[r] != null ? r : leaderOf(s.peoples);
+    tablesFor(s);
   }
 }
 
@@ -212,14 +222,6 @@ function sigOf(p, race) {
   return second ? `${race}|${second}` : race || '';
 }
 
-/** Natural increase of a race per year (base birth 0.044 × birth, death 0.02 × mortality; the Fading thins the elder births). */
-function growthOf(world, k) {
-  const r = RACE_LIST[k];
-  const R = RACES[r];
-  let birth = R.birth;
-  if (r === 'elf' || r === 'lizardfolk') birth *= 0.6 + 0.4 * fin(world.sys.myth?.weave, 1);
-  return 0.044 * birth - 0.02 * R.mortality;
-}
 
 /** Is race index k still found (≥ PEOPLES_MIN) in some live town other than s? */
 function presentElsewhere(world, s, k) {
@@ -231,6 +233,46 @@ function presentElsewhere(world, s, k) {
 }
 
 // ---------------------------------------------------------------------------
+// The peoples' own age bands (core/cohorts.js)
+
+/** Give town s its peoples' tables (its one table split by its mix) if it has none. True when it has them. */
+function tablesFor(s) {
+  if (!isSet(s.cohorts) && validMix(s.peoples)) splitByPeoples(s, s.peoples);
+  return isSet(s.cohorts);
+}
+
+/** The shares of s's tables into a (by RACE_IDX); false when the town is empty. */
+function tableShares(s, a) {
+  a.fill(0);
+  const c = s.cohorts;
+  let tot = 0;
+  for (const r in c) { const k = RACE_IDX[r]; if (k == null) continue; const v = cohortTotal(c[r]); a[k] = v; tot += v; }
+  if (!(tot > 0)) return false;
+  for (let k = 0; k < NR; k++) a[k] /= tot;
+  return true;
+}
+
+/**
+ * After people moved: the tables of peoples the mix dropped (a[k] = 0: below PEOPLES_MIN, and
+ * neither newly arrived nor the last of its people anywhere) join the dominant people's table in
+ * the same bands; then a becomes the shares of the tables left, tidied (every table left keeps
+ * its share). (A floor in souls instead, the design's first rule, would fold away every newcomer
+ * people in a town under about 4,000, so no small town would ever mix.)
+ */
+function foldTables(world, s, a) {
+  const c = s.cohorts;
+  const cur = s.race != null && RACE_IDX[s.race] != null ? RACE_IDX[s.race] : -1;
+  const dom = RACE_LIST[dominantIdx(a, cur)];
+  for (const r of Object.keys(c)) {
+    if (r === dom) continue;
+    const k = RACE_IDX[r];
+    if (k == null || !(a[k] > 0)) foldPeople(s, r, dom);
+  }
+  tableShares(s, a);
+  tidy(a, (k) => s.cohorts[RACE_LIST[k]] != null);
+}
+
+// ---------------------------------------------------------------------------
 // Founding and conquest
 
 on('settlementCreated', (world, s) => {
@@ -238,6 +280,19 @@ on('settlementCreated', (world, s) => {
   const civ = world.civs[s.civId];
   const own = s.race && RACES[s.race] ? s.race : civ?.race;
   if (!own || !RACES[own]) return;   // ensurePeoples gives it one when the myth wakes
+  const cr0 = civ?.race && RACES[civ.race] ? civ.race : own;
+  // settlers who brought their peoples (a slice of their town's tables): the realm's people takes
+  // a little more of the new town, as below
+  if (isSet(s.cohorts) && cohortTotal(s.cohorts) > 0) {
+    turnPeople(s, cr0, FOUND_NUDGE);
+    const a = new Float64Array(NR);
+    tableShares(s, a);
+    foldTables(world, s, a);
+    s.peoples = toObj(a);
+    const top = dominantIdx(a, -1);
+    s.race = a[RACE_IDX[cr0]] >= a[top] ? cr0 : RACE_LIST[top];
+    return;
+  }
   // the settlers' origin: the nearest live town of the same realm within 30 tiles
   let src = null, bd = Infinity;
   for (const t of settlementsNear(world, s.x, s.y, FOUND_R)) {
@@ -245,7 +300,7 @@ on('settlementCreated', (world, s) => {
     const d = (t.x - s.x) * (t.x - s.x) + (t.y - s.y) * (t.y - s.y);
     if (d < bd || (d === bd && src && t.id < src.id)) { bd = d; src = t; }
   }
-  if (!src) { s.peoples = { [own]: 1 }; s.race = own; return; }
+  if (!src) { s.peoples = { [own]: 1 }; s.race = own; splitByPeoples(s, s.peoples); return; }
   const a = toArr(src.peoples);
   for (let k = 0; k < NR; k++) a[k] *= 1 - FOUND_NUDGE;
   const cr = civ?.race && RACES[civ.race] ? civ.race : own;
@@ -255,6 +310,7 @@ on('settlementCreated', (world, s) => {
   // a tie goes to the realm's own people
   const top = dominantIdx(a, -1);
   s.race = a[RACE_IDX[cr]] >= a[top] ? cr : RACE_LIST[top];
+  splitByPeoples(s, s.peoples);
 });
 
 on('settlementTransferred', (world, s, oldCivId, newCivId, cause) => {
@@ -274,9 +330,16 @@ on('settlementTransferred', (world, s, oldCivId, newCivId, cause) => {
   const kin = dom === cr || raceRel(dom, cr) >= 8 ? 0.55 : 1;
   const size = 1.15 - 0.06 * Math.max(0, Math.min(6, fin(s.tier, 0)));
   const g = Math.max(0.04, Math.min(0.12, CONQ_BASE * sack * kin * size));
-  for (let k = 0; k < NR; k++) a[k] *= 1 - g;
-  a[RACE_IDX[cr]] += g;
-  tidy(a, null);
+  if (tablesFor(s)) {
+    // that share of every people's table turns to the conqueror's, in the same bands
+    turnPeople(s, cr, g);
+    tableShares(s, a);
+    foldTables(world, s, a);
+  } else {
+    for (let k = 0; k < NR; k++) a[k] *= 1 - g;
+    a[RACE_IDX[cr]] += g;
+    tidy(a, null);
+  }
   pp.n.conquests++;
   settle(world, pp, s, a, { conquest: civ });
 });
@@ -312,17 +375,14 @@ export function peoplesDaily(world) {
   for (let id = (d * INV29) % DAYS_PER_YEAR; id < list.length; id += DAYS_PER_YEAR) {
     const s = list[id];
     if (!s || !s.alive) continue;
-    if (!sc) {
-      sc = scratch(world);
-      for (let k = 0; k < NR; k++) sc.g[k] = growthOf(world, k);
-    }
+    if (!sc) sc = scratch(world);
     townYear(world, pp, s, sc);
   }
 }
 
 /** Reusable buffers for the yearly pass (world.cache: safe to lose). */
 function scratch(world) {
-  return (world.cache.ppScratch ||= { a: new Float64Array(NR), had: new Float64Array(NR), g: new Float64Array(NR), T: new Float64Array(NR), TR: new Float64Array(NR) });
+  return (world.cache.ppScratch ||= { a: new Float64Array(NR), had: new Float64Array(NR), T: new Float64Array(NR), TR: new Float64Array(NR) });
 }
 
 /**
@@ -365,12 +425,12 @@ function townYear(world, pp, s, sc) {
     if (!validMix(s.peoples)) return;
   }
   const civ = world.civs[s.civId];
-  const a = sc.a, had = sc.had, g = sc.g, T = sc.T, TR = sc.TR;
-  const cur = mixArr(world, s);
-  // 1. differential growth
-  let gbar = 0;
-  for (let k = 0; k < NR; k++) { a[k] = had[k] = cur[k]; if (a[k] > 0) gbar += a[k] * g[k]; }
-  for (let k = 0; k < NR; k++) if (a[k] > 0) a[k] *= 1 + K_GROWTH * (g[k] - gbar);
+  const a = sc.a, had = sc.had, T = sc.T, TR = sc.TR;
+  // 1. the mix as it stands: each people's own births and deaths moved it since last year
+  // (its table); a town without tables yet keeps its stored mix
+  const tables = tablesFor(s);
+  if (!tables || !tableShares(s, had)) had.set(mixArr(world, s));
+  for (let k = 0; k < NR; k++) a[k] = had[k];
   // 2. migration toward the neighbours and trade partners
   const dom = s.race && RACES[s.race] ? s.race : RACE_LIST[dominantIdx(a, -1)];
   const tol = fin(civ?.traits?.tolerance, 0.5);
@@ -426,8 +486,19 @@ function townYear(world, pp, s, sc) {
       }
     }
   }
-  // 3. tidy: a share below the floor is dropped, unless the newcomers just arrived or it is
-  // the last of a people anywhere (mixing alone never ends a race)
+  // 3. the moves as people: those leaving go from their people's table (the young first), the
+  // newcomers arrive shaped like movers; the town's numbers are unchanged
+  if (tables) {
+    const pop = cohortTotal(s.cohorts);
+    let sum = 0;
+    for (let k = 0; k < NR; k++) sum += a[k];
+    if (sum > 0) for (let k = 0; k < NR; k++) a[k] /= sum;   // newcomers come in place of those who leave
+    for (let k = 0; k < NR; k++) { const d = (a[k] - had[k]) * pop; if (d < 0) takeOfPeople(world, s, RACE_LIST[k], -d, 'movers', null, civ); }
+    for (let k = 0; k < NR; k++) { const d = (a[k] - had[k]) * pop; if (d > 0) addOfPeople(world, s, RACE_LIST[k], d, null, civ); }
+  }
+  // 4. tidy: a share below the floor is dropped, unless the newcomers just arrived or it is
+  // the last of a people anywhere (mixing alone never ends a race); a dropped people's table
+  // joins the main people's
   tidy(a, (k) => {
     if (arrived & (1 << k)) return true;
     if (!(had[k] > 0)) return false;
@@ -435,6 +506,7 @@ function townYear(world, pp, s, sc) {
     pp.n.kept++;
     return true;
   });
+  if (tables) foldTables(world, s, a);
   settle(world, pp, s, a, null);
   // the town's own memory, once a decade (no rng: for the dossier's "since Year X")
   const y = yearOfDay(world.time.day);
@@ -591,13 +663,11 @@ function maybeExpel(world, pp, s, civ) {
 
 function expel(world, pp, s, civ, victim) {
   const day = world.time.day;
-  const a = toArr(s.peoples);
-  const vk = RACE_IDX[victim];
-  const share = a[vk];
+  if (!tablesFor(s) || !s.cohorts[victim]) return;
+  const a = new Float64Array(NR);
   const pop = Math.max(0, fin(s.population));
-  const moved = Math.min(Math.max(0, pop - 8), pop * share / 2);
-  a[vk] = share / 2;
-  tidy(a, null);
+  // half of the people's own table is driven out
+  const moved = Math.min(Math.max(0, pop - 8), cohortTotal(s.cohorts[victim]) / 2);
   // the exiles go to the nearest town where their people dominates (or are lost on the road)
   let dest = null, bd = EXPEL_RANGE * EXPEL_RANGE;
   for (const t of settlementsNear(world, s.x, s.y, EXPEL_RANGE)) {
@@ -606,17 +676,17 @@ function expel(world, pp, s, civ, victim) {
     if (d < bd || (d === bd && dest && t.id < dest.id)) { bd = d; dest = t; }
   }
   const sl = emptySlice();
-  takePeople(world, s, moved, 'all', sl, civ);
+  takeOfPeople(world, s, victim, moved, 'all', sl, civ);
+  tableShares(s, a);
+  foldTables(world, s, a);
   settle(world, pp, s, a, { expel: true });   // a turning it causes is told by the expulsion
-  if (dest && moved > 0) {
+  if (dest && moved > 0 && tablesFor(dest)) {
     const arrive = moved * 0.75;   // a quarter die on the road
-    const dp = Math.max(0, fin(dest.population));
-    const b = toArr(dest.peoples);
-    for (let k = 0; k < NR; k++) b[k] *= dp;
-    b[vk] += arrive;
-    tidy(b, null);
-    if (!(dest.population >= 0)) dest.population = dp;
-    addPeople(world, dest, sl, arrive);
+    if (!(dest.population >= 0)) dest.population = 0;
+    addOfPeople(world, dest, victim, arrive, sl, world.civs[dest.civId]);
+    const b = new Float64Array(NR);
+    tableShares(dest, b);
+    foldTables(world, dest, b);
     settle(world, pp, dest, b, { expel: true });
   }
   pp.expel[s.id] = day;

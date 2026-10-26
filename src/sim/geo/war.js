@@ -59,7 +59,7 @@ import {
 } from '../../core/entities.js';
 import { emitFx, bumpVersion, latitude, monthOf } from '../../core/world.js';
 import { touchRecord } from '../../core/keyframe.js';
-import { emptySlice, takePeople, roundSlice, returnLevy } from '../../core/cohorts.js';
+import { sliceLike, takePeople, roundSlice, returnLevy } from '../../core/cohorts.js';
 import { mulOf, anyOf, concatOf, hasProviders } from '../../core/ext.js';
 import { settlementMods } from '../../core/effects.js';
 import { DAYS_PER_YEAR, DAYS_PER_MONTH, WATER, BIOME, RESOURCES, MONTH_SEASON } from '../../core/constants.js';
@@ -1001,7 +1001,7 @@ function mobilize(world, civ, war) {
   // levies leave the towns (most return when the army disbands): whoever the realm's rule calls
   // up, by default the young men; their bands ride with the army (flags.levy) and come home aged
   let drawn = 0;
-  const levy = emptySlice();
+  const levy = sliceLike(towns[0]);
   for (const s of towns) {
     const take = Math.min(s.population * 0.2, str * 0.6 * s.population / Math.max(1, pop));
     drawn += takePeople(world, s, take, 'levy', levy, civ);

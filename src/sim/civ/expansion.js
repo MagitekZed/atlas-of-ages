@@ -15,7 +15,7 @@ import { WATER, BIOMES, TIERS, DAYS_PER_YEAR } from '../../core/constants.js';
 import { createCiv, createSettlement, killCiv, settlementsNear, civSettlements, liveCivs } from '../../core/entities.js';
 import { emitFx, yearOf } from '../../core/world.js';
 import { clamp, smoothstep } from '../../core/util.js';
-import { emptySlice, takePeople, addShaped, shapedSlice } from '../../core/cohorts.js';
+import { sliceLike, takePeople, addShaped, shapedSlice } from '../../core/cohorts.js';
 import { habitGrid } from './land.js';
 import { getMods, grantEra, grantTech, refreshMods, TECHS, hasTech } from './tech.js';
 import { fin, record, civCache, div, touchTile, civTowns } from './state.js';
@@ -450,7 +450,7 @@ export function trySettlers(world, s, civ, ctx) {
   }
   if (!site) return null;
   const n = clamp(pop * world.rng.float(0.1, 0.18), 40, 5000);
-  const sl = emptySlice();
+  const sl = sliceLike(s);
   takePeople(world, s, n, 'movers', sl, civ);
   s.flags.lastSettler = day;
   civ.flags.lastSettlerDay = day;

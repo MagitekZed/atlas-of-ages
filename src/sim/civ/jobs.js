@@ -26,7 +26,10 @@
 //
 // The rule is a society's to vary: the ext point 'jobRule' (key 'mix', civ, era) may answer a
 // 6-number split of the leftover hands (craftsmen, merchants, clergy, scholars, builders,
-// labourers). Pure arithmetic: no world.rng.
+// labourers). In a Mythic world the ext point 'magicJobs' adds four rare trades after the
+// eleven (mages, healers, artificers, beast-keepers: shares of the working hands, out of the
+// labourers), so s.jobs has 15 numbers there; the myth module reads them. Pure arithmetic: no
+// world.rng.
 
 import { firstOf, hasProviders } from '../../core/ext.js';
 import { fin } from './state.js';
@@ -34,8 +37,11 @@ import { fin } from './state.js';
 export const TRADES = ['farmers', 'herders', 'fishers', 'miners', 'craftsmen', 'merchants', 'soldiers', 'clergy', 'scholars', 'builders', 'labourers'];
 export const J = { farm: 0, herd: 1, fish: 2, mine: 3, craft: 4, merch: 5, soldier: 6, clergy: 7, scholar: 8, build: 9, labour: 10 };
 export const NJ = 11;
+/** The magical trades' slots, after the eleven (Mythic towns only; ext 'magicJobs'). */
+export const NMAGIC = 4, J_MAGIC = NJ;
 /** Labels for display. */
-export const TRADE_LABELS = ['Farmers', 'Herders and hunters', 'Fishers', 'Miners and quarrymen', 'Craftsmen', 'Merchants', 'Soldiers', 'Clergy', 'Scholars and scribes', 'Builders', 'Labourers'];
+export const TRADE_LABELS = ['Farmers', 'Herders and hunters', 'Fishers', 'Miners and quarrymen', 'Craftsmen', 'Merchants', 'Soldiers', 'Clergy', 'Scholars and scribes', 'Builders', 'Labourers',
+  'Mages', 'Healers', 'Artificers', 'Beast-keepers'];
 
 /** The leftover hands by era: craftsmen, merchants, clergy, scholars, builders, labourers (each row sums to 1). */
 const ERA_MIX = [
@@ -63,7 +69,7 @@ function mixOf(world, civ, era) {
   return ERA_MIX[era < 0 ? 0 : era > 7 ? 7 : era];
 }
 
-const D = new Float64Array(NJ);   // demand, scratch
+const D = new Float64Array(NJ + NMAGIC);   // demand, scratch
 
 /**
  * One month of a town's trades (settlement.js, after seasonAndLand: reads X.workers, X.farmLoad,
@@ -101,30 +107,40 @@ export function updateJobs(world, s, civ, X, bv, bo, BV) {
   craft *= k * left; merch *= k * left; clergy *= k * left; schol *= k * left; build *= k * left;
   D[J.farm] = farm; D[J.herd] = gather * wf; D[J.fish] = gather * (1 - wf); D[J.mine] = miners;
   D[J.craft] = craft; D[J.merch] = merch; D[J.soldier] = soldiers; D[J.clergy] = clergy; D[J.scholar] = schol; D[J.build] = build;
+  // the magical trades (Mythic): a few of the leftover hands, out of the labourers
+  const magic = hasProviders('magicJobs') ? firstOf('magicJobs', world, s, civ) : null;
+  const nj = magic ? NJ + NMAGIC : NJ;
+  if (magic) {
+    const room = Math.max(0, left - craft - merch - clergy - schol - build);
+    let mt = 0;
+    for (let i = 0; i < NMAGIC; i++) mt += Math.max(0, fin(magic[i])) * W;
+    const f = mt > room && mt > 0 ? room / mt : 1;
+    for (let i = 0; i < NMAGIC; i++) D[J_MAGIC + i] = Math.max(0, fin(magic[i])) * W * f;
+  }
 
   // move toward the demand (last month's trades first scaled to this month's hands)
   let jobs = s.jobs;
-  if (jobs === null || jobs === undefined || jobs.length !== NJ) {
-    jobs = s.jobs = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-    for (let t = 0; t < NJ - 1; t++) jobs[t] = D[t];
+  if (jobs === null || jobs === undefined || jobs.length !== nj) {
+    jobs = s.jobs = Array.from({ length: nj }, () => 0);
+    for (let t = 0; t < nj; t++) if (t !== J.labour) jobs[t] = D[t];
   } else {
     let prev = 0;
-    for (let t = 0; t < NJ; t++) prev += jobs[t];
+    for (let t = 0; t < nj; t++) prev += jobs[t];
     const sc = prev > 0 ? W / prev : 0;
-    for (let t = 0; t < NJ - 1; t++) { const v = jobs[t] * sc; jobs[t] = v + (D[t] - v) * INERTIA; }
+    for (let t = 0; t < nj; t++) { if (t === J.labour) continue; const v = jobs[t] * sc; jobs[t] = v + (D[t] - v) * INERTIA; }
     // the foragers and the garrison are what they are this month (part-time foraging, the
     // soldiers on the rolls); only the trades that take learning lag
     jobs[J.herd] = D[J.herd]; jobs[J.fish] = D[J.fish]; jobs[J.soldier] = D[J.soldier];
   }
   let named2 = 0;
-  for (let t = 0; t < NJ - 1; t++) named2 += jobs[t];
-  if (named2 > W) { const f = named2 > 0 ? W / named2 : 0; for (let t = 0; t < NJ - 1; t++) jobs[t] *= f; named2 = W; }
+  for (let t = 0; t < nj; t++) if (t !== J.labour) named2 += jobs[t];
+  if (named2 > W) { const f = named2 > 0 ? W / named2 : 0; for (let t = 0; t < nj; t++) if (t !== J.labour) jobs[t] *= f; named2 = W; }
   let lab = W - named2;
   // fields short of hands take labourers at once (anyone can follow a plough); the fields go
   // short only when there are none left
   if (jobs[J.farm] < D[J.farm] && lab > 0) { const mv = Math.min(D[J.farm] - jobs[J.farm], lab); jobs[J.farm] += mv; lab -= mv; }
   jobs[J.labour] = lab;
-  for (let t = 0; t < NJ; t++) { const v = jobs[t]; jobs[t] = v > 0 ? (v < 2e7 ? ((v * 100 + 0.5) | 0) / 100 : Math.round(v * 100) / 100) : 0; }
+  for (let t = 0; t < nj; t++) { const v = jobs[t]; jobs[t] = v > 0 ? (v < 2e7 ? ((v * 100 + 0.5) | 0) / 100 : Math.round(v * 100) / 100) : 0; }
 
   // the readers: actual over the demand without the buildings' bends
   const base = left;   // the leftover hands an unbuilt town of this era would split

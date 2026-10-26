@@ -48,12 +48,16 @@ export const isMythic = (w) => w != null && w.params != null && w.params.mythLev
  * spread around them (× the shared ±0.28); adapt: how fast the people's temperament drifts with
  * its history (the civ module's multiplier: 2 twice as fast, 0.5 half as fast); mods: racial
  * modifiers (applyFx deltas on the civ mods); school: the arcane school the race founded;
+ * strife: how the people fights among itself (core/cohorts.js in-fighting): k extra deaths a year
+ * in a town wholly of that people (less as it shares the town), and who dies: its young men, its
+ * men and women of fighting age ('adults') or young and old alike ('all');
  * elder: an old race that wakes first when magic returns; blurb: one line for the Inspector;
  * identity: the race's character and gifts in a few plain clauses (Legends race cards).
  */
 export const RACES = {
   human: {
     key: 'human', life: 1, birth: 1, mortality: 1, elder: false, school: 'wizardry', adapt: 2, jitter: 1.4,
+    strife: { k: 0.003, who: 'youngMen' },   // brawls and blood feuds among the young men
     temper: { innovation: 0.12, expansion: 0.08, commerce: 0.05 },
     mods: { trade: 0.05, research: 0.06, expansionRange: 1 },
     blurb: 'Short-lived, restless and everywhere: the people who change, and who learn from everyone they meet.',
@@ -65,6 +69,7 @@ export const RACES = {
   },
   elf: {
     key: 'elf', life: 5, birth: 0.58, mortality: 0.42, elder: true, school: 'sylvan', adapt: 0.5, jitter: 1,
+    strife: { k: 0.001, who: 'adults' },     // rare, cold quarrels of the old houses
     temper: { aggression: -0.2, isolation: 0.25, innovation: 0.1, religiosity: 0.05, tolerance: 0.05, expansion: -0.15 },
     mods: { gatherYield: 0.3, culture: 0.15, farmYield: -0.05, research: 0.05, defense: 0.25, stability: 0.05, housing: 0.08, forestFarm: 0.3 },
     blurb: 'Long-lived wardens of the old forests; slow to breed, slow to forget.',
@@ -72,6 +77,7 @@ export const RACES = {
   },
   dwarf: {
     key: 'dwarf', life: 3, birth: 0.8, mortality: 0.5, elder: true, school: 'runecraft', adapt: 0.6, jitter: 1,
+    strife: { k: 0.002, who: 'youngMen' },   // clan grudges, settled in the halls
     temper: { militarism: 0.15, commerce: 0.15, expansion: -0.15, isolation: 0.15, tolerance: -0.05 },
     mods: { mining: 0.5, defense: 0.35, production: 0.1, gatherYield: 0.25, housing: 0.12, stability: 0.05, deepHalls: 0.5 },
     blurb: 'Delvers of the hills, stubborn as stone; their halls outlast kingdoms.',
@@ -79,6 +85,7 @@ export const RACES = {
   },
   orc: {
     key: 'orc', life: 0.7, birth: 1.4, mortality: 1.25, elder: false, school: 'shamanism', adapt: 1, jitter: 1,
+    strife: { k: 0.012, who: 'adults' },     // clan wars and challenges; the women fight too
     temper: { aggression: 0.3, militarism: 0.3, innovation: -0.2, tolerance: -0.2, expansion: 0.15, commerce: -0.1 },
     mods: { military: 0.25, movement: 0.1, research: -0.15, gatherYield: 0.1 },
     blurb: 'Fierce, fast-breeding clans of the open steppe; they live hard and die young.',
@@ -86,6 +93,7 @@ export const RACES = {
   },
   halfling: {
     key: 'halfling', life: 1.3, birth: 1.15, mortality: 0.9, elder: true, school: 'hearth', adapt: 0.8, jitter: 1,
+    strife: { k: 0.006, who: 'all' },        // feuds between families over land and inheritance, young and old alike
     temper: { aggression: -0.3, commerce: 0.2, militarism: -0.25, tolerance: 0.15, expansion: -0.05 },
     mods: { farmYield: 0.2, storage: 0.3, military: -0.2, happiness: 0.04 },
     blurb: 'Small, merry farmers of the green river lands, who want only to be left alone.',
@@ -93,6 +101,7 @@ export const RACES = {
   },
   lizardfolk: {
     key: 'lizardfolk', life: 0.9, birth: 1.2, mortality: 1.08, elder: true, school: 'serpent', adapt: 0.7, jitter: 1,
+    strife: { k: 0.007, who: 'all' },        // brood wars take the young and the old
     temper: { religiosity: 0.25, isolation: 0.2, commerce: -0.1, tolerance: -0.05 },
     mods: { fishYield: 0.3, plagueResist: 0.1, gatherYield: 0.1 },
     blurb: 'Cold-eyed broods of the steaming swamps, keepers of the oldest sun rites.',
@@ -510,6 +519,39 @@ function demography(world, s, civ) {
   return { birth, mortality: R.mortality };
 }
 
+/**
+ * A people's rates for its own age bands in town s (core/cohorts.js 'peopleRates'): its birth
+ * and mortality against a human's, the Fading thinning the elder births, and its life (an elf's
+ * bands are stages five times as long). Elves breed with the magic around them: their births
+ * × (0.7 + 0.8 × mana at the town), from 0.7 where the weave is gone to 1.6, about 1 at an elf
+ * town's usual mana; they thrive in the old magical forests and fade as the weave thins. One
+ * object per people, refreshed on each call.
+ */
+const RATES = {};
+let manaReader = null;   // mana.js manaAt, set by mana.js (it imports this module)
+export function setManaReader(fn) { manaReader = fn; }
+function peopleRates(world, key, s) {
+  if (!isMythic(world)) return null;
+  const R = RACES[key];
+  if (!R) return null;
+  const o = (RATES[key] ||= { birth: 1, mortality: 1, life: 1 });
+  o.birth = key === 'elf' || key === 'lizardfolk' ? R.birth * (0.6 + 0.4 * fin(world.sys.myth?.weave, 1)) : R.birth;
+  if (key === 'elf' && s && manaReader) o.birth *= Math.min(1.6, 0.7 + 0.8 * Math.max(0, manaReader(world, s.x, s.y)));
+  o.mortality = R.mortality;
+  o.life = R.life;
+  return o;
+}
+
+/**
+ * How a people fights among itself (core/cohorts.js 'strife'): its race's strife. A realm's own
+ * ways (a code of law, a warrior faith, an era of order) may vary it later, through this point.
+ */
+function strife(world, key, civ) {
+  if (!isMythic(world)) return null;
+  const R = RACES[key];
+  return R && R.strife ? R.strife : null;
+}
+
 function lifespan(world, civ, person) {
   if (!isMythic(world)) return 1;
   const race = (person && person.race) || (civ && civ.race);
@@ -628,6 +670,8 @@ export function registerRaceProviders() {
   registerProvider('habitat', 'myth', habitat);
   registerProvider('demography', 'myth', demography);
   registerProvider('lifespan', 'myth', lifespan);
+  registerProvider('peopleRates', 'myth', peopleRates);
+  registerProvider('strife', 'myth', strife);
   registerProvider('mods', 'myth', raceMods);
   registerProvider('loyalty', 'myth', loyalty);
 }

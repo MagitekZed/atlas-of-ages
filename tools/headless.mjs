@@ -373,7 +373,8 @@ for (const s of systems) {
 if (cohortCheck) {
   const D = cohorts.COHORT_DEV;
   const tot = cohorts.emptySlice();
-  for (const s of liveSettlements(world)) if (Array.isArray(s.cohorts)) for (let i = 0; i < cohorts.NC; i++) tot[i] += s.cohorts[i];
+  // summed by band (each people by its own stages of life in a Mythic world)
+  for (const s of liveSettlements(world)) for (const t of cohorts.isSet(s.cohorts) ? Object.values(s.cohorts) : Array.isArray(s.cohorts) ? [s.cohorts] : []) for (let i = 0; i < cohorts.NC; i++) tot[i] += t[i];
   const sm = cohorts.cohortSummary(tot, 0), T = Math.max(1, sm.total);
   const mp = liveCivs(world).reduce((a, c) => a + (c.military?.manpower || 0), 0);
   const popAll = liveCivs(world).reduce((a, c) => a + (c.population || 0), 0);

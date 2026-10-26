@@ -11,7 +11,7 @@
 
 import { civSettlements, killCiv } from '../../core/entities.js';
 import { monthOf } from '../../core/world.js';
-import { ruleOf, levyBase, scratchSlice, takePeople, addPeople } from '../../core/cohorts.js';
+import { ruleOf, levyBase, scratchSlice, isSet, takePeople, addPeople } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR as DPY, RESOURCES } from '../../core/constants.js';
 import { refreshMods, researchMonthly, hasTech, getMods } from './tech.js';
 import { targetTax, evaluateGovernment, styleName, canReformNow } from './government.js';
@@ -154,7 +154,7 @@ function urbanDrift(world, civ, agg) {
     // a town's draw (fairs, booms, plague fear: the attract modifier) pulls or holds its people
     const pull = Math.max(0.2, Math.min(3, ba / Math.max(0.2, agg.sms[k].attract)));
     const n = v.population * rate * (0.5 + best.happiness) * pull;
-    const sl = scratchSlice();
+    const sl = isSet(v.cohorts) ? {} : scratchSlice();
     takePeople(world, v, n, 'movers', sl, civ);
     addPeople(world, best, sl, n);
   }

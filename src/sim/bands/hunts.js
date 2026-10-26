@@ -13,7 +13,7 @@
 import { createArmy, removeArmy, getBand, nearestSettlement, addFigure } from '../../core/entities.js';
 import { emit } from '../../core/hooks.js';
 import { emitFx } from '../../core/world.js';
-import { emptySlice, takePeople, roundSlice, returnLevy } from '../../core/cohorts.js';
+import { sliceLike, takePeople, roundSlice, returnLevy } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR, WATER } from '../../core/constants.js';
 import { clamp, clamp01 } from '../../core/util.js';
 import { makePerson } from '../../core/names.js';
@@ -72,7 +72,7 @@ export function raiseHunt(world, civ, band) {
   // levies leave the towns, as for war (they come home when the hunt does)
   let drawn = 0;
   const pop = Math.max(1, civ.population || 0);
-  const levy = emptySlice();
+  const levy = sliceLike(home);
   for (const id of civ.settlementIds) {
     const s = world.settlements[id];
     if (!s || !s.alive) continue;

@@ -16,6 +16,7 @@
 // Pure arithmetic: no world.rng, no allocation in the monthly pass (except slices a caller keeps).
 
 import { firstOf, hasProviders } from './ext.js';
+import { RACE_KEYS } from './constants.js';
 
 /** Bands per sex, cells per table, and the first band of each age span used below. */
 export const NB = 17, NC = 34;
@@ -32,6 +33,12 @@ const MATE_LO = 4, MATE_HI = 10;
  * wives): about a century, so a war-torn people carries the loss for generations.
  */
 const MATE_ADAPT = 1200;
+/**
+ * …but after a sudden loss (a war, a plague) new marriages come fast: the adaptation speeds up
+ * by 1 + REMARRY × drop², drop the share of the partners the town was used to that it lost. A
+ * slight, lasting shortage still takes about a century; losing a third of the men, about a decade.
+ */
+const REMARRY = 100;
 /** Crude death rate of the reference structure (a pre-modern life expectancy of about 36). */
 const REF_DEATH = 0.028;
 
@@ -55,6 +62,9 @@ const DEFAULT_RULES = {
   /** who dies by the sword: men of fighting age, then women of the same years */
   violent: both((b) => (b >= 3 && b <= 8 ? 3 : 1), (b) => (b >= 3 && b <= 8 ? 1.5 : 1)),
   all: both(() => 1, () => 1),
+  /** who dies in a people's in-fighting: its young men, or its men and women of 15–44 */
+  youngMen: both((b) => (b >= 3 && b <= 8 ? 1 : 0), () => 0),
+  adults: both((b) => (b >= 3 && b <= 8 ? 1 : 0), (b) => (b >= 3 && b <= 8 ? 1 : 0)),
   /** pairing: a small surplus of women still finds partners (births fall below 1/1.1 of the usual ratio) */
   pairK: 1.1,
 };
@@ -121,7 +131,7 @@ function stable(c, lam, out) {
 export function stableShape(d, r, out = new Array(NC)) {
   const lam = 1 + Math.max(0, r) / 12;
   let lo = 1e-8, hi = 0.08;
-  for (let k = 0; k < 60; k++) {
+  for (let k = 0; k < 44; k++) {
     const mid = (lo + hi) / 2;
     if (stable(mid, lam, out) < d) lo = mid; else hi = mid;
   }
@@ -140,10 +150,12 @@ export const REF_ELIGIBLE = dot(DEFAULT_RULES.levy, REF);
 /** Hands per working-age person (by the early rule), so a town at REF has 0.8 × its people working, as before. */
 const LABOUR_K = 0.8 / dot(WORK_EARLY, REF);
 
-// the table: crude death rates on a geometric grid, growth 0–4 % a year; per cell Σ F·women,
-// Σ M·n and the levy share of the reference shape (per head), and its partners per woman
+// the table: crude death rates on a geometric grid, growth 0–12 % a year (a long-lived people's
+// rates are read in its own stages of life, so an elf's 2 % a year is 10 % a stage-year); per
+// cell Σ F·women, Σ M·n and the levy share of the reference shape (per head), and its partners
+// per woman
 const TD = Array.from({ length: 28 }, (_, k) => 0.003 * Math.pow(100, k / 27));   // 0.3 % … 30 %
-const TR_MAX = 0.04, TR_N = 9;
+const TR_MAX = 0.12, TR_N = 25;
 const TK = 4, TAB = new Float64Array(TD.length * TR_N * TK);
 {
   const sh = new Array(NC);
@@ -178,46 +190,96 @@ export function refIndices(b, d) {
 
 // ---------------------------------------------------------------------------
 // Tables and slices
+//
+// A town's cohorts are one table (34 numbers), or in a Mythic world a set of tables, one per
+// people present: { human: [...], elf: [...] }, keys in RACE_KEYS order. A people's bands are
+// stages of its own life (an elf's first band is its first 25 years); its births, deaths and
+// ageing come from the ext point 'peopleRates' (w, people) → { birth, mortality, life }. Every
+// helper here takes either form, and a slice taken from a set is a set. Only the myth module
+// makes sets, so a Historical world never sees one.
 
-export const emptySlice = () => new Array(NC).fill(0);
-const SCR = new Array(NC).fill(0);
+const zeros = () => Array.from({ length: NC }, () => 0);
+export const emptySlice = zeros;
+const SCR = zeros();
 /** A zeroed shared slice, valid until the next call (take, then add straight away). */
 export function scratchSlice() { SCR.fill(0); return SCR; }
 
-export const cohortTotal = (c) => { let s = 0; for (let i = 0; i < NC; i++) s += c[i]; return s; };
+/** Is c a set of tables (one per people) rather than one table? */
+export const isSet = (c) => c !== null && typeof c === 'object' && !Array.isArray(c);
+const isTable = (c) => Array.isArray(c) && c.length === NC;
+const total1 = (t) => { let s = 0; for (let i = 0; i < NC; i++) s += t[i]; return s; };
+export const cohortTotal = (c) => {
+  if (!isSet(c)) return total1(c);
+  let s = 0;
+  for (const k in c) s += total1(c[k]);
+  return s;
+};
+const ALL = DEFAULT_RULES.all;
+/** to[i] += from[i] × k */
+function addTo(to, from, k) { for (let i = 0; i < NC; i++) to[i] += from[i] * k; }
+
+/** set, with a (zero) table for people key added if it has none, keys kept in RACE_KEYS order (a new object then). */
+export function withTable(set, key) {
+  if (set[key]) return set;
+  const out = {};
+  let placed = false;
+  for (const k of RACE_KEYS) {
+    if (k === key) { out[k] = zeros(); placed = true; } else if (set[k]) out[k] = set[k];
+  }
+  for (const k in set) if (!(k in out)) out[k] = set[k];   // keys outside RACE_KEYS keep their place at the end
+  if (!placed) out[key] = zeros();
+  return out;
+}
+
+/** A people's rates in town s (ext 'peopleRates'; s may be null), or a human's. */
+const HUMAN_RATES = { birth: 1, mortality: 1, life: 1 };
+export function ratesOf(world, key, s = null) {
+  if (!hasProviders('peopleRates')) return HUMAN_RATES;
+  const v = firstOf('peopleRates', world, key, s);
+  return v && v.life > 0 ? v : HUMAN_RATES;
+}
 
 /**
- * A new table of n people: shaped like `like` (any 34 numbers) when given and not empty, else
- * like the reference structure.
+ * A new table of n people: shaped like `like` (34 numbers, or a set) when given and not empty,
+ * else like the reference structure. A set gives a set.
  */
 export function seedCohorts(n, like = null) {
-  const t = new Array(NC);
-  const tot = like && like.length === NC ? cohortTotal(like) : 0;
-  const src = tot > 0 ? like : REF, k = Math.max(0, n || 0) / (tot > 0 ? tot : 1);
-  for (let i = 0; i < NC; i++) t[i] = src[i] * k;
+  const m = Math.max(0, n || 0);
+  if (isSet(like)) {
+    const tot = cohortTotal(like);
+    if (tot > 0) {
+      const out = {};
+      for (const key in like) { const t = zeros(); addTo(t, like[key], m / tot); out[key] = t; }
+      return out;
+    }
+    like = null;
+  }
+  const t = zeros();
+  const tot = like && like.length === NC ? total1(like) : 0;
+  addTo(t, tot > 0 ? like : REF, m / (tot > 0 ? tot : 1));
   return t;
 }
 
 /** n people shaped like REF × a profile's weights (arrivals from elsewhere). Into `out` if given. */
 export function shapedSlice(world, n, profile, civ, out = null) {
   const w = typeof profile === 'string' ? ruleOf(world, profile, civ) : profile;
-  const t = out || new Array(NC);
+  const t = out || zeros();
   const tot = dot(w, REF);
   for (let i = 0; i < NC; i++) t[i] = tot > 0 ? n * w[i] * REF[i] / tot : n * REF[i];
   return t;
 }
 
-/** Whether s carries a cohort table the helpers keep (live towns do; ruins stay closed). */
-const tracked = (s) => s.alive && Array.isArray(s.cohorts) && s.cohorts.length === NC;
+/** Whether s carries cohorts the helpers keep (live towns do; ruins stay closed). */
+const tracked = (s) => s.alive && (isTable(s.cohorts) || isSet(s.cohorts));
 
 /**
  * Take n people from table c shaped by weights w (applied to the counts there, so a profile
  * never takes people who are not there). A band asked for more than it holds gives all it has
- * and the shortfall comes from everyone left alike. Adds what was taken into `into` when given.
- * Returns the number taken (n, or everyone if fewer).
+ * and the shortfall comes from everyone left alike. Adds what was taken into `into` (a table)
+ * when given. Returns the number taken (n, or everyone if fewer).
  */
 function takeFrom(c, n, w, into) {
-  const tot = cohortTotal(c);
+  const tot = total1(c);
   if (!(n > 0) || !(tot > 0)) return 0;
   if (n >= tot) {
     for (let i = 0; i < NC; i++) { if (into) into[i] += c[i]; c[i] = 0; }
@@ -235,7 +297,7 @@ function takeFrom(c, n, w, into) {
     }
   }
   if (left > 1e-9) {
-    const rest = cohortTotal(c);
+    const rest = total1(c);
     const k = rest > 0 ? Math.min(1, left / rest) : 0;
     for (let i = 0; i < NC; i++) {
       const t = c[i] * k;
@@ -246,12 +308,44 @@ function takeFrom(c, n, w, into) {
   }
   return n - Math.max(0, left);
 }
+const SCR2 = zeros();
+/**
+ * takeFrom for a table or a set: from a set, each people gives in proportion to the profile's
+ * weight on it, and a shortfall comes from everyone left alike. into: a table, a set (each
+ * people into its own table; a plain table's people go under asKey) or null. Returns the number
+ * taken.
+ */
+function takeAny(c, n, w, into, asKey, label = null) {
+  if (!isSet(c)) {
+    if (!isSet(into)) return takeFrom(c, n, w, into);
+    SCR2.fill(0);
+    const got = takeFrom(c, n, w, SCR2);
+    const key = asKey || RACE_KEYS[0];
+    if (!into[key]) into[key] = zeros();
+    addTo(into[key], SCR2, 1);
+    return got;
+  }
+  let W = 0, any = false;
+  for (const k in c) { W += dot(w, c[k]); any = true; }
+  if (!any || !(n > 0)) return 0;
+  const useW = W > 0 ? w : ALL, Wt = W > 0 ? W : cohortTotal(c);
+  if (!(Wt > 0)) return 0;
+  const sink = (k) => (isSet(into) ? (into[k] || (into[k] = zeros())) : into);
+  let got = 0;
+  for (const k in c) { const g = takeFrom(c[k], n * dot(useW, c[k]) / Wt, useW, sink(k)); got += g; if (COHORT_DEV.verify && label) flow(k + ' taken ' + label, g); }
+  let left = n - got;
+  if (left > 1e-9) {
+    const rest = cohortTotal(c);
+    if (rest > 0) for (const k in c) got += takeFrom(c[k], left * total1(c[k]) / rest, ALL, sink(k));
+  }
+  return got;
+}
 
 /**
  * Remove n people from town s with a profile ('all' | 'frail' | 'violent' | 'levy' | 'movers',
  * or a 34-number weight table) and lower s.population by as many. The realm's rule decides who
- * a profile names (civ defaults to the town's owner). Adds the people taken into `into` when
- * given. Returns the number taken.
+ * a profile names (civ defaults to the town's owner). Adds the people taken into `into` (a
+ * table or a set) when given. Returns the number taken.
  */
 export function takePeople(world, s, n, profile = 'all', into = null, civ = undefined) {
   const pop = s.population;
@@ -259,7 +353,7 @@ export function takePeople(world, s, n, profile = 'all', into = null, civ = unde
   if (n > pop) n = pop;
   if (!tracked(s)) { s.population = pop - n; return n; }
   const w = typeof profile === 'string' ? ruleOf(world, profile, civ === undefined ? world.civs[s.civId] : civ) : profile;
-  takeFrom(s.cohorts, n, w, into);
+  takeAny(s.cohorts, n, w, into, s.race, COHORT_DEV.verify ? (typeof profile === 'string' ? profile : 'table') : null);
   if (COHORT_DEV.verify) flow('take ' + (typeof profile === 'string' ? profile : 'table'), n);
   // a table that lags the population (a write since the last reconcile) gives what it has; the
   // population falls by n either way, and the reconcile settles the rest
@@ -267,17 +361,110 @@ export function takePeople(world, s, n, profile = 'all', into = null, civ = unde
   return n;
 }
 
-/** Add a slice to town s (scaled to n people when n is given) and raise s.population to match. */
+/**
+ * Add a slice (a table or a set) to town s, scaled to n people when n is given, and raise
+ * s.population to match. Into a town of several peoples, a set's peoples join their own tables
+ * and a plain table is shared by the town's peoples as they stand.
+ */
 export function addPeople(world, s, slice, n = undefined) {
   const tot = slice ? cohortTotal(slice) : 0;
   const add = n === undefined ? tot : Math.max(0, n);
   if (!(add > 0)) return 0;
   s.population += add;
   if (!tracked(s)) return add;
-  const c = s.cohorts;
-  if (tot > 0) { const k = add / tot; for (let i = 0; i < NC; i++) c[i] += slice[i] * k; }
-  else for (let i = 0; i < NC; i++) c[i] += add * REF[i];
+  let c = s.cohorts;
+  if (isSet(c)) {
+    if (isSet(slice) && tot > 0) {
+      for (const key in slice) {
+        if (!c[key]) c = s.cohorts = withTable(c, key);
+        addTo(c[key], slice[key], add / tot);
+        if (COHORT_DEV.verify) flow(key + ' added', total1(slice[key]) * add / tot);
+      }
+      return add;
+    }
+    const src = tot > 0 ? slice : REF, k0 = add / (tot > 0 ? tot : 1);
+    const ct = cohortTotal(c);
+    if (ct > 0) { for (const key in c) addTo(c[key], src, k0 * total1(c[key]) / ct); return add; }
+    let key = null;
+    for (const k in c) { key = k; break; }
+    if (key === null) { key = s.race || RACE_KEYS[0]; c = s.cohorts = withTable(c, key); }
+    addTo(c[key], src, k0);
+    return add;
+  }
+  if (isSet(slice) && tot > 0) { for (const key in slice) addTo(c, slice[key], add / tot); return add; }
+  if (tot > 0) addTo(c, slice, add / tot);
+  else addTo(c, REF, add);
   return add;
+}
+
+/** An empty slice of the same form as town s's cohorts (a set for a town of several peoples), for takePeople's `into`. */
+export const sliceLike = (s) => (s && isSet(s.cohorts) ? {} : zeros());
+
+// One people's table in a set (myth/peoples.js: migration, expulsion, conquest, settlers).
+
+/** Take n people of people `key` from town s (a set), shaped by a profile, into a table; lowers s.population. Returns the number taken. */
+export function takeOfPeople(world, s, key, n, profile = 'all', into = null, civ = undefined) {
+  const c = s.cohorts;
+  if (!isSet(c) || !c[key] || !(n > 0)) return 0;
+  const w = typeof profile === 'string' ? ruleOf(world, profile, civ === undefined ? world.civs[s.civId] : civ) : profile;
+  const got = takeFrom(c[key], n, w, into);
+  s.population -= got;
+  if (COHORT_DEV.verify) flow(key + ' left (own table)', got);
+  return got;
+}
+
+/** Add n people of people `key` to town s (a set), shaped like `like` (a table) or REF × movers; raises s.population. */
+export function addOfPeople(world, s, key, n, like = null, civ = undefined) {
+  let c = s.cohorts;
+  if (!isSet(c) || !(n > 0)) return 0;
+  if (!c[key]) c = s.cohorts = withTable(c, key);
+  const src = like && total1(like) > 0 ? like : shapedSlice(world, 1, 'movers', civ === undefined ? world.civs[s.civId] : civ, SCR);
+  addTo(c[key], src, n / total1(src));
+  s.population += n;
+  if (COHORT_DEV.verify) flow(key + ' arrived (own table)', n);
+  return n;
+}
+
+/** A turning: a share f of every people's table joins people `to`'s, in the same bands (conquest, settlers). */
+export function turnPeople(s, to, f) {
+  let c = s.cohorts;
+  if (!isSet(c) || !(f > 0)) return;
+  if (!c[to]) c = s.cohorts = withTable(c, to);
+  const dst = c[to];
+  for (const k in c) {
+    if (k === to) continue;
+    const t = c[k];
+    if (COHORT_DEV.verify) { const v = total1(t) * f; flow(k + ' turned away', v); flow(to + ' turned in', v); }
+    for (let i = 0; i < NC; i++) { const v = t[i] * f; t[i] -= v; dst[i] += v; }
+  }
+}
+
+/** Fold people `from`'s table into `to`'s (same bands) and drop it: a small people joins the town's main one. */
+export function foldPeople(s, from, to) {
+  let c = s.cohorts;
+  if (!isSet(c) || !c[from] || from === to) return;
+  if (!c[to]) c = s.cohorts = withTable(c, to);
+  if (COHORT_DEV.verify) { const v = total1(c[from]); flow(from + ' folded away', v); flow(to + ' folded in', v); }
+  addTo(c[to], c[from], 1);
+  delete c[from];
+  // keep the object's keys in order (a deleted key would leave the set's shape behind)
+  const out = {};
+  for (const k in c) out[k] = c[k];
+  s.cohorts = out;
+}
+
+/** Split town s's single table into a set by shares { people: share } (a Mythic town gaining its peoples' tables). */
+export function splitByPeoples(s, shares) {
+  const c = s.cohorts;
+  if (isSet(c)) return;
+  const base = isTable(c) ? c : seedCohorts(s.population || 0);
+  let sum = 0;
+  for (const k in shares) if (shares[k] > 0) sum += shares[k];
+  if (!(sum > 0)) return;
+  const out = {};
+  for (const k of RACE_KEYS) if (shares[k] > 0) { const t = zeros(); addTo(t, base, shares[k] / sum); out[k] = t; }
+  for (const k in shares) if (!(k in out) && shares[k] > 0) { const t = zeros(); addTo(t, base, shares[k] / sum); out[k] = t; }
+  s.cohorts = out;
 }
 
 /** Add n people to town s shaped like REF × a profile (arrivals whose origin kept no slice). */
@@ -286,61 +473,99 @@ export function addShaped(world, s, n, profile = 'movers', civ = undefined) {
   return addPeople(world, s, shapedSlice(world, n, profile, civ === undefined ? world.civs[s.civId] : civ, SCR), n);
 }
 
+/** A copy of a slice (a table or a set). */
+function copySlice(sl) {
+  if (!isSet(sl)) return sl.slice();
+  const o = {};
+  for (const k in sl) o[k] = sl[k].slice();
+  return o;
+}
+
 /**
- * Levies home: n people back in the bands they marched out with (fl.levy, aged by the months
- * since fl.levyDay), or shaped by the levy rule when the army kept no slice. They were drawn from
- * every town of the realm by its people, and go home the same way; s (the town they march to)
- * takes them all only when the realm has no other town.
+ * Levies home: n people back in the bands they marched out with (fl.levy, a table or a set,
+ * aged by the months since fl.levyDay, each people at its own pace), or shaped by the levy rule
+ * when the army kept no slice. They were drawn from every town of the realm by its people, and
+ * go home the same way; s (the town they march to) takes them all only when the realm has no
+ * other town.
  */
 export function returnLevy(world, s, fl, n) {
   if (!(n > 0)) return 0;
-  const sl = fl && Array.isArray(fl.levy) && fl.levy.length === NC ? fl.levy : null;
+  const sl = fl && (isTable(fl.levy) || isSet(fl.levy)) ? fl.levy : null;
   const civ = world.civs[s.civId];
   if (COHORT_DEV.verify) flow('levy home', n);
-  if (!sl || !(cohortTotal(sl) > 0)) shapedSlice(world, 1, 'levy', civ, SCR);
+  let back;
+  if (!sl || !(cohortTotal(sl) > 0)) back = shapedSlice(world, 1, 'levy', civ, SCR);
   else {
-    for (let i = 0; i < NC; i++) SCR[i] = sl[i];
-    ageSlice(SCR, (world.time.day - (Number.isFinite(fl.levyDay) ? fl.levyDay : world.time.day)) / 30);
+    const months = (world.time.day - (Number.isFinite(fl.levyDay) ? fl.levyDay : world.time.day)) / 30;
+    if (isSet(sl)) { back = copySlice(sl); for (const k in back) ageSlice(back[k], months, ratesOf(world, k).life); }
+    else { for (let i = 0; i < NC; i++) SCR[i] = sl[i]; back = ageSlice(SCR, months); }
   }
   const ids = civ && civ.alive && s.civId === civ.id ? civ.settlementIds : null;
+  if (isSet(back)) {
+    // each people goes home to the towns where its own people lives, by their numbers there
+    const all = cohortTotal(back);
+    if (!(all > 0)) return 0;
+    for (const key in back) {
+      const nk = n * total1(back[key]) / all;
+      let wt = 0;
+      if (ids) for (let k = 0; k < ids.length; k++) { const t = world.settlements[ids[k]]; if (t && t.alive && isSet(t.cohorts) && t.cohorts[key]) wt += total1(t.cohorts[key]); }
+      if (!(wt > 0)) { addKeyed(world, s, key, back[key], nk); continue; }
+      for (let k = 0; k < ids.length; k++) {
+        const t = world.settlements[ids[k]];
+        if (t && t.alive && isSet(t.cohorts) && t.cohorts[key]) addKeyed(world, t, key, back[key], nk * total1(t.cohorts[key]) / wt);
+      }
+    }
+    return n;
+  }
   let tot = 0;
   if (ids) for (let k = 0; k < ids.length; k++) { const t = world.settlements[ids[k]]; if (t && t.alive) tot += Math.max(0, t.population); }
-  if (!(tot > 0)) return addPeople(world, s, SCR, n);
+  if (!(tot > 0)) return addPeople(world, s, back, n);
   for (let k = 0; k < ids.length; k++) {
     const t = world.settlements[ids[k]];
-    if (t && t.alive && t.population > 0) addPeople(world, t, SCR, n * t.population / tot);
+    if (t && t.alive && t.population > 0) addPeople(world, t, back, n * t.population / tot);
   }
   return n;
 }
 
-/** Age a slice in place by `months` of ageing (no deaths): levies home from a long war. */
-export function ageSlice(c, months) {
-  const m = Math.min(600, Math.max(0, Math.round(months)));
-  for (let k = 0; k < m; k++) ageOnce(c);
-  return c;
+/** Add n people of people `key` shaped like table `tb` to town t (into its own table, or its one table). */
+function addKeyed(world, t, key, tb, n) {
+  const tot = total1(tb);
+  if (!(n > 0) || !(tot > 0)) return;
+  t.population += n;
+  if (!tracked(t)) return;
+  let c = t.cohorts;
+  if (COHORT_DEV.verify) flow(key + ' levy home', n);
+  if (isSet(c)) { if (!c[key]) c = t.cohorts = withTable(c, key); addTo(c[key], tb, n / tot); }
+  else addTo(c, tb, n / tot);
 }
 
-function ageOnce(c) {
-  for (let o = 0; o < NC; o += NB) {
-    for (let b = NB - 2; b >= 0; b--) {
-      const mv = c[o + b] * AGE_G;
-      c[o + b] -= mv;
-      c[o + b + 1] += mv;
+/** Age a table in place by `months` of ageing (no deaths) for a people of the given life: levies home from a long war. */
+export function ageSlice(c, months, life = 1) {
+  const m = Math.min(600, Math.max(0, Math.round(months)));
+  const g = AGE_G / life;
+  for (let k = 0; k < m; k++) {
+    for (let o = 0; o < NC; o += NB) {
+      for (let b = NB - 2; b >= 0; b--) {
+        const mv = c[o + b] * g;
+        c[o + b] -= mv;
+        c[o + b + 1] += mv;
+      }
     }
   }
+  return c;
 }
 
 /** hundredths: Math.round(x·100) / 100 for x ≥ 0 (by integer truncation below 2·10⁷, which is cheaper), else 0 */
 const hund = (x) => (x > 0 ? (x < 2e7 ? ((x * 100 + 0.5) | 0) / 100 : Math.round(x * 100) / 100) : 0);
 /**
- * The monthly ageing, rounding each band to hundredths as it is finished (the rounding is part
- * of the simulation, so a reloaded world continues exactly; settleCohorts then gives the largest
- * band the remainder).
+ * The monthly ageing (a share g of each band moves up), rounding each band to hundredths as it
+ * is finished (the rounding is part of the simulation, so a reloaded world continues exactly;
+ * settleCohorts then gives the largest band the remainder).
  */
-function ageAndRound(c) {
+function ageAndRound(c, g) {
   for (let o = 0; o < NC; o += NB) {
     for (let b = NB - 2; b >= 0; b--) {
-      const mv = c[o + b] * AGE_G;
+      const mv = c[o + b] * g;
       c[o + b] -= mv;
       c[o + b + 1] = hund(c[o + b + 1] + mv);
     }
@@ -348,8 +573,9 @@ function ageAndRound(c) {
   }
 }
 
-/** Round a slice to hundredths (for slices kept on records, e.g. an army's levy). */
+/** Round a slice (a table or a set) to hundredths (for slices kept on records, e.g. an army's levy). */
 export function roundSlice(c) {
+  if (isSet(c)) { for (const k in c) roundSlice(c[k]); return c; }
   for (let i = 0; i < NC; i++) c[i] = hund(c[i]);
   return c;
 }
@@ -359,97 +585,161 @@ export function roundSlice(c) {
 
 /**
  * Settle any difference between Σ cohorts and s.population left by writes elsewhere: a loss is
- * taken from everyone alike, a gain arrives shaped like movers. Seeds a missing table. Returns
- * the town's working hands (workersIn), counted in the same pass.
+ * taken from everyone alike, a gain arrives shaped like movers (shared by a town's peoples as
+ * they stand). Seeds a missing table. Returns the town's working hands (workersIn), counted in
+ * the same pass.
  */
 export function reconcileCohorts(world, s, civ) {
   const pop = Math.max(0, s.population || 0);
   let c = s.cohorts;
-  if (c === undefined || c === null || c.length !== NC) c = s.cohorts = seedCohorts(pop);
+  if (!isTable(c) && !isSet(c)) c = s.cohorts = seedCohorts(pop);
   const work = ruleOf(world, 'work', civ);
   let tot = 0, wk = 0;
-  for (let i = 0; i < NC; i++) { const v = c[i]; tot += v; wk += work[i] * v; }
+  if (isSet(c)) { for (const key in c) { const t = c[key]; for (let i = 0; i < NC; i++) { const v = t[i]; tot += v; wk += work[i] * v; } } }
+  else for (let i = 0; i < NC; i++) { const v = c[i]; tot += v; wk += work[i] * v; }
   const diff = pop - tot;
   if (diff > -1e-6 && diff < 1e-6) return LABOUR_K * wk;
-  if (!(tot > 0)) s.cohorts = seedCohorts(pop);
-  else if (diff < 0) { const k = pop / tot; for (let i = 0; i < NC; i++) c[i] *= k; }
-  else {
+  if (!(tot > 0)) {
+    if (isSet(c)) { s.cohorts = c; s.population = 0; addPeople(world, s, REF, pop); }
+    else s.cohorts = seedCohorts(pop);
+  } else if (diff < 0) {
+    const k = pop / tot;
+    if (isSet(c)) { for (const key in c) { const t = c[key]; for (let i = 0; i < NC; i++) t[i] *= k; } }
+    else for (let i = 0; i < NC; i++) c[i] *= k;
+  } else {
     const w = ruleOf(world, 'movers', civ);
     const W = dot(w, REF);
-    for (let i = 0; i < NC; i++) c[i] += W > 0 ? diff * w[i] * REF[i] / W : diff * REF[i];
+    const arr = shapedSlice(world, diff, w, civ, SCR);
+    if (isSet(c)) { for (const key in c) addTo(c[key], arr, total1(c[key]) / tot); }
+    else if (W > 0) addTo(c, arr, 1);
+    else addTo(c, REF, diff);
   }
   return workersIn(world, s, civ);
 }
 
+const BIRTHS = new Float64Array(RACE_KEYS.length + 4), LIVES = new Float64Array(RACE_KEYS.length + 4);   // per table, scratch
 /**
- * One month of births, natural deaths and ageing on the town's table, plus the famine dead
- * (frail) and the emigrants (movers), which leave before the births arrive. birthA / deathA
- * are today's crude annual rates, the rates of a town at its reference shape. Fills out with
- * the births, natural deaths, famine dead and emigrants (the caller sets s.population to
+ * One month of births, natural deaths and ageing on the town's table (or each of its peoples'
+ * tables, at that people's rates and pace), plus the famine dead (frail) and the emigrants
+ * (movers), which leave before the births arrive. birthA / deathA are today's crude annual rates,
+ * the rates of a town at its reference shape. In a town of several peoples each people also
+ * fights among itself (ext 'strife'): k × its share of the town × crowd of it die a year, taken
+ * by its `who` (its young men, its men and women, or all ages). The more a people fills a town,
+ * and the harder the town presses on its land (crowd, 0–1: a young town with room to grow
+ * hardly feuds), the more it feuds, so a fast-breeding people's head start is spent in its own
+ * feuds once land runs short and no people swamps the rest unchecked. Fills out with the births,
+ * natural deaths, famine dead, emigrants and in-fighting dead (the caller sets s.population to
  * Σ cohorts).
  */
-export function cohortMonth(world, s, civ, birthA, deathA, famineDead, emig, out) {
-  const c = s.cohorts;
-  // one pass: the people, the fertility rule's weight, the partners and the women of 15–44
-  const fertR = ruleOf(world, 'fertility', civ);
-  let pop = 0, fertSum = 0, men = 0, women = 0;
-  for (let b = 0; b < NB; b++) {
-    const m = c[b], f = c[NB + b];
-    pop += m + f;
-    fertSum += fertR[b] * m + fertR[NB + b] * f;
-    if (b >= MATE_LO && b <= MATE_HI) men += m;
-    if (b >= PAIR_LO && b <= PAIR_HI) women += f;
+export function cohortMonth(world, s, civ, birthA, deathA, famineDead, emig, out, crowd = 1) {
+  const c = s.cohorts, fl = s.flags;
+  const fertR = ruleOf(world, 'fertility', civ), mort = ruleOf(world, 'mortality', civ);
+  const K = ruleOf(world, 'pairK', civ);
+  let births = 0, deaths = 0, crudeB = 0, crudeD = 0, beforeP = 0;
+  let eNum = 0, eDen = 0, feud = 0;
+  const set = isSet(c);
+  if (set && (typeof fl.mates !== 'object' || fl.mates === null)) fl.mates = {};
+  const strife = set && crowd > 0 && hasProviders('strife');
+  const town = strife ? cohortTotal(c) : 0;
+  let j = 0;
+  for (const key in (set ? c : ONE)) {
+    const t = set ? c[key] : c;
+    const R = set ? ratesOf(world, key, s) : HUMAN_RATES;
+    const bA = birthA * R.birth, dA = deathA * R.mortality, L = R.life;
+    // one pass: the people, the fertility rule's weight, the partners, the women of 15–44 and
+    // the young men the default levy names
+    let pop = 0, fertSum = 0, men = 0, women = 0, el = 0;
+    for (let b = 0; b < NB; b++) {
+      const m = t[b], f = t[NB + b];
+      pop += m + f;
+      fertSum += fertR[b] * m + fertR[NB + b] * f;
+      if (b >= MATE_LO && b <= MATE_HI) men += m;
+      if (b >= PAIR_LO && b <= PAIR_HI) women += f;
+      if (b === 3) el += 0.5 * m; else if (b >= 4 && b <= 8) el += m;
+    }
+    // the reference shape for this people's rates, read in its own stages of life
+    const ref = refIndices(bA * L, dA * L);
+    if (ref.elig > 0) { eNum += el; eDen += el / ref.elig; }
+    // partners: men of 20–54 per woman of 15–44 against the reference's (x), and what the town is
+    // used to (s.flags.mates, x averaged over about a century, never above 1): births fall when x
+    // drops below 1 / pairK of that — a sudden loss of men hurts; a realm always at war has adapted
+    const x = women > 0 ? Math.min(1, men / (women * ref.mates)) : 1;
+    let used = set ? fl.mates[key] : fl.mates;
+    if (!(used > 0)) used = x;
+    const drop = x < used ? (used - x) / used : 0;
+    used += (x - used) / (MATE_ADAPT * L) * (1 + REMARRY * drop * drop);
+    if (set) fl.mates[key] = used; else fl.mates = used;
+    // births: today's crude rate, by the women of childbearing age against the reference, and
+    // by partners
+    let bt = 0;
+    if (pop > 0 && bA > 0) {
+      const pairing = Math.min(1, K * x / Math.max(0.2, used));
+      const base = bA * pop / 12 * (fertSum / pop / ref.fert);
+      bt = base * pairing;
+      if (COHORT_DEV.verify) { crudeB += bA * pop / 12; beforeP += base; if (set) { flow(key + ' births at crude', bA * pop / 12); flow(key + ' births before pairing', base); flow(key + ' births', bt); } }
+    }
+    LIVES[j] = L;
+    BIRTHS[j++] = bt;
+    births += bt;
+    // natural deaths: each band's hazard is dA·M[b] / (Σ M·n per head at the reference) a year
+    const hz = dA / (12 * ref.mort);
+    const d0 = deaths;
+    for (let i = 0; i < NC; i++) {
+      let h = hz * mort[i];
+      if (h > 0.5) h = 0.5;
+      const d = t[i] * h;
+      t[i] -= d; deaths += d;
+    }
+    if (COHORT_DEV.verify && set) flow(key + ' died', deaths - d0);
+    if (COHORT_DEV.verify) { crudeD += dA * pop / 12; if (set) { flow(key + ' died at crude', dA * pop / 12); flow(key + ' people-months', pop); } }
+    // in-fighting: k a year at a crowded town wholly of this people, by its share and the
+    // crowding; the dead by who fights
+    if (strife && town > 0 && pop > 0) {
+      const st = firstOf('strife', world, key, civ);
+      if (st && st.k > 0) {
+        const w = typeof st.who === 'string' ? ruleOf(world, st.who, civ) : st.who && st.who.length === NC ? st.who : ALL;
+        const fd = takeFrom(t, pop * st.k * (pop / town) * crowd / 12, w, null);
+        feud += fd;
+        if (COHORT_DEV.verify) flow(key + ' feuds', fd);
+      }
+    }
   }
-  const ref = refIndices(birthA, deathA);
-  // the levy share of the town's reference shape, for manpower (levyBase)
-  s.flags.eref = Math.round(ref.elig * 1e4) / 1e4;
-  // partners: men of 20–54 per woman of 15–44 against the reference's (x), and what the town is
-  // used to (s.flags.mates, x averaged over about a century, never above 1): births fall when x
-  // drops below 1 / pairK of that — a sudden loss of men hurts; a realm always at war has adapted
-  const x = women > 0 ? Math.min(1, men / (women * ref.mates)) : 1;
-  let used = s.flags.mates;
-  if (!(used > 0)) used = x;
-  used += (x - used) / MATE_ADAPT;
-  s.flags.mates = used;
-  // births: today's crude rate, by the women of childbearing age against the reference, and by
-  // partners
-  let births = 0;
-  if (pop > 0 && birthA > 0) {
-    const fert = fertSum / pop;
-    const K = ruleOf(world, 'pairK', civ);
-    const pairing = Math.min(1, K * x / Math.max(0.2, used));
-    births = birthA * pop / 12 * (fert / ref.fert) * pairing;
-    if (COHORT_DEV.verify) { flow('births at crude', birthA * pop / 12); flow('births before pairing', births / pairing); }
-  }
-  // natural deaths: each band's hazard is deathA·M[b] / (Σ M·n per head at the reference) a year
-  const mort = ruleOf(world, 'mortality', civ);
-  const hz = deathA / (12 * ref.mort);
-  let deaths = 0;
-  for (let i = 0; i < NC; i++) {
-    let h = hz * mort[i];
-    if (h > 0.5) h = 0.5;
-    const d = c[i] * h;
-    c[i] -= d; deaths += d;
-  }
-  if (COHORT_DEV.verify) { flow('died', deaths); flow('died at crude', deathA * pop / 12); }
+  // the levy share of the town's reference shape, for manpower (levyBase); for several peoples,
+  // what makes Σ eligible / eref = Σ eligible_people / eref_people
+  fl.eref = eDen > 0 ? Math.round(eNum / eDen * 1e4) / 1e4 : REF_ELIGIBLE;
   let fam = 0, em = 0;
-  if (famineDead > 0) fam = takeFrom(c, famineDead, ruleOf(world, 'frail', civ), null);
-  if (emig > 0) em = takeFrom(c, emig, ruleOf(world, 'movers', civ), null);
-  c[0] += births * BOY;
-  c[NB] += births * (1 - BOY);
-  ageAndRound(c);
-  if (COHORT_DEV.verify) flow('births', births);
-  out.births = births; out.deaths = deaths; out.famine = fam; out.emig = em;
+  if (famineDead > 0) fam = takeAny(c, famineDead, ruleOf(world, 'frail', civ), null, null, 'famine');
+  if (emig > 0) em = takeAny(c, emig, ruleOf(world, 'movers', civ), null, null, 'emigrants');
+  j = 0;
+  for (const key in (set ? c : ONE)) {
+    const t = set ? c[key] : c;
+    const L = LIVES[j], bt = BIRTHS[j++];
+    t[0] += bt * BOY;
+    t[NB] += bt * (1 - BOY);
+    ageAndRound(t, L === 1 ? AGE_G : AGE_G / L);
+  }
+  if (COHORT_DEV.verify) { flow('births', births); flow('births at crude', crudeB); flow('births before pairing', beforeP); flow('died', deaths); flow('died at crude', crudeD); if (feud > 0) flow('died in feuds', feud); }
+  out.births = births; out.deaths = deaths; out.famine = fam; out.emig = em; out.feud = feud;
   return out;
 }
+const ONE = { one: 1 };   // a single table iterates once
 
 /**
  * End of the monthly pass (the bands were rounded to hundredths as they aged): the largest band
- * takes the remainder, so Σ cohorts = s.population exactly.
+ * (of any people) takes the remainder, so Σ cohorts = s.population exactly.
  */
 export function settleCohorts(s) {
   const c = s.cohorts;
-  if (c === undefined || c === null || c.length !== NC) return;
+  if (isSet(c)) {
+    let bt = null, big = 0, top = -1, sum = 0;
+    for (const k in c) {
+      const t = c[k];
+      for (let i = 0; i < NC; i++) { const v = t[i]; sum += v; if (v > top) { top = v; big = i; bt = t; } }
+    }
+    if (bt) { const v = (s.population || 0) - (sum - top); bt[big] = v > 0 ? v : 0; }
+    return;
+  }
+  if (!isTable(c)) return;
   let big = 0, top = -1, sum = 0;
   for (let i = 0; i < NC; i++) {
     const v = c[i];
@@ -463,16 +753,20 @@ export function settleCohorts(s) {
 // ---------------------------------------------------------------------------
 // Readers
 
+/** Σ over a table or a set of w · n. */
+const dotAny = (w, c) => { if (!isSet(c)) return dot(w, c); let s = 0; for (const k in c) s += dot(w, c[k]); return s; };
+
 /**
  * The working hands of town s: its people weighted by the realm's who-works rule (by default
- * 15–64, and before the Medieval Age half of 10–14 and of 65–74), 0.8 × the people at REF.
- * Scaled to s.population if the table lags; 0.8 × the people without a table.
+ * 15–64, and before the Medieval Age half of 10–14 and of 65–74; each people by its own stages
+ * of life), 0.8 × the people at REF. Scaled to s.population if the table lags; 0.8 × the people
+ * without a table.
  */
 export function workersIn(world, s, civ) {
   const c = s.cohorts, pop = s.population || 0;
-  if (c === undefined || c === null || c.length !== NC) return 0.8 * pop;
+  if (!isTable(c) && !isSet(c)) return 0.8 * pop;
   const tot = cohortTotal(c);
-  return tot > 0 ? LABOUR_K * dot(ruleOf(world, 'work', civ), c) * pop / tot : 0.8 * pop;
+  return tot > 0 ? LABOUR_K * dotAny(ruleOf(world, 'work', civ), c) * pop / tot : 0.8 * pop;
 }
 
 /**
@@ -483,33 +777,49 @@ export function workersIn(world, s, civ) {
 export function levyBase(s, levy) {
   const c = s.cohorts;
   const pop = s.population || 0;
-  if (!Array.isArray(c) || c.length !== NC) return pop;
+  if (!isTable(c) && !isSet(c)) return pop;
   const tot = cohortTotal(c);
   const eref = s.flags && s.flags.eref > 0 ? s.flags.eref : REF_ELIGIBLE;
-  return tot > 0 ? dot(levy, c) / tot * pop / eref : pop;
+  return tot > 0 ? dotAny(levy, c) / tot * pop / eref : pop;
 }
 
 /**
- * A town's (or summed) table in numbers for the dossier: median age, children (< 15), elders
- * (65+), men and women of 15–44, working hands (15–64, plus half of 10–14 and 65–74 before era 4).
+ * A town's (or summed) cohorts in numbers for the dossier: median age in years, children (the
+ * first three stages, under 15 for humans), elders (from 65), men and women of 15–44, working
+ * hands (15–64, plus half of 10–14 and 65–74 before era 4). For a set, each people by its own
+ * stages of life; lifeOf(people) gives its life (1 for humans).
  */
-export function cohortSummary(c, era = 0) {
-  const tot = c ? cohortTotal(c) : 0;
-  const out = { total: tot, median: 0, children: 0, elders: 0, men: 0, women: 0, working: 0 };
-  if (!(tot > 0)) return out;
-  const band = new Array(NB);
-  for (let b = 0; b < NB; b++) band[b] = c[b] + c[NB + b];
-  let acc = 0;
-  for (let b = 0; b < NB; b++) {
-    if (acc + band[b] >= tot / 2) { out.median = 5 * b + (band[b] > 0 ? 5 * (tot / 2 - acc) / band[b] : 0); break; }
-    acc += band[b];
+export function cohortSummary(c, era = 0, lifeOf = null) {
+  const out = { total: 0, median: 0, children: 0, elders: 0, men: 0, women: 0, working: 0 };
+  if (!c) return out;
+  const tabs = isSet(c) ? Object.keys(c).map((k) => [c[k], lifeOf ? lifeOf(k) : 1]) : [[c, 1]];
+  const iv = [];
+  for (const [t, L] of tabs) {
+    for (let b = 0; b < NB; b++) {
+      const n = t[b] + t[NB + b];
+      out.total += n;
+      if (b < 3) out.children += n;
+      if (b >= 13) out.elders += n;
+      if (b >= 3 && b <= 12) out.working += n;
+      if (era < 4 && (b === 2 || b === 13 || b === 14)) out.working += 0.5 * n;
+      if (n > 0) iv.push([5 * b * L, (b === NB - 1 ? 5 * (b + 1) : 5 * (b + 1)) * L, n]);
+    }
+    out.men += span(t, 0, PAIR_LO, PAIR_HI);
+    out.women += span(t, NB, PAIR_LO, PAIR_HI);
   }
-  for (let b = 0; b < 3; b++) out.children += band[b];
-  for (let b = 13; b < NB; b++) out.elders += band[b];
-  out.men = span(c, 0, PAIR_LO, PAIR_HI);
-  out.women = span(c, NB, PAIR_LO, PAIR_HI);
-  for (let b = 3; b <= 12; b++) out.working += band[b];
-  if (era < 4) out.working += 0.5 * (band[2] + band[13] + band[14]);
+  if (!(out.total > 0)) return out;
+  // the median age: bands as spans of years (a long-lived people's spans are longer), people
+  // spread evenly within each
+  const half = out.total / 2;
+  let lo = 0, hi = 0;
+  for (const v of iv) if (v[1] > hi) hi = v[1];
+  for (let it = 0; it < 30; it++) {
+    const mid = (lo + hi) / 2;
+    let below = 0;
+    for (const [a, z, n] of iv) below += mid <= a ? 0 : mid >= z ? n : n * (mid - a) / (z - a);
+    if (below < half) lo = mid; else hi = mid;
+  }
+  out.median = (lo + hi) / 2;
   return out;
 }
 
@@ -521,9 +831,10 @@ export const COHORT_DEV = { verify: false, bad: 0, worst: 0, first: null, flows:
 function flow(key, n) { COHORT_DEV.flows[key] = (COHORT_DEV.flows[key] || 0) + n; }
 export function verifyCohorts(world, s) {
   const c = s.cohorts;
-  const d = Array.isArray(c) && c.length === NC ? Math.abs(cohortTotal(c) - (s.population || 0)) : Infinity;
+  const ok = isTable(c) || (isSet(c) && Object.values(c).every(isTable));
+  const d = ok ? Math.abs(cohortTotal(c) - (s.population || 0)) : Infinity;
   let neg = false;
-  if (Array.isArray(c)) for (let i = 0; i < c.length; i++) if (!(c[i] >= 0)) neg = true;
+  if (ok) for (const t of isSet(c) ? Object.values(c) : [c]) for (let i = 0; i < NC; i++) if (!(t[i] >= 0)) neg = true;
   if (d >= 0.5 || neg) {
     COHORT_DEV.bad++;
     if (d > COHORT_DEV.worst) COHORT_DEV.worst = d;

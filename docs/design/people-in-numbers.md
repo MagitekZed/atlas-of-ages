@@ -47,6 +47,7 @@ The rules:
 | **Who practises magic** (Mythic) | The magical trades’ demand, leaning by people | Magic banned; mage castes; a faith that hunts witches |
 | **Deaths** | The mortality shape, flattened by health and medicine | Peoples with different frailty by age; infant care through a faith or an era |
 | **Who moves** | The `movers` shape | Nomads who move whole families; colonies of young men only |
+| **How a people fights itself** (Mythic) | Each people's `strife` in `RACES`: a strength, and who dies (young men, men and women, or all ages) | A code of law or a warrior faith that tames or feeds the feuds; an era of order; a people whose women take up the blade |
 
 Each rule is read through one function that takes the world, the realm and (in Mythic worlds,
 from phase 3) the people: `ruleOf(world, key, civ)` in `src/core/cohorts.js`. For example,
@@ -245,7 +246,8 @@ Then pairing. Births also depend on there being partners, through the **pairing*
 
 ```
 x       = min(1, (men20to54 / women15to44) / Pref(birthA, deathA))
-used    = used + (x − used) / 1200                (monthly; s.flags.mates)
+used    = used + (x − used) / 1200 × (1 + 100 × drop²)   (monthly; s.flags.mates)
+          drop = (used − x) / used when x < used, else 0
 pairing = min(1, PAIR_K · x / used)
 births  = births · pairing
 ```
@@ -259,6 +261,14 @@ births  = births · pairing
   war-torn realm carries the loss for generations.
   - Births come back sooner the other way: once the killing stops, the boys grow up and `x`
     itself recovers.
+  - **New marriages after a great loss** (the user's idea, 2026-10-25). After a sudden loss of
+    men, widows remarry and people marry across ages and families, so a town adapts faster the
+    bigger the drop.
+    - A slight, lasting shortage still takes about a century.
+    - Losing a third of the men takes about a decade.
+    - Measured in a Mythic world, dwarves had been losing a third of their births to missing
+      partners (three-times-longer lives, men lost to wars and feuds). With the faster
+      remarriage, they are back to their share on main.
   - *The choice (the user's, 2026-10-25):* the first version adapted over 40 years. A century
     lets wars slow a people's growth for generations, which the user preferred over keeping
     main's numbers. In the event the world totals hardly moved (population 0 % → −3 % against
@@ -500,6 +510,19 @@ everywhere else. That keeps Historical worlds byte-identical with and without th
   - **Halflings:** healers ×2
   - **Lizardfolk:** beast-keepers ×1.5, mages ×1.3
   - **Humans:** mages ×1.2 (wizardry is open to everyone)
+- **As built** (`src/sim/myth/trades.js`):
+  - `sim/civ/jobs.js` asks the ext point `magicJobs` for the four shares, and they come out of
+    the labourers.
+  - The readers go through ext points owned by the civ and bands modules, which the myth module
+    answers and which are neutral below mythLevel 2: `townHealth` (healers),
+    `townOutput` (artificers: production and defence), `researchMul` (mages, on an arcane art),
+    `taming` (beast-keepers, `bands/kinds/beasts.js`), and `damage` for plague (healers).
+  - The mana drain (`mana.js`) keeps today's term and multiplies it by the town's mages over a
+    plain town's, from 0.5 to 2. A tower or a people of mages draws harder, and a town where
+    the weave runs thin has fewer mages to draw. That is calibrated equal for a typical town,
+    as the design asked, without changing how drain grows with a town's size.
+  - "Up to" means at the cap, 1.5 % of the hands. A typical town's mages, around 0.4 %, give
+    about a quarter of each effect.
 - **Who practises magic is a society rule** like the others. A later chunk can add laws that
   ban magic, mage castes, or a faith that hunts witches.
 - **Kept for later.** Mage guilds and their rivalries, and the death of the last mage in a
@@ -521,7 +544,18 @@ famine coming, can send its children and old people back to work.
   elf's "0–4" band is 0–24 years.
 - **Rates.** Each people's births and deaths run on its own table, with its own
   `RACES[r].birth` and `mortality` in place of the demography provider's share-weighted average.
+  - The myth module answers the ext point `peopleRates` (`races.js`) with each people's birth
+    (the Fading thinning elves and lizardfolk), mortality and life. `src/core/cohorts.js` only
+    applies them.
+  - Each people's reference shape is read in its own stages of life: `refIndices(birth × life,
+    death × life)`. An elf growing 2 % a year is a human town growing 10 % a stage-year. The
+    table now covers growth up to 12 % for that.
+  - What a town is used to (pairing) adapts over a century of that people's life.
 - **Ageing.** The stretch `1 / (60 · life)` makes elves and dwarves age slowly.
+- **The core takes either form.** Every helper in `cohorts.js` takes one table or a set of
+  tables. A slice taken from a set is a set, so settlers, migrants, drifters and levies carry
+  their peoples with them. Levies home go to the towns where their own people lives. Only the
+  myth module makes sets, so a Historical world is unchanged with or without it.
 - **Shares.**
   - `s.peoples` is still written, as the shares of each table's total. Every reader keeps
     working.
@@ -531,12 +565,67 @@ famine coming, can send its children and old people back to work.
     the target mix.
     - Moving people of one people takes a `movers` slice from that people's table.
     - A turning moves a slice from one people's table to another's in the same bands.
-- **Visible result.** Fast-breeding peoples swamp slow ones in a few centuries. Elder peoples
-  with low birth rates age and fade unless magic returns.
+- **In-fighting.** A town's pressure on births falls on all its peoples alike. Without anything
+  more, whichever people's births outrun its deaths by the most gains every year in every mixed
+  town. In the first build, orcs, lizardfolk and halflings swamped the rest within centuries:
+  humans were down to 0–16 % of six worlds by Year 1000, and elves to 0.1–2 %.
+  - So each people also fights among itself, through the ext point `strife` (w, people, civ) →
+    `{ k, who }`, from `RACES[r].strife`.
+  - `k × share × crowd` of that people die a year:
+    - `share` is the people's part of the town.
+    - `crowd` is how hard the town presses on its land: 0 below 70 % of what its land can feed,
+      rising to 1 at 115 %, where births stop.
+    - The more a people fills a town, and the less land is left, the more it feuds, so peoples
+      settle into a lasting mix.
+    - *Why crowding (the user's choice, 2026-10-25):* without it every young town, which starts
+      as one people, feuded at full strength while it still had room to grow. Mythic worlds then
+      held about a quarter of main's people at Year 500, with half the realms and wars at Year
+      1000. Feuds over land when land runs short leave young worlds to fill up, and still check
+      the fast breeders where peoples really compete.
+  - `who` says who dies (the user's idea): its young men (`youngMen`), its men and women of
+    fighting age (`adults`), or young and old alike (`all`). Fights among the young men leave
+    widows, so they cut births as well.
+  - Defaults, the most at a town wholly of that people:
+
+    | People | `k` | Who | Why |
+    | --- | --- | --- | --- |
+    | Orcs | 1.2 % | adults | Clan wars and challenges; the women fight too |
+    | Lizardfolk | 0.7 % | all | Brood wars take the young and the old |
+    | Halflings | 0.6 % | all | Feuds between families over land and inheritance |
+    | Humans | 0.3 % | young men | Brawls and blood feuds |
+    | Dwarves | 0.2 % | young men | Clan grudges, settled in the halls |
+    | Elves | 0.1 % | adults | Rare, cold quarrels of the old houses |
+
+  - **The cost, chosen by the user.** In-fighting spends exactly the fast breeders' head start,
+    so a Mythic world dominated by orcs and lizardfolk grows no faster than a human one.
+    Population at Year 1000 ran about 45 % below main on six worlds, against −23 % with no
+    in-fighting. The user kept full strength over half (−29 %, but humans thinning to 1–12 %).
+  - *Tried and dropped:* counting a people's usual feuding (at a typical 80 % share of its
+    town) as already part of its normal death rate, so it fought less than that as a minority.
+    That handed the hardest feuders the biggest gain wherever they were few, and orcs spread
+    everywhere.
+  - Like the other rules, a people's strife is read every month for its realm, so a later chunk
+    can let laws, faith or era change it.
+- **Elves breed with the magic around them** (the user's choice, 2026-10-25).
+  - Measured per people, elves faded because of their own low birth rate (58 % of a human's),
+    not war. War cost them half a death per 1,000 a year, and missing partners a little more.
+    They grew at a third of the human pace.
+  - So elf births scale by `0.7 + 0.8 × mana` at the town, capped at 1.6: about 0.8 where the
+    weave is thin, 1 at an elf town's usual mana (about 0.4), 1.34 in strong magic.
+  - They thrive in the old magical forests and fade as the Fading thins the weave, on top of the
+    Fading's own toll on elven births.
+- **Visible result.** Fast-breeding peoples press on slow ones, until their own feuds hold them
+  back. Elves hold their own where magic is strong and fade where it fails.
 - **Limits.**
-  - Peoples below `PEOPLES_MIN` share keep a table only while they hold at least 20 people.
-    Below that they are folded into the dominant people's table.
-  - This keeps the work and the save bounded: about three tables per Mythic town on average.
+  - A people whose share the mix drops (below `PEOPLES_MIN`, unless just arrived or the last of
+    its people anywhere) is folded into the dominant people's table, in the same bands.
+  - *Why not the floor of 20 souls (decision 4):* a newcomer people arrives as half a percent
+    of a town. In any town under about 4,000 that is fewer than 20 souls, so it was folded away
+    the next year. Small towns never mixed, and since every world starts with small towns,
+    neither did the rest: at Year 400 not one of 124 towns held a second people. The share
+    floor keeps today's mixing.
+  - The work stays bounded anyway: about three tables per Mythic town (3.4 in a Year-900 world
+    on main), never more than six.
 
 ## Events and heat
 
@@ -704,6 +793,59 @@ trades bar under the pyramid.
   - Together that is about 2.3 ms, over the 2 ms budget for the whole chunk, with phases 3 and 4
     still to come. Revisit before the chunk merges.
 - **Size.** 11 numbers per town (about 30 KB at Year 1000 on a medium map, estimated).
+
+## Phase 3 results (2026-10-25)
+
+Built on `sim/people-in-numbers`:
+- **Each people's own age bands** in Mythic towns, with per-people births, deaths and ageing
+  (ext `peopleRates`).
+- **The peoples module on tables:** migration, conquest, settlers and expulsion move real people,
+  and the yearly share-growth step is gone.
+- **In-fighting** (ext `strife`, with crowding).
+- **Faster remarriage** after a sudden loss of men.
+- **Elves breed with the mana** around them.
+- **The four magical trades** (`src/sim/myth/trades.js`).
+- **The dossier:** the pyramid stacks the peoples, and the trades list shows the magical trades.
+
+- **Gates.** `npm test`, `--trial` at mythLevel 2 for 300–500 years (save → load → continue
+  with several peoples per town) and `--cohort-check` all pass.
+- **Calibration**, the twelve worlds against main:
+
+  | | Population | Realms | Towns | Wars |
+  | --- | --- | --- | --- | --- |
+  | Historical, Year 500 | +10 % | −2 % | +1 % | −1 % |
+  | Historical, Year 1000 | +1 % | −15 % | −6 % | −13 % |
+  | Mythic, Year 500 | −36 % | −2 % | −12 % | −11 % |
+  | Mythic, Year 1000 | −20 % | −23 % | −11 % | −15 % |
+
+  - The Historical change is the faster remarriage.
+  - No world came near collapse: the leanest held 4 realms, 111 towns and 339,000 people.
+- **The mix of peoples**, six Mythic worlds at Year 1000, against main:
+
+  | People | Main | Phase 3 |
+  | --- | --- | --- |
+  | Humans | 1.7–23.6 % | 0.7–22.7 % |
+  | Elves | 2.1–7.8 % | 0.3–3.5 % |
+  | Dwarves | 5.5–13.7 % | 2.1–9.2 % |
+  | Orcs | 8.5–36.9 % | 0.7–29.8 % |
+  | Halflings | 7–46 % | 15–50 % |
+  | Lizardfolk | 18–52 % | 26–39 % |
+  | Peoples per town | 3.5–4.8 | 3.0–4.7 |
+
+  Mixing is healthy and no people runs away with a world. Elves stay a small, fading elder
+  people outside strong magic. The lever if they should be stronger is the mana factor (up to
+  1.6 today).
+- **How the mix was reached** (each step is recorded where it applies above):
+  1. Real births and deaths alone let orcs, lizardfolk and halflings swamp the rest.
+  2. In-fighting at full strength balanced the mix but halved Mythic worlds.
+  3. Measured per people, elves faded from their low birth rate and dwarves from missing
+     partners. This led to elves following mana, and to faster remarriage.
+  4. Feuds tied to crowding gave back most of the population, realms and wars.
+- **Speed.** About 5.8 ms per sim-year for the age bands on a Mythic world at Year 900 (3.4
+  tables a town), plus about 0.8 ms for the trades. That is roughly 4 % of a Mythic sim-year.
+  A Historical world costs about 2.5 ms. Both are over the 2 ms budget: a speed pass is due
+  before the chunk merges.
+- **Size.** Mythic towns save one 34-number table per people present (about three).
 
 ## Decisions (2026-10-25)
 

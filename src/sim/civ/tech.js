@@ -44,7 +44,7 @@
 import { DAYS_PER_YEAR, DAYS_PER_MONTH, ERAS, RESOURCES } from '../../core/constants.js';
 import { emitFx } from '../../core/world.js';
 import { emit } from '../../core/hooks.js';
-import { concatOf, hasProviders, extVersion, getModKeys, getRegisteredTechs } from '../../core/ext.js';
+import { concatOf, mulOf, hasProviders, extVersion, getModKeys, getRegisteredTechs } from '../../core/ext.js';
 import { GOVERNMENTS, RULER_TRAITS, wonderDef } from './data.js';
 import { fin, record } from './state.js';
 import { borderNeighbours } from './territory.js';
@@ -571,7 +571,8 @@ export function researchMonthly(world, civ, ctx) {
   const mods = getMods(world, civ);
   const innov = fin(civ.traits?.innovation, 0.5);
   const pts = 0.085 * Math.pow(Math.max(0, ctx.pop), 0.6) * (0.55 + 0.9 * innov) * mods.research
-    * fin(world.params.techRate, 1) * (1 + fin(ctx.libBonus)) * (civ.ruler ? 1 : 0.8) * fin(ctx.resMul, 1);
+    * fin(world.params.techRate, 1) * (1 + fin(ctx.libBonus)) * (civ.ruler ? 1 : 0.8) * fin(ctx.resMul, 1)
+    * (hasProviders('researchMul') ? mulOf('researchMul', world, civ, t.research) : 1);   // the realm's mages, on an arcane art
   const p = Number.isFinite(pts) && pts > 0 ? pts : 0;
   t.points += p;
   t.progress += p;
