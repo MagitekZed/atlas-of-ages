@@ -219,3 +219,37 @@ E. The interface and the Ledger; calibration (twelve worlds against main), speed
   do). The five roles stay the same underneath, so the mechanics are shared.
 - **The court** (my default, no objection raised): named factions with leaders and demands, coups
   and purges.
+
+## As built (2026-10-27)
+
+Modules: `civ/power.js` (the purse, the estates), `civ/laws.js` (laws, divided inheritance),
+`civ/court.js` (factions, demands, coups and purges, risings), `ui/views/power.js` (the dossier
+section). Choices made while building, with the reasons:
+
+- **Spending, sized.** The first court shares (5–18 % of income) with corruption at 10–20 %
+  left realms with a year's income at Year 600 and crowns clipping their coin every few years.
+  The court now takes 3–10 % by government (bent by ruler and age), corruption's middle is
+  about 5–10 % (large old realms 15–25 %), and a crown clips its coin only deep in arrears and
+  at most once a decade.
+- **Taxes ease at the reserve.** A crown used to cut its taxes once its treasury passed a fixed
+  sum; with the hoards gone that rarely happened, and taxes stayed high. It now eases them once
+  it holds three quarters of its own reserve. (Kept: realms that are often short of money tax
+  harder, and their towns are less content; see the calibration.)
+- **Estates feel hard times.** Loyalty first moved too gently for any estate to rise; heavy
+  taxes, hunger, war, a debased coin and bondage now weigh more, and anger rises faster (a
+  quarter of the way a year) than it fades (an eighth).
+- **The court, calmed.** Factions first pressed every year and won too often (most crowns turned
+  elective). A faction now rests eight to sixteen years after it gets its way and presses again
+  three years after a refusal; laws are granted at six tenths of the odds; the old blood asks for
+  an elective crown only in a crisis of legitimacy; purges need a faction refused twice.
+- **The bound rise in desperation** (loyalty under 0.15, not 0.3), or they would rise every few
+  years everywhere bondage is the law.
+
+### Checked in the game
+
+A Mythic world at Year 450: the Iqaaxan Egg-Clan's dossier shows its brood-lords (5 % of the
+people, 52 % of the wealth, loyal), egg-priests, traders, hatchling-kin and thralls ("near revolt,
+over their bondage"); its laws (eldest heir since Year 29, one faith, slavery, the land in fiefs
+since Year 397, levies); its court (the brood-lords' faction at 66 % sway led by Axssa, the army,
+the traders, the egg-priests); and its money (22 a month in taxes, 10 % to corruption, 5 to the
+court, a reserve of 3.5 years against a treasury of 936). No console errors.
