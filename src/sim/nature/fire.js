@@ -184,8 +184,10 @@ export function updateFires(world) {
         if (!s.alive) ev.gone.push(name);
       }
     }
-    // A town beside the fire: the flames reach into it once, by how dry the land is.
-    if (ev && I >= 0.15) {
+    // A town beside a fire the hand set (Wildfire, Lightning): the flames reach into it once, by how
+    // dry the land is. Natural fires reach a town only through its own tile (for now: at this
+    // strength they drained Mythic worlds; docs/design/hand-powers.md).
+    if (ev && ev.cause === 'divine' && I >= 0.15) {
       const x = i % W, y = (i / W) | 0;
       for (let d = 0; d < 8; d++) {
         const nx = x + DX8[d], ny = y + DY8[d];
