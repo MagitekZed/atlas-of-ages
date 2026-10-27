@@ -244,7 +244,7 @@ on('settlementDestroyed', (world, s) => {
   const civ = world.civs[s.civId];
   if (!civ || !civ.tech || !civ.tech.arts) return;
   for (const a of ART_IDS) {
-    if (civ.tech.arts[a] !== s.id) continue;
+    if (!civ.tech.arts || civ.tech.arts[a] !== s.id) continue;   // (drop clears an emptied list)
     drop(world, civ, a, 'razed');
     if (world.rng.chance(0.5)) {
       const home = townWith(world, civ, 0, ARTS[a].kind === 'people' && civ.race !== 'human' ? ARTS[a].people : null, (t) => t.id !== s.id);
