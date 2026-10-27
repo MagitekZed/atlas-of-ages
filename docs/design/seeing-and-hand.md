@@ -140,7 +140,7 @@ realm or town under a divine timed effect marked with its label. Clicking a ring
 
 ### Lessons of the hand
 
-A page (decision 1) with a card per power you have used:
+A page in the Hand tab (decision 1), beside your acts newest first, with a card per power you have used:
 - How often, when last, and at what strengths.
 - What typically came of it at its end and a generation on: the median change of its main measures
   against the world, split by the kind of land (wetland, steppe, forest, desert, hills, coast …) and
@@ -184,4 +184,9 @@ One go on `ui/seeing-and-hand`, a commit per phase, stopping only for the user's
 
 ## Decisions
 
-The user's choices, recorded when made.
+The user's choices, recorded when made (2026-10-27):
+1. **Lessons and the acts: a new Hand tab**, in every world (Legends appears only in Mythic and
+   Legendary worlds; the powers are in all of them).
+2. **Reports: when an act's work is done and a generation later** (25 years).
+3. **Notices: a Chronicle line and a toast**, and on the act's deed card; never a pause.
+4. **The front: while a war is watched or selected.**
