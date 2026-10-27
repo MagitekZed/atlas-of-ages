@@ -25,7 +25,8 @@ import { makePerson, makeWord, isEnglishWord } from '../../core/names.js';
 import { civSettlements, enemiesOf } from '../../core/entities.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
 import { emit, on } from '../../core/hooks.js';
-import { mulOf, hasProviders } from '../../core/ext.js';
+import { skillsOf, growSkills, useSkill, SK } from '../../core/character.js';
+import { mulOf, hasProviders, registerProvider } from '../../core/ext.js';
 import { RULER_TRAITS, GOVERNMENTS, isDynastic } from './data.js';
 import { rulerTitle, govDef, adoptGovernment, revolutionTarget } from './government.js';
 import { refreshMods, getMods } from './tech.js';
@@ -292,13 +293,19 @@ export function rulersMonthly(world, civ, agg) {
   if (!cause) {
     const coup = r.traits.reduce((m, t) => m * (RULER_TRAITS[t]?.coup || 1), 1);
     const sf = Math.max(0.3, fin(world.params.stabilityFactor, 1));
-    const pA = 0.0035 * (1 + 4 * Math.max(0, 0.5 - civ.stability)) * coup * (govDef(civ).succession === 'strongman' ? 2.5 : 1) / sf * (r.flags?.cursed ? 1.5 : 1);
+    // a ruler versed in intrigue sees the knives coming (core/character.js)
+    const wary = 1.4 - 0.8 * skillsOf(r, world.time.day, lifeOf(world, civ, r))[SK.INT];
+    const pA = 0.0035 * (1 + 4 * Math.max(0, 0.5 - civ.stability)) * coup * wary * (govDef(civ).succession === 'strongman' ? 2.5 : 1) / sf * (r.flags?.cursed ? 1.5 : 1);
     if (world.rng.chance(pA / 12)) cause = 'assassinated';
   }
   if (cause) { succession(world, civ, cause, agg); return; }
   if (r.termEnd != null && world.time.day >= r.termEnd) { election(world, civ); return; }
-  // yearly: legitimacy drift and epithets
-  if (world.time.day % DAYS_PER_YEAR < 30) considerEpithet(world, civ, r);
+  // yearly: skills grow with age and years on the throne (core/character.js), epithets
+  if (world.time.day % DAYS_PER_YEAR < 30) {
+    growSkills(r, world.time.day, lifeOf(world, civ, r));
+    useSkill(r, SK.STE, 0.01);
+    considerEpithet(world, civ, r);
+  }
 }
 
 /** Legitimacy drifts toward a target set by reign length, dynasty age and government. */
@@ -569,6 +576,9 @@ export function overthrow(world, civ, newGov, how = 'revolution') {
   onRulerGone(world, civ, prev, nr, how);
   return { prev, ruler: nr };
 }
+
+// a learned ruler speeds the realm's research (core/character.js): × 0.95 to 1.05
+registerProvider('researchMul', 'civ.character', (world, civ) => (civ && civ.ruler && Array.isArray(civ.ruler.sk) ? 0.95 + 0.1 * civ.ruler.sk[SK.LEA] : 1));
 
 /**
  * A standing army seizes power (geo/raising.js emits armyCoup: three months unpaid, or a realm in

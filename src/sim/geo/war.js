@@ -86,6 +86,7 @@ import { soldierPay } from './raising.js';
 import { forcesOf, deployRegiments, regimentsHome, raisingMonthly } from './raising.js';
 import { aimFor, defenderAim, aimsFromCause, aimMet, winnerAim, peaceAllows, takeHostage, hostageHeld, killHostage } from './terms.js';
 import { addReparations, monthlyIncome, debtClaim, settleDebtClaim } from './debt.js';
+import { temperOf, skillsOf, warTemper, whyWords, TP, SK } from '../../core/character.js';
 import { bindWar } from './acts.js';   // the geopolitical divine acts (they call back into this module at use time)
 
 const MONTH_DAY = 25;
@@ -605,17 +606,12 @@ function declarations(world, st, ctx) {
     if (offensive >= 1) continue;
     const ta = a.traits || {};
     const aggrF = (0.25 + 1.5 * (ta.aggression ?? 0.5)) * (0.6 + 0.8 * (ta.militarism ?? 0.5));
-    let rulerF = 1;
-    if (rulerHas(a, 'warlike')) rulerF *= 1.9;
-    if (rulerHas(a, 'cruel')) rulerF *= 1.25;
+    // the ruler's nature (core/character.js: ambition and boldness up, mercy down) and their
+    // skill at war; wisdom, learning and madness stay traits
+    let rulerF = a.ruler ? warTemper(a.ruler, a) * (0.85 + 0.3 * skillsOf(a.ruler, day)[SK.WAR]) : 1;
     if (rulerHas(a, 'mad')) rulerF *= 1.4;
-    if (rulerHas(a, 'ambitious')) rulerF *= 1.3;
-    if (rulerHas(a, 'craven')) rulerF *= 0.4;
-    if (rulerHas(a, 'just')) rulerF *= 0.8;
     if (rulerHas(a, 'wise')) rulerF *= 0.8;
     if (rulerHas(a, 'scholarly')) rulerF *= 0.85;
-    if (rulerHas(a, 'cautious')) rulerF *= 0.7;
-    if (rulerHas(a, 'generous')) rulerF *= 0.9;
     const fa = faithOf(world, a.stateReligion);
     let faithF = 1;
     if (fa) { if (fa.tenets.includes('pacifist')) faithF *= 0.4; if (fa.tenets.includes('tolerant')) faithF *= 0.8; if (fa.tenets.includes('militant')) faithF *= 1.35; }
@@ -672,6 +668,8 @@ function declarations(world, st, ctx) {
       if (desire > bestDesire) { bestDesire = desire; best = b; bestCb = cb; }
     }
     if (!best || !rng.chance(clamp01(bestDesire * gov / 1.2))) continue;
+    // a war a ruler's nature drove is told as theirs
+    if (rulerF >= 1.6 && a.ruler) bestCb = { ...bestCb, why: whyWords(a.ruler, a) };
     declare(world, st, a, best, bestCb, ctx);
   }
 }
@@ -814,7 +812,15 @@ function declare(world, st, a, b, cb, ctx, opts = {}) {
   let entry = null;
   if (!opts.quiet) {
     const wn = theWar(war);
-    const text = opts.textFn ? opts.textFn(world, war) : declarationText(world, a, b, cb, { place, faith, wn, y: capA ? capA.y : 0, year: Math.floor(world.time.day / DAYS_PER_YEAR) });
+    let text = opts.textFn ? opts.textFn(world, war) : declarationText(world, a, b, cb, { place, faith, wn, y: capA ? capA.y : 0, year: Math.floor(world.time.day / DAYS_PER_YEAR) });
+    // the ruler whose nature drove the war (core/character.js whyWords)
+    if (!opts.textFn && Array.isArray(cb.why) && cb.why.length && rulerName(a)) {
+      const ws = cb.why.length > 1 ? `${cb.why[0]} and ${cb.why[1]}` : cb.why[0];
+      text += ' ' + hashPick([
+        `${capFirst(rulerName(a))}, ${ws}, had long been looking for a war.`,
+        `Men called it ${possessive(rulerName(a))} war; the ${ws} ruler had wanted it for years.`,
+      ], war.id, a.id);
+    }
     // a war between realms of weight is major news; a feud between chiefdoms is not
     const wp = worldPopulation(world);
     const weighty = (c) => c.settlementIds.length >= 4 || civPopulation(world, c) > Math.max(20000, 0.04 * wp);
@@ -1819,8 +1825,10 @@ function capture(world, st, army, s, opts = {}) {
   const fa = faithOf(world, att.stateReligion);
   const holy = g && g.cb === 'holy' && fa && fa.tenets.includes('militant') && (s.dominantReligion !== fa.id);
   const grievance = rel(world, att.id, oldId).grievance || 0;
-  let pRaze = 0.03 + (rulerHas(att, 'cruel') ? 0.22 : 0) + (holy ? 0.15 : 0) + (grievance > 60 ? 0.12 : 0) + (eraOf(att) === 0 ? 0.04 : 0);
-  if ((s.tier || 0) >= 5 || rulerHas(att, 'just')) pRaze *= 0.3;
+  // a merciless ruler burns what they take; a merciful one spares it (core/character.js)
+  const mer = att.ruler ? temperOf(att.ruler, att)[TP.MER] : 0.5;
+  let pRaze = 0.03 + 0.5 * Math.max(0, 0.45 - mer) + (holy ? 0.15 : 0) + (grievance > 60 ? 0.12 : 0) + (eraOf(att) === 0 ? 0.04 : 0);
+  if ((s.tier || 0) >= 5 || mer >= 0.75) pRaze *= 0.3;
   // what the town remembers of its taker (memory.js), and whether this is its old realm come back
   const priorGrudge = Math.min(0, memoryOf(world, s, att.id));
   const freed = !gates && (s.originCivId === att.id || claimOf(world, att, s.id) >= 0.2);
@@ -2042,12 +2050,10 @@ function desperation(world, war, g, civ) {
 function refusal(world, W, L, g) {
   const t = W.traits || {};
   let r = 0.12 + 0.4 * ((t.aggression ?? 0.5) - 0.5) + 0.2 * ((t.expansion ?? 0.5) - 0.5);
-  if (rulerHas(W, 'cruel')) r += 0.25;
-  if (rulerHas(W, 'warlike')) r += 0.12;
+  // the victor's nature (core/character.js): a merciless, faithless, ambitious, bold one fights on
+  if (W.ruler) { const tp = temperOf(W.ruler, W); r += 0.55 * (0.5 - tp[TP.MER]) + 0.25 * (0.5 - tp[TP.HON]) + 0.2 * (tp[TP.AMB] - 0.5) + 0.15 * (tp[TP.BOL] - 0.5); }
   if (rulerHas(W, 'mad')) r += 0.15;
-  if (rulerHas(W, 'ambitious')) r += 0.08;
-  if (rulerHas(W, 'just') || rulerHas(W, 'wise')) r -= 0.12;
-  if (rulerHas(W, 'generous')) r -= 0.08;
+  if (rulerHas(W, 'wise')) r -= 0.12;
   const fa = faithOf(world, W.stateReligion);
   if (fa && g.cb === 'holy' && fa.tenets.includes('militant')) r += 0.3;
   if (fa && fa.tenets.includes('pacifist')) r -= 0.15;

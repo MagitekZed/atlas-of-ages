@@ -202,6 +202,10 @@ export function findRuler(w, id) {
   return null;
 }
 
+const TP_ROWS = [[0, 'Ambition', 'How much they want: land, glory, a name.'], [1, 'Mercy', 'Low is cruelty: who is spared, who is razed.'], [2, 'Piety', ''], [3, 'Greed', 'High taxes, a hunger for land and gold.'], [4, 'Honour', 'Pacts kept, envoys respected.'], [5, 'Boldness', 'Low is caution.']];
+const SK_ROWS = [[0, 'War'], [1, 'Diplomacy'], [2, 'Stewardship'], [3, 'Intrigue'], [4, 'Learning']];
+const skillWord = (v) => (!Number.isFinite(v) ? '—' : v >= 0.8 ? 'Masterly' : v >= 0.6 ? 'Able' : v >= 0.4 ? 'Fair' : v >= 0.2 ? 'Poor' : 'Hopeless');
+
 const rulerView = {
   label: 'Ruler', icon: 'crown',
   describe(app, sel) {
@@ -235,12 +239,16 @@ const rulerView = {
         { k: 'Title', v: () => r.title || '—' },
         { k: 'By-name', v: () => (r.gloss ? `${r.epithet} · “${r.gloss}” in ${civ.adjective ? `the ${civ.adjective}` : 'their own'} tongue` : r.epithet || '—'), txt: true, hide: () => !r.epithet },
         { k: 'Temperament', v: () => (r.traits?.length ? r.traits.map(F.humanize).join(', ') : '—'), txt: true },
+        { k: 'Nature', v: () => natureWords(r, civ, 3).join(', ') || 'Even-tempered', txt: true, hide: () => !Array.isArray(r.tp) },
         { k: 'Deeds', v: () => deedWords(r.deeds) || 'None remembered', txt: true },
         { k: 'Dynasty', ref: () => { const d = dynastyName(r.dynasty); return d ? { key: 'd' + d, make: () => linkBtn(app, { kind: 'dynasty', id: `${civ.id}:${d}` }, d) } : { key: 'none', make: () => textNode('—') }; } },
         { k: 'Came as', v: () => (r.relation ? F.headName(r.relation) : '—'), hide: () => !r.relation },
         { k: 'Before', ref: () => link(prev) },
         { k: 'After', ref: () => link(next), hide: () => reigning },
       ])),
+      // temperament and skills (core/character.js), kept while the ruler lives
+      (() => { const sec = section('Character', kv(b, TP_ROWS.map(([k, label, tip]) => ({ k: label, v: () => F.pct(r.tp?.[k] ?? 0), m: () => r.tp?.[k] ?? 0, tip })).concat(
+        SK_ROWS.map(([k, label]) => ({ k: label, v: () => skillWord(r.sk?.[k]), m: () => r.sk?.[k] ?? 0, mc: 'is-teal', hide: () => !Array.isArray(r.sk) }))))); b.hide(sec, () => !Array.isArray(r.tp)); return sec; })(),
       section('In the Chronicle', chronicleList(app, b, (e) => (e.ref && e.ref.k === 'ruler' && String(e.ref.id) === String(sel.id)) || (e.civId === civ.id && e.day >= fin(r.reignStart) && e.day <= end() && e.imp >= 2 && (e.cat === 'civ' || e.cat === 'war')), 14)),
     ];
   }),

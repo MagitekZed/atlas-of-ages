@@ -217,7 +217,9 @@ export function monthlyCiv(world, civ) {
   if (!civ.alive) return;
 
   // treasury
-  const income = fin(civ.flags.taxAcc);
+  // a skilled steward gets more of the taxes to the treasury (core/character.js): × 0.9 to 1.1
+  const steward = civ.ruler && Array.isArray(civ.ruler.sk) ? 0.9 + 0.2 * civ.ruler.sk[2] : 1;
+  const income = fin(civ.flags.taxAcc) * steward;
   civ.flags.taxAcc = 0;
   // the realm's own running costs, and what its armies, regiments and garrisons cost (ext 'upkeep', geo/raising.js)
   const expenses = income * 0.35 * (1 + 0.5 * fin(civ.flags.overext)) + 0.02 * agg.n * (1 + 0.3 * fin(civ.tech?.era))
