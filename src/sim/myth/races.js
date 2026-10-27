@@ -51,6 +51,8 @@ export const isMythic = (w) => w != null && w.params != null && w.params.mythLev
  * strife: how the people fights among itself (core/cohorts.js in-fighting): k extra deaths a year
  * in a town wholly of that people (less as it shares the town), and who dies: its young men, its
  * men and women of fighting age ('adults') or young and old alike ('all');
+ * war: how the people fights, as shares of spears, blades, bows, light horse, heavy horse,
+ * engineers and war beasts (geo/army.js; humans fight by their era alone);
  * memory: how long the people remembers, in years (e-folding): a town's grudges and gratitude
  * (geo/memory.js) and a realm's claims on lost towns and on towns it founded (geo/claims.js);
  * elder: an old race that wakes first when magic returns; blurb: one line for the Inspector;
@@ -74,6 +76,7 @@ export const RACES = {
     key: 'elf', life: 5, birth: 0.58, mortality: 0.42, elder: true, school: 'sylvan', adapt: 0.5, jitter: 1,
     strife: { k: 0.001, who: 'adults' },     // rare, cold quarrels of the old houses
     memory: { grudge: 200, thanks: 200, claim: 250, founded: 400 },   // remembers slights and kindnesses alike, for lifetimes of men
+    war: [0.2, 0.15, 0.45, 0.15, 0.05, 0, 0],   // archers above all, and swift riders
     temper: { aggression: -0.2, isolation: 0.25, innovation: 0.1, religiosity: 0.05, tolerance: 0.05, expansion: -0.15 },
     mods: { gatherYield: 0.3, culture: 0.15, farmYield: -0.05, research: 0.05, defense: 0.25, stability: 0.05, housing: 0.08, forestFarm: 0.3 },
     blurb: 'Long-lived wardens of the old forests; slow to breed, slow to forget.',
@@ -83,6 +86,7 @@ export const RACES = {
     key: 'dwarf', life: 3, birth: 0.8, mortality: 0.5, elder: true, school: 'runecraft', adapt: 0.6, jitter: 1,
     strife: { k: 0.002, who: 'youngMen' },   // clan grudges, settled in the halls
     memory: { grudge: 250, thanks: 60, claim: 300, founded: 500 },   // remembers a grudge for centuries; a lost hall forever
+    war: [0.35, 0.35, 0.2, 0, 0, 0.1, 0],   // armoured blades and spears, and sappers; no horse
     temper: { militarism: 0.15, commerce: 0.15, expansion: -0.15, isolation: 0.15, tolerance: -0.05 },
     mods: { mining: 0.5, defense: 0.35, production: 0.1, gatherYield: 0.25, housing: 0.12, stability: 0.05, deepHalls: 0.5 },
     blurb: 'Delvers of the hills, stubborn as stone; their halls outlast kingdoms.',
@@ -92,6 +96,7 @@ export const RACES = {
     key: 'orc', life: 0.7, birth: 1.4, mortality: 1.25, elder: false, school: 'shamanism', adapt: 1, jitter: 1,
     strife: { k: 0.012, who: 'adults' },     // clan wars and challenges; the women fight too
     memory: { grudge: 25, thanks: 12, claim: 35, founded: 70 },   // remembers the last war, not the one before
+    war: [0.15, 0.35, 0.1, 0.3, 0, 0, 0.1],   // blades and wolf-riders, and beasts
     temper: { aggression: 0.3, militarism: 0.3, innovation: -0.2, tolerance: -0.2, expansion: 0.15, commerce: -0.1 },
     mods: { military: 0.25, movement: 0.1, research: -0.15, gatherYield: 0.1 },
     blurb: 'Fierce, fast-breeding clans of the open steppe; they live hard and die young.',
@@ -101,6 +106,7 @@ export const RACES = {
     key: 'halfling', life: 1.3, birth: 1.15, mortality: 0.9, elder: true, school: 'hearth', adapt: 0.8, jitter: 1,
     strife: { k: 0.006, who: 'all' },        // feuds between families over land and inheritance, young and old alike
     memory: { grudge: 25, thanks: 50, claim: 50, founded: 100 },   // remembers kindness longer than slights
+    war: [0.4, 0.05, 0.45, 0.1, 0, 0, 0],   // slingers and spears on ponies
     temper: { aggression: -0.3, commerce: 0.2, militarism: -0.25, tolerance: 0.15, expansion: -0.05 },
     mods: { farmYield: 0.2, storage: 0.3, military: -0.2, happiness: 0.04 },
     blurb: 'Small, merry farmers of the green river lands, who want only to be left alone.',
@@ -110,6 +116,7 @@ export const RACES = {
     key: 'lizardfolk', life: 0.9, birth: 1.2, mortality: 1.08, elder: true, school: 'serpent', adapt: 0.7, jitter: 1,
     strife: { k: 0.007, who: 'all' },        // brood wars take the young and the old
     memory: { grudge: 60, thanks: 15, claim: 80, founded: 150 },   // remembers a wrong long after a favour
+    war: [0.45, 0.2, 0.2, 0, 0, 0, 0.15],   // spears and swamp beasts
     temper: { religiosity: 0.25, isolation: 0.2, commerce: -0.1, tolerance: -0.05 },
     mods: { fishYield: 0.3, plagueResist: 0.1, gatherYield: 0.1 },
     blurb: 'Cold-eyed broods of the steaming swamps, keepers of the oldest sun rites.',
@@ -554,6 +561,31 @@ function peopleRates(world, key, s) {
  * How a people fights among itself (core/cohorts.js 'strife'): its race's strife. A realm's own
  * ways (a code of law, a warrior faith, an era of order) may vary it later, through this point.
  */
+/**
+ * armyMix: a people fights in its own way, blended toward its era's mix as the ages turn
+ * (modern armies look alike); its war beasts come only where its beast-keepers are.
+ */
+function armyMix(world, civ) {
+  if (!isMythic(world) || !civ || !civ.race) return null;
+  const mine = RACES[civ.race]?.war;
+  if (!mine) return null;
+  const era = Math.max(0, Math.min(7, civ.tech && Number.isFinite(civ.tech.era) ? civ.tech.era : 0));
+  const w = Math.max(0.2, Math.min(0.8, (era - 3) / 4));
+  const base = ERA_WAR[era];
+  const v = mine.map((x, k) => (1 - w) * x + w * base[k]);
+  if (v[6] > 0) {
+    let keepers = 0;
+    for (const sid of civ.settlementIds) { const s = world.settlements[sid]; const j = s && s.alive ? s.jobs : null; if (Array.isArray(j) && j[14] > 0) keepers += j[14]; }
+    if (!(keepers > 0)) { v[1] += v[6]; v[6] = 0; }
+  }
+  return v;
+}
+// the era's own mix (as geo/army.js ERA_MIX), for blending a people's way of war into the age
+const ERA_WAR = [
+  [0.55, 0.15, 0.30, 0, 0, 0, 0], [0.45, 0.20, 0.25, 0.08, 0.02, 0, 0], [0.35, 0.25, 0.20, 0.13, 0.05, 0.02, 0], [0.30, 0.30, 0.15, 0.12, 0.08, 0.05, 0],
+  [0.30, 0.20, 0.20, 0.10, 0.15, 0.05, 0], [0.25, 0.10, 0.40, 0.10, 0.08, 0.07, 0], [0.06, 0.03, 0.62, 0.08, 0.06, 0.15, 0], [0.05, 0.03, 0.60, 0.07, 0.10, 0.15, 0],
+];
+
 /** claimRule: a realm remembers its lost towns for its people's span. */
 function claimRule(world, civ) {
   if (!isMythic(world) || !civ || !civ.race) return null;
@@ -698,6 +730,7 @@ export function registerRaceProviders() {
   registerProvider('peopleRates', 'myth', peopleRates);
   registerProvider('strife', 'myth', strife);
   registerProvider('claimRule', 'myth', claimRule);
+  registerProvider('armyMix', 'myth', armyMix);
   registerProvider('memoryRule', 'myth', memoryRule);
   registerProvider('mods', 'myth', raceMods);
   registerProvider('loyalty', 'myth', loyalty);

@@ -17,7 +17,8 @@
 // × the ext 'lendingRule' (first; it may forbid a lender). Repaid monthly over 10 to 20 years.
 //
 // Paying: interest, then the payment from the treasury, never more than half of it; a payment it
-// cannot make in full adds to its arrears. After a year in arrears the debtor may default (4 % a
+// cannot make in full adds to its arrears. A loan taken at war is repaid once the debtor is at
+// peace again (the interest runs on meanwhile). After a year in arrears the debtor may default (4 % a
 // month, more the longer it runs, under a cruel or mad ruler, in a weak state, under a crushing
 // debt): it loses legitimacy and stability and its credit for thirty years; a realm it cheated
 // turns hostile and gains the 'debt' casus belli (war.js) for thirty years; a house that loses
@@ -117,6 +118,7 @@ export function debtsMonthly(world) {
   if (!st.loans.length) return;
   const day = world.time.day;
   const keep = [];
+  const warring = new Set(warringIds(world));
   for (const l of st.loans) {
     const debtor = world.civs[l.to];
     const lender = l.from >= 0 ? world.civs[l.from] : null;
@@ -125,6 +127,8 @@ export function debtsMonthly(world) {
     if (day > l.until + 10 * DAYS_PER_YEAR) continue;   // written off
     if (l.from >= 0 && areAtWar(world, l.to, l.from)) { keep.push(l); continue; }
     if (l.rate > 0) l.owed = round2(l.owed * (1 + l.rate / 12));
+    // a war loan is repaid once the war is over; the interest runs on meanwhile
+    if (l.kind === 'loan' && warring.has(l.to)) { keep.push(l); continue; }
     const due = Math.min(l.owed, l.pay);
     const can = Math.max(0, finite(debtor.treasury) ? debtor.treasury : 0) * 0.5;
     const paid = Math.min(due, can);

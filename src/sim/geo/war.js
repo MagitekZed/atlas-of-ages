@@ -79,6 +79,11 @@ import {
 } from './common.js';
 import { bestClaimOn, renounceClaims, hardenClaims, claimOf } from './claims.js';
 import { remember, memoryOf } from './memory.js';
+import { coFor, coSync, coShares, coGear, coTake, forcePower, companyShares, mixFor, gearTier, gearQuality, siegeMul, ROLE } from './army.js';
+import { battleExperience, veteransHome, levyXp } from './regiments.js';
+import { groundCode, weatherAt, roleFactor, choosePlan, planBonus, momentOf, momentText, learnPlan, weatherWord, PLANS } from './battlefield.js';
+import { soldierPay } from './raising.js';
+import { forcesOf, deployRegiments, regimentsHome, raisingMonthly } from './raising.js';
 import { aimFor, defenderAim, aimsFromCause, aimMet, winnerAim, peaceAllows, takeHostage, hostageHeld, killHostage } from './terms.js';
 import { addReparations, monthlyIncome, debtClaim, settleDebtClaim } from './debt.js';
 import { bindWar } from './acts.js';   // the geopolitical divine acts (they call back into this module at use time)
@@ -980,6 +985,7 @@ function mobilize(world, civ, war) {
   const towns = townsOf(world, civ);
   if (!towns.length) return;
   const m = modsOf(world, civ);
+  const forces = forcesOf(world, civ);
   const pop = civPopulation(world, civ);
   const manpower = civ.military && finite(civ.military.manpower) && civ.military.manpower > 0 ? civ.military.manpower : pop * 0.03 * m.military;
   const mob = manpower * (0.45 + 0.55 * (civ.traits?.militarism ?? 0.5)) * (1 - 0.6 * (civ.warWeariness || 0));
@@ -1003,6 +1009,20 @@ function mobilize(world, civ, war) {
       if (d < bd) { bd = d; stage = s; }
     }
   }
+  // a standing army's regiments at home march out first, ready at once (raising.js)
+  if (forces.regs.some((r) => r.out == null && r.n >= 1)) {
+    const gen0 = recruitGeneral(world, civ);
+    const army0 = createArmy(world, { civId: civ.id, x: stage.x, y: stage.y, homeId: stage.id, strength: 1, warId: war ? war.id : null, general: gen0.leader, state: 'idle' });
+    const dep = deployRegiments(world, civ, army0.id);
+    army0.co = dep.co;
+    army0.strength = dep.men;
+    army0.flags = Object.assign(army0.flags && typeof army0.flags === 'object' ? army0.flags : {}, {
+      mp: 0, skill: gen0.leader.skill, genId: gen0.genId, startStr: dep.men, regStart: dep.men, drawn: 0, bad: [], nextPlan: world.time.day + 5 + Math.round(world.rng.next() * 10), war: war ? war.id : null,
+    });
+    serviceOf(army0);
+    army0.name = armyName(world, civ, stage, gen0.leader, dep.men, eraOf(civ));
+    return;
+  }
   let str = Math.min(Math.max(mob - field, 12), monthCap - raised, Math.max(20, stage.population * 0.15 + 0.05 * pop));
   const cost = str * 0.25;
   const treasury = finite(civ.treasury) ? civ.treasury : 0;
@@ -1023,8 +1043,16 @@ function mobilize(world, civ, war) {
   const gen = recruitGeneral(world, civ);
   const era = eraOf(civ);
   const army = createArmy(world, { civId: civ.id, x: stage.x, y: stage.y, homeId: stage.id, strength: str, warId: war ? war.id : null, general: gen.leader, state: 'idle' });
-  // levies take weeks to gather, arm and provision before they can march
-  const muster = Math.round((40 + world.rng.next() * 60) / Math.max(0.5, m.movement));
+  // its companies: the realm's way of war, its gear and how well it is made (army.js); a feudal
+  // host rides with its lords' retinues, knights and men-at-arms of some experience
+  const feudal = forces.sys === 'feudal';
+  let mix = mixFor(world, civ);
+  if (feudal) { mix = mix.slice(); mix[ROLE.HHORSE] *= 1.5; mix[ROLE.BLADE] *= 1.2; const t = mix.reduce((a, b) => a + b, 0); mix = mix.map((x) => x / t); }
+  // veterans of its last wars join the levy (regiments.js); a lord's retinue has fought before
+  const xp0 = levyXp(civ, str);
+  army.co = coFor(str, mix, gearTier(civ), gearQuality(civ), feudal ? Math.max(0.2, xp0) : xp0);
+  // levies take weeks to gather, arm and provision before they can march; lords' hosts come sooner
+  const muster = Math.round((feudal ? 20 + world.rng.next() * 30 : 40 + world.rng.next() * 60) / Math.max(0.5, m.movement));
   // merge: the kernel (damageArmy) and other packages may already keep things on flags
   army.flags = Object.assign(army.flags && typeof army.flags === 'object' ? army.flags : {}, {
     mp: 0, skill: gen.leader.skill, genId: gen.genId, startStr: str, drawn, bad: [], nextPlan: world.time.day + muster, war: war ? war.id : null,
@@ -1064,10 +1092,13 @@ function disband(world, army, reason = 'home') {
   // the surviving share of the levies drawn from the towns goes home, to every town of the realm
   // as they were drawn (core/cohorts.js returnLevy)
   const fl = army.flags || {};
-  if (to && fl.merc == null && finite(army.strength) && army.strength > 0) {
-    const start = finite(fl.startStr) && fl.startStr > 0 ? fl.startStr : army.strength;
+  // its regiments go back to the realm's standing army (raising.js); the levies to their towns
+  const regMen = regimentsHome(world, army);
+  if (fl.merc == null && finite(army.strength) && army.strength > regMen) veteransHome(world, civ, army, army.strength - regMen);
+  if (to && fl.merc == null && finite(army.strength) && army.strength > regMen) {
+    const start = Math.max(1, (finite(fl.startStr) && fl.startStr > 0 ? fl.startStr : army.strength) - (finite(fl.regStart) ? fl.regStart : 0));
     const drawn = finite(fl.drawn) ? fl.drawn : army.strength * 0.6;
-    returnLevy(world, to, fl, Math.max(0, drawn * clamp01(army.strength / start)));
+    returnLevy(world, to, fl, Math.max(0, drawn * clamp01((army.strength - regMen) / start)));
   }
   clearSiegeBy(world, army, reason === 'routed' || reason === 'destroyed' ? 'broken' : 'lifted');
   removeArmy(world, army.id);
@@ -1438,10 +1469,23 @@ function battle(world, st, A, B) {
   const homeA = owner === A.civId || (ca.allies || []).includes(owner);
   const homeB = owner === B.civId || (cb.allies || []).includes(owner);
   const ext = hasProviders('battle');
+  // what each side fights with (army.js): companies by role, gear and experience, matched
+  // against the other's; fleets fight by numbers and the era gap, as ever
+  const coA = coSync(world, A), coB = coSync(world, B);
+  const shA = coShares(coA), shB = coShares(coB);
+  const gA = coGear(coA), gB = coGear(coB);
+  // the ground and the weather, and each side's plan (battlefield.js)
+  const ground = naval ? 9 : groundCode(landscapeAt(world, i));
+  const wx = naval ? 0 : weatherAt(world, i);
+  const rf = naval ? null : roleFactor(ground, wx);
+  const skillOf = (army) => (finite(army.flags?.skill) ? army.flags.skill : 1);
+  const planA = naval ? 0 : choosePlan(ca, shA, shB, ground, wx, skillOf(A), A.strength / Math.max(1, B.strength), homeA, Math.round(gA));
+  const planB = naval ? 0 : choosePlan(cb, shB, shA, ground, wx, skillOf(B), B.strength / Math.max(1, A.strength), homeB, Math.round(gB));
   const eff = (army, m, civ, other, enemy, home) => {
-    let e = army.strength * m.military * (0.4 + 0.6 * clamp01(army.morale)) * (0.55 + 0.45 * clamp01(army.supply));
+    const mine = army === A;
+    let e = naval ? army.strength * (1 + 0.15 * (eraOf(civ) - eraOf(other))) : forcePower(mine ? coA : coB, mine ? shB : shA, mine ? gB : gA, rf) * planBonus(mine ? planA : planB, mine ? shB : shA);
+    e *= m.military * (0.4 + 0.6 * clamp01(army.morale)) * (0.55 + 0.45 * clamp01(army.supply));
     e *= finite(army.flags?.skill) ? army.flags.skill : 1;
-    e *= 1 + 0.15 * (eraOf(civ) - eraOf(other));
     if (naval) e *= 1 + 0.25 * m.navigation;
     else if (army.naval) e *= 0.6;                 // caught while landing
     if (home) e *= terrainBonus(world, army, i);
@@ -1455,8 +1499,15 @@ function battle(world, st, A, B) {
   const d = Math.abs(pA - 0.5) * 2;
   const lossL = clamp(0.08 + 0.3 * d + rng.next() * 0.08, 0.04, 0.7);
   const lossW = clamp(0.03 + 0.1 * (1 - d) + rng.next() * 0.04, 0.02, 0.3);
+  // before the losses: each company of the beaten side, and what each of the victor's did to win
+  const coL = L === A ? coA : coB, coW = Wn === A ? coA : coB;
+  const beforeL = coL.map((c) => c[1]);
+  const powW = companyShares(coW, Wn === A ? shB : shA, Wn === A ? gB : gA);
   const deadL = casualty(world, L, L.strength * lossL, 'battle');
   const deadW = casualty(world, Wn, Wn.strength * lossW, 'battle');
+  // the dead fall where the enemy was strong: horse on the pikes, foot under the knights
+  const byL = coTake(L === A ? coA : coB, deadL, L === A ? shB : shA);
+  const byW = coTake(Wn === A ? coA : coB, deadW, Wn === A ? shB : shA);
   L.morale = clamp(L.morale - (0.25 + 0.35 * d), 0.05, 1.2);
   Wn.morale = clamp(Wn.morale + 0.08, 0.05, 1.2);
   L.flags.battleDay = Wn.flags.battleDay = day;
@@ -1492,8 +1543,23 @@ function battle(world, st, A, B) {
     const j = y * W + x;
     if (f.water[j] === WATER.LAND) f.devastation[j] = Math.min(1, f.devastation[j] + dv * (dx || dy ? 0.5 : 1));
   }
-  emitFx(world, { type: 'battle', x: mx, y: my, intensity: clamp01(0.2 + killed / 3000) });
   const rout = L.morale < 0.2 || lossL > 0.5 || L.strength < 20;
+  // the pursuit: the victor's light horse cut down a routed enemy; some of the beaten are taken alive
+  const shW = Wn === A ? shA : shB, shLo = L === A ? shA : shB;
+  let chase = 0;
+  if (rout && !naval && shW[ROLE.LHORSE] > 0) {
+    chase = casualty(world, L, Math.min(L.strength, deadL * Math.min(0.5, 2 * shW[ROLE.LHORSE])), 'battle');
+    coTake(coL, chase, shW);
+  }
+  const pris = naval ? 0 : Math.round((deadL + chase) * (rout ? 0.25 : 0.08));
+  if (pris > 0) {
+    let wr = null;
+    for (const w of activeWarList(world)) if (w.active && sideOf(w, Wn.civId) * sideOf(w, L.civId) === -1) { wr = w; break; }
+    if (wr) { const gg = geoOf(world, wr); gg.pris ||= {}; const k = Wn.civId + ':' + L.civId; gg.pris[k] = (gg.pris[k] || 0) + pris; }
+  }
+  const planW = Wn === A ? planA : planB, planL = L === A ? planA : planB;
+  const moment = naval ? 0 : momentOf(planW, shW, shLo);
+  emitFx(world, { type: 'battle', x: mx, y: my, intensity: clamp01(0.2 + killed / 3000) });
   // chronicle: great battles always, others at most once a season per war
   const { site, land, alts } = siteName(world, mx, my);
   const wp = worldPopulation(world);
@@ -1504,12 +1570,13 @@ function battle(world, st, A, B) {
     const g = geoOf(world, war);
     const record = engaged >= 60 && (great || day - g.lastNote > 150);
     if (record) bname = battleName(world, st, alts, my);
-    g.log.push({ name: bname || `a skirmish at ${site}`, day, x: Math.round(mx), y: Math.round(my), winner: cw.id, loser: cl.id, dead: Math.round(killed) });
+    g.log.push({ name: bname || `a skirmish at ${site}`, day, x: Math.round(mx), y: Math.round(my), winner: cw.id, loser: cl.id, dead: Math.round(killed + chase - pris) });
     if (g.log.length > 16) g.log.shift();
-    noteBattle(world, war, { day, x: mx, y: my, winner: cw.id, loser: cl.id, dead: killed, name: bname });
+    noteBattle(world, war, { day, x: mx, y: my, winner: cw.id, loser: cl.id, dead: killed + chase - pris, name: bname, acct: naval ? null : [ground, wx, planW, planL, moment, pris] });
     if (record) {
       g.lastNote = day;
-      const text = battleProse(world, { site, land, bname, naval, W: Wn, L, cw, cl, killed, rout, d, fallen, fallenAdj: fallenSide ? civAdj(fallenSide) : null, total: engaged, wName, y: my });
+      const told = naval ? '' : capFirst(momentText(moment, civAdj(cw), civAdj(cl), Math.round(Wn === A ? gA : gB), Math.round(L === A ? gA : gB))) + (wx ? `, in ${weatherWord(wx)}` : '') + '.';
+      const text = battleProse(world, { site, land, bname, naval, W: Wn, L, cw, cl, killed: killed + chase - pris, rout, d, fallen, fallenAdj: fallenSide ? civAdj(fallenSide) : null, total: engaged, wName, y: my, told, pris });
       const key = great ? 'battle.great' : notable ? 'battle' : 'battle.minor';
       entry = chronicle(world, {
         cat: 'war', imp: great ? 3 : notable ? 2 : 1, text, x: Math.round(mx), y: Math.round(my), civId: cw.id, sid: null, icon: 'battle',
@@ -1544,6 +1611,10 @@ function battle(world, st, A, B) {
     if (Wn.flags.genId == null && bname && (decisive || (g0.wins >= PROMOTE_WINS && g0.honours >= 2))) promoteGeneral(world, st, Wn, cw, decisive ? 'great' : 'wins', bname, entry ? entry.seq : null);
   }
   if (L.general && typeof L.general === 'object') L.general.battles = (L.general.battles | 0) + 1;
+  // a realm beaten in a named battle by a plan it did not know takes it up (battlefield.js)
+  if (bname && !naval && cl.forces) learnPlan(cl, planW);
+  // experience, honours and last stands (regiments.js)
+  if (!naval) battleExperience(world, { W: Wn, L, coW, coL, cw, cl, bname, site, before: beforeL, powW, entry });
   // the town whose siege this victory breaks remembers who saved it (memory.js)
   const relieved = L.state === 'sieging' && L.targetId != null ? world.settlements[L.targetId] : null;
   if (relieved && relieved.alive && relieved.siege && relieved.siege.armyId === L.id) remember(world, relieved, Wn.civId, 0.4, 'r');
@@ -1572,7 +1643,7 @@ function killGeneral(world, army, where, entry) {
 }
 
 function battleProse(world, b) {
-  const { site, land, bname, naval, W: Wn, L, cw, cl, killed, rout, d, fallen, fallenAdj, wName, y } = b;
+  const { site, land, bname, naval, W: Wn, L, cw, cl, killed, rout, d, fallen, fallenAdj, wName, y, told, pris } = b;
   const era = Math.max(eraOf(cw), eraOf(cl));
   const hw = hostWord(Wn.strength + killed, era), hl = hostWord(L.strength + killed, era);
   const gW = wName ? ` under ${wName}` : '';
@@ -1607,7 +1678,8 @@ function battleProse(world, b) {
     const pool = T[land] || T.field;
     text = pickOne(world, pool.concat([`${capFirst(bname)} went to ${civName(cw)}${gW}: the ${adjL} ${hl} ${outcome}, and ${dead} were slain.`]));
   }
-  return text + fallenClause;
+  const caught = pris >= 50 ? ` ${capFirst(fmtCount(pris))} were taken prisoner.` : '';
+  return text + (told ? ' ' + told : '') + caught + fallenClause;
 }
 
 const rested = (army, day) => !(day - (army.flags && finite(army.flags.battleDay) ? army.flags.battleDay : -1e9) < BATTLE_REST);
@@ -1671,7 +1743,7 @@ function siegeTick(world, st, army, idx) {
   for (const a of idx.lines.get(s.id) || [army]) {
     if (a.state !== 'sieging' || a.targetId !== s.id || !areAtWar(world, a.civId, s.civId)) continue;
     const ma = modsOf(world, world.civs[a.civId]);
-    let p = a.strength * ma.siege * (finite(a.flags?.skill) ? a.flags.skill : 1) * (0.5 + 0.5 * clamp01(a.morale));
+    let p = a.strength * ma.siege * (finite(a.flags?.skill) ? a.flags.skill : 1) * (0.5 + 0.5 * clamp01(a.morale)) * siegeMul(coSync(world, a), eraOf(world.civs[a.civId]));
     if (ext) p *= mulOf('siege', world, { army: a, s });
     power += p;
     if (ma.navigation > navy) navy = ma.navigation;
@@ -1885,6 +1957,10 @@ function weariness(world, st) {
       const pop = Math.max(500, civPopulation(world, civ));
       let inc = 0.006 + 1.5 * cas / pop + 0.015 * occ + 0.02 * Math.max(0, losing) / 100;
       inc *= 1.25 - 0.6 * (civ.traits?.militarism ?? 0.5);
+      // a realm that cannot pay its soldiers tires of the war fast (raising.js arrears)
+      if (civ.forces && civ.forces.arrears > 0) inc += 0.01 * Math.min(6, civ.forces.arrears);
+      // the lords of a feudal host owe a season's service; after it they want to go home
+      if (civ.forces && civ.forces.sys === 'feudal' && world.armies.some((a) => a.civId === civ.id && world.time.day - (a.createdDay || 0) > 90 && !hunting(a))) inc *= 1.33;
       if (rulerHas(civ, 'warlike')) inc *= 0.75;
       w += inc;
     } else {
@@ -2170,6 +2246,23 @@ function makePeace(world, st, war, end, opts = {}) {
     }
   }
   if (g.cb === 'debt' && A && D) settleDebtClaim(world, A.id, D.id);   // the quarrel is settled, whoever won
+  // prisoners go home: the beaten ransom theirs (three months' pay a man), the victors' are freed
+  let ransomed = 0;
+  if (g.pris) {
+    for (const k in g.pris) {
+      const [h, from] = k.split(':').map(Number);
+      const n = g.pris[k], holder = world.civs[h], home = world.civs[from];
+      if (!home || !home.alive || !(n > 0)) continue;
+      if (holder && holder.alive && losers.includes(from) && winners.includes(h)) {
+        const pay = Math.min(Math.max(0, finite(home.treasury) ? home.treasury : 0) * 0.5, n * 3 * soldierPay(world, home));
+        home.treasury -= pay; holder.treasury = (finite(holder.treasury) ? holder.treasury : 0) + pay;
+        ransomed += n;
+      }
+      const cap = capitalOf(world, home);
+      if (cap) returnLevy(world, cap, null, n);
+    }
+    g.pris = null;
+  }
   const truce = Math.round((opts.truceYears ?? (10 + sc / 6)) + rng.int(0, 6));
   const hostage = hostageTerm && Wc && Lc ? takeHostage(world, Lc, Wc, truce) : null;
   const outcome = end === 'white' ? 'white_peace' : end;
@@ -2249,6 +2342,7 @@ function makePeace(world, st, war, end, opts = {}) {
     if (reparations > 0) more.push(`${L} was to pay reparations for years to come.`);
     if (hostage) more.push(`${hostage.name}, heir of ${civName(Lc)}, went to the court of ${civName(Wc)} as a hostage.`);
     if (renounced.length) more.push(`${L} gave up its claim to ${listJoin(renounced.slice(0, 3))}${renounced.length > 3 ? ' and other towns' : ''}.`);
+    if (ransomed >= 100) more.push(`${L} ransomed ${fmtCount(ransomed)} of its men taken prisoner.`);
     if (harsh > 0.5) more.push(hashPick([`It was a peace that shamed ${peopleOf(Lc)}.`, `${capFirst(peopleOf(Lc))} would not forget so hard a peace.`], war.id, Lc.id));
     if (more.length) text += ' ' + more.join(' ');
     if (crown) imp = Math.max(imp, 4); else if (faith != null) imp = Math.max(imp, 3);
@@ -2279,6 +2373,7 @@ function commanders(world) {
 function monthly(world, st) {
   sanitize(world);
   commanders(world);
+  raisingMonthly(world, st, civsAtWar(world));
   if (Math.floor(world.time.day / DAYS_PER_MONTH) % 12 === 0) {
     for (const k of Object.keys(st.lastPeace)) if (!world.civs[k] || !world.civs[k].alive) delete st.lastPeace[k];
   }

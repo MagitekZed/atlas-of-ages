@@ -22,6 +22,10 @@ import { aimWords } from '../sim/geo/terms.js';
 import { memoriesOf, MEM_WHY } from '../sim/geo/memory.js';
 import { loansOf, housesOf, houseName } from '../sim/geo/debt.js';
 import { hostagesOf } from '../sim/geo/terms.js';
+import { roleName, GEAR_NAMES } from '../sim/geo/army.js';
+import { armyBill, SYS_WORDS } from '../sim/geo/raising.js';
+import { displayName } from '../sim/geo/regiments.js';
+import { groundWord, weatherWord, planWord } from '../sim/geo/battlefield.js';
 import { h, clear, svgEl, svgNode, setText, Binder } from './dom.js';
 import { glyph, iconEl } from './icons.js';
 import { tip } from './widgets.js';
@@ -45,7 +49,7 @@ try { plateMod = await import('./plate.js'); } catch (e) { /* no theatre maps */
 
 const SETTLEMENT_KEYS = new Set('id name civId originCivId alive x y i foundedDay destroyedDay destroyCause population peakPopulation tier food foodProd foodNeed wealth production tradeIncome housing health happiness unrest loyalty culture defense garrison buildings religion dominantReligion disease immunity coastal harbor siege famine radius flags race effects effectsV traits epithet legend hist own'.split(' '));
 const CIV_KEYS = new Set('id alive name baseName adjective language hue color colorHex foundedDay fallenDay fallCause parentId originX originY capitalId settlementIds government ruler rulerHistory dynasty traits tech mods treasury taxRate income expenses stability legitimacy warWeariness prestige military relations allies vassalOf stateReligion goldenAge darkAge population territory wealth peakPopulation peakTerritory flags race effects effectsV style claims temperLog'.split(' '));
-const ARMY_KEYS = new Set('id civId warId x y homeId targetId strength morale supply path pathStep state naval general createdDay flags'.split(' '));
+const ARMY_KEYS = new Set('id civId warId x y homeId targetId strength morale supply path pathStep state naval general createdDay flags co'.split(' '));
 
 const ok = Number.isFinite;
 const fin = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
@@ -1263,6 +1267,13 @@ function civView(app, sel, b) {
   const figs = rows(b, () => w.figures.filter((q) => q.civId === c.id).slice(-10).reverse().map((q) => figureItem(w, q)), 'No great people are remembered.', app);
   const figSec = section('Great people', figs);
   b.hide(figSec, () => !w.figures.some((q) => q.civId === c.id));
+  // its standing regiments (geo/raising.js)
+  const regRows = rows(b, () => (c.forces?.regs || []).slice().sort((p, q) => q.n - p.n || p.id - q.id).map((r) => ({
+    key: `rg${r.id}:${Math.round(r.n / 10)}:${r.out ?? ''}:${(r.honours || []).length}`, icon: 'army',
+    label: displayName(r).replace(/^the /, 'The '), n: F.people(r.n),
+    s: [roleName(r.role, r.gear), r.out != null ? 'in the field' : 'at home', r.xp >= 0.6 ? 'veterans' : r.xp >= 0.3 ? 'seasoned' : 'green', r.won ? `${F.int(r.won)} victories` : ''].filter(Boolean).join(' · '),
+  })), 'It keeps no standing regiments.', app);
+  b.hide(regRows, () => !(c.forces?.regs || []).length);
   // towns it claims (geo/claims.js)
   const claimsSec = section('Claims', rows(b, () => claimsOfCiv(w, c).map((q) => {
     const holder = w.civs[q.s.civId];
@@ -1334,9 +1345,14 @@ function civView(app, sel, b) {
       { k: 'Manpower', v: () => F.people(c.military?.manpower), tip: 'Three in a hundred of its people, counted by those its levy calls up (by default the young men).' },
       { k: 'Why', v: () => manpowerReason(app.world, c) || '—', txt: true, hide: () => !manpowerReason(app.world, c) },
       { k: 'Soldiers in the field', v: () => { const a = w.armies.filter((q) => q.civId === c.id); return a.length ? `${F.people(a.reduce((s, q) => s + (q.strength || 0), 0))} in ${a.length} ${a.length === 1 ? 'army' : 'armies'}` : 'None'; } },
+      { k: 'Raised by', v: () => (c.forces ? SYS_WORDS[c.forces.sys] || '—' : '—'), txt: true, hide: () => !c.forces },
+      { k: 'Since', v: () => F.year(c.forces.since), hide: () => !c.forces || c.forces.sys === 'levy' || !ok(c.forces.since) },
+      { k: 'Pay for its soldiers', v: () => F.num(armyBill(w, c), 1) + ' / mo', tip: 'What its armies in the field, its standing regiments and its garrisons cost this month, counted in its expenses.', hide: () => !c.forces || c.alive === false },
+      { k: 'Unpaid for', v: () => `${F.int(c.forces.arrears)} months`, hide: () => !(c.forces?.arrears > 0) },
+      { k: 'Veterans at home', v: () => F.people(c.forces.vets), tip: 'Men home from its wars who will stiffen its next levy; fewer each year as they age.', hide: () => !(c.forces?.vets >= 1) },
       { k: 'Towns taken', v: () => F.int(cq().taken), tip: 'Every conquest in the chains of title of the world’s settlements.' },
       { k: 'Towns lost', v: () => F.int(cq().lost) },
-    ]), cqRows),
+    ]), regRows, cqRows),
     peopleSec,
     section('Knowledge', kv(b, [
       { k: 'Era', v: () => F.eraName(c.tech?.era) },
@@ -1443,6 +1459,15 @@ function armyView(app, sel, b) {
       { k: 'Morale', v: () => F.pct(a().morale) },
       { k: 'Supply', v: () => F.pct(a().supply) },
     ]),
+    // its companies by role, gear and experience (geo/army.js)
+    section('Companies', rows(b, () => {
+      const co = Array.isArray(a().co) ? a().co : [];
+      return co.filter((c) => c[1] >= 0.5).sort((p, q) => q[1] - p[1] || p[0] - q[0]).map((c) => ({
+        key: `co${c[0]}:${Math.round(c[1] / 10)}:${c[2]}:${Math.round(c[4] * 10)}`, icon: 'army',
+        label: roleName(c[0], c[2]).replace(/^./, (x) => x.toUpperCase()), n: F.people(c[1]),
+        s: [GEAR_NAMES[c[2]] || '', c[4] >= 0.6 ? 'veterans' : c[4] >= 0.3 ? 'seasoned' : 'green', c[3] >= 1.05 ? 'fine gear' : c[3] < 0.75 ? 'poor gear' : ''].filter(Boolean).join(' · '),
+      }));
+    }, 'No companies are recorded.', app)),
     section('Its campaign', ledgerChart(app, b, 'a', sel.id, { color: civ()?.colorHex, live: () => !gone() })),
     section('Service record', (() => { const p = h('p.ins-prose'); b.text(p, () => serviceRecord(w, a())); return p; })()),
     section('Orders', kv(b, [
@@ -1468,8 +1493,8 @@ export function warBattles(w, war) {
     for (const b of L.b) {
       if (!Array.isArray(b)) continue;
       if (b.length === 3) { out.push({ day: b[0], n: b[1], dead: b[2], skirmishes: true }); continue; }
-      const [day, x, y, winner, loser, dead, nameKey] = b;
-      out.push({ day, x, y, winner, loser, dead, name: typeof nameKey === 'string' ? nameKey : null });
+      const [day, x, y, winner, loser, dead, nameKey, acct] = b;
+      out.push({ day, x, y, winner, loser, dead, name: typeof nameKey === 'string' ? nameKey : null, acct: Array.isArray(acct) ? acct : null });
     }
   } else {
     for (const e of war.geo?.log || []) if (e) out.push({ day: e.day, x: e.x, y: e.y, winner: e.winner, loser: e.loser, dead: e.dead, name: e.name && !/^a skirmish/i.test(e.name) ? e.name : null, skirm: /^a skirmish/i.test(e.name || '') ? e.name : null });
@@ -1564,9 +1589,12 @@ function warView(app, sel, b) {
     return shown.map((x, k) => {
       if (x.skirmishes) return { key: `sk${x.day}:${k}`, icon: 'war', label: `${F.int(x.n)} skirmishes`, n: F.people(x.dead) + ' dead', s: F.monthYear(x.day) };
       const wc = w.civs[x.winner];
+      // the account (battlefield.js): ground, weather, the victor's plan, prisoners
+      const ac = x.acct;
+      const told = ac ? [`on ${groundWord(ac[0])}`, ac[1] ? `in ${weatherWord(ac[1])}` : '', ac[2] ? `the victors ${planWord(ac[2])}` : '', ac[5] >= 20 ? `${F.people(ac[5])} taken` : ''].filter(Boolean).join(', ') : '';
       return {
         key: `b${x.day}:${x.x}:${x.y}:${k}`, swatch: wc?.colorHex || 'var(--ink-3)', label: x.name ? F.headName(x.name) : x.skirm ? F.headName(x.skirm) : 'A clash of arms', n: F.people(x.dead) + ' dead',
-        s: `${F.monthYear(x.day)}${wc ? ' · won by ' + wc.name : ''}`,
+        s: `${F.monthYear(x.day)}${wc ? ' · won by ' + wc.name : ''}${told ? ' · ' + told : ''}`,
         run: Number.isFinite(x.x) ? () => { const s0 = sitesNear(w, x.x, x.y, 1.6).find((q) => q.kind === 'battle' || q.kind === 'siege'); if (s0) app.select({ kind: 'site', id: s0.id }, { focus: true }); else app.focus(x.x, x.y, 14); } : null,
       };
     });

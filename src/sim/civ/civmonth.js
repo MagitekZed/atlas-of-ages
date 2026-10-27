@@ -11,6 +11,7 @@
 
 import { civSettlements, killCiv } from '../../core/entities.js';
 import { monthOf } from '../../core/world.js';
+import { sumOf, hasProviders } from '../../core/ext.js';
 import { ruleOf, levyBase, movePeople, ageShares } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR as DPY, RESOURCES } from '../../core/constants.js';
 import { refreshMods, researchMonthly, hasTech, getMods } from './tech.js';
@@ -218,7 +219,9 @@ export function monthlyCiv(world, civ) {
   // treasury
   const income = fin(civ.flags.taxAcc);
   civ.flags.taxAcc = 0;
-  const expenses = income * 0.35 * (1 + 0.5 * fin(civ.flags.overext)) + 0.02 * agg.n * (1 + 0.3 * fin(civ.tech?.era));
+  // the realm's own running costs, and what its armies, regiments and garrisons cost (ext 'upkeep', geo/raising.js)
+  const expenses = income * 0.35 * (1 + 0.5 * fin(civ.flags.overext)) + 0.02 * agg.n * (1 + 0.3 * fin(civ.tech?.era))
+    + (hasProviders('upkeep') ? sumOf('upkeep', world, civ) : 0);
   civ.income = income;
   civ.expenses = expenses;
   civ.treasury = fin(civ.treasury) + income - expenses;

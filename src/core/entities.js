@@ -112,6 +112,7 @@ export function createCiv(world, opts = {}) {
     style: null,            // architecture style (WP3 style.js)
     claims: {},             // dynastic claims { [civId]: 0..1 } (WP3)
     landClaims: {},         // claims on lost towns { [sid]: [w, why, since, tau, from?] } (geo/claims.js)
+    forces: undefined,      // how it raises its armies, its regiments, arrears (geo/raising.js), from its first month
     flags: {},
     // fields other modules add, declared here in the order they arrive so every civ keeps one
     // hidden class (undefined until set, and never saved; keep in step with CIV_SHAPE, world.js)
@@ -523,6 +524,7 @@ export function createArmy(world, props) {
     strength: props.strength ?? 100, morale: props.morale ?? 1, supply: 1,
     path: null, pathStep: 0, state: props.state || 'idle', naval: false,
     general: props.general ?? null, createdDay: world.time.day, flags: {},
+    co: null,   // its companies by role (geo/army.js), made at the first read when absent
   };
   return addEntity(world, 'armies', army, 'army');
 }
