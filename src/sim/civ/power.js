@@ -16,7 +16,7 @@
 // the court's share). Draws from world.rng only for the clipping of the coin.
 
 import { temperOf, TP } from '../../core/character.js';
-import { mulOf, hasProviders } from '../../core/ext.js';
+import { mulOf, firstOf, hasProviders } from '../../core/ext.js';
 import { DAYS_PER_YEAR as DPY } from '../../core/constants.js';
 import { fin, record, rateOk } from './state.js';
 import { theName, TheName, rulerName, pick } from './prose.js';
@@ -104,6 +104,8 @@ export function addRuin(world, civ, k, years) {
  */
 export function purseMonthly(world, civ, gross, treasury) {
   const p = purseOf(civ);
+  // the land law (laws.js): crown land yields more taxes, land held in fiefs less
+  gross *= civ.laws?.land === 'crown' ? 1.08 : civ.laws?.land === 'nobles' ? 0.9 : 1;
   const graft = gross * fin(p.graft);
   const net = gross - graft;
   const lost = net * Math.min(0.6, ruinNow(world, civ) + 0.25 * fin(p.coin));
@@ -164,4 +166,163 @@ export function cleanGraft(world, civ, part = 0.4) {
   const p = purseOf(civ);
   p.graft = r3(fin(p.graft) * (1 - part));
   p.clean = world.time.day;
+}
+
+// ---------------------------------------------------------------------------
+// Phase B, the estates:
+//
+//   civ.est = [[people share, wealth share, rights 0..1, loyalty 0..1] × 5] in the order of ROLES:
+//             the great (nobles), clergy, townsfolk, commoners, the unfree.
+//
+// Yearly (estatesYearly, at the realm's own month): their sizes from the towns' trades (clergy
+// from the clergy; townsfolk from craftsmen, merchants, scholars and builders in towns; the great
+// a share by government; the unfree a share under serfdom or slavery; commoners the rest); their
+// wealth (the great hold far more than their numbers); their rights drifting toward what the
+// government and laws give; their loyalty drifting toward content (rights matching power) or
+// angry, by taxes, hunger, coin, faith, land and the court. Read by stability ('estates') and by
+// each town's grievance (estateGrievance). A people may name and bend its own estates (ext
+// 'estates': { names: [5], rights: [5 deltas], unfree: bool }).
+
+export const ROLES = ['great', 'clergy', 'towns', 'commons', 'unfree'];
+const URBAN = [4, 5, 8, 9];   // craftsmen, merchants, scholars, builders (civ/jobs.js TRADES)
+const GREAT = { tribe: 0.03, chiefdom: 0.035, horde: 0.04, kingdom: 0.025, feudal: 0.03, empire: 0.02, theocracy: 0.015, dictatorship: 0.01, republic: 0.012, merchant: 0.01, constitutional: 0.012, democracy: 0.006 };
+/** The rights each government gives [great, clergy, towns, commons, unfree]. */
+const RIGHTS = {
+  tribe: [0.6, 0.5, 0.4, 0.6, 0.05], chiefdom: [0.7, 0.5, 0.35, 0.45, 0.05], kingdom: [0.75, 0.6, 0.4, 0.3, 0.05], theocracy: [0.5, 0.9, 0.4, 0.3, 0.05],
+  horde: [0.85, 0.4, 0.2, 0.35, 0.05], empire: [0.65, 0.55, 0.45, 0.3, 0.05], republic: [0.5, 0.4, 0.7, 0.5, 0.05], merchant: [0.45, 0.35, 0.85, 0.35, 0.05],
+  feudal: [0.9, 0.6, 0.35, 0.2, 0.05], constitutional: [0.55, 0.45, 0.65, 0.55, 0.1], democracy: [0.35, 0.35, 0.75, 0.75, 0.2], dictatorship: [0.4, 0.35, 0.35, 0.3, 0.05],
+};
+const WEALTH = [25, 3, 2.5, 1, 0.15];
+
+/** A people's own estates (ext 'estates'), or null. */
+function ownEstates(world, civ) {
+  if (!hasProviders('estates')) return null;
+  const e = firstOf('estates', world, civ);
+  return e && typeof e === 'object' ? e : null;
+}
+
+/** The estates' names for the realm (a people's own, else by era and government; null: none). */
+export function estateNames(world, civ) {
+  const own = ownEstates(world, civ);
+  if (own && Array.isArray(own.names) && own.names.length === 5) return own.names;
+  const era = fin(civ.tech?.era, 0), g = civ.government, bond = civ.laws?.bond;
+  return [
+    g === 'tribe' || g === 'chiefdom' ? 'the chiefs’ kin' : g === 'horde' ? 'the khans’ kin' : g === 'republic' || g === 'merchant' ? 'patricians' : era >= 6 ? 'the aristocracy' : 'nobles',
+    era <= 0 ? 'seers' : g === 'theocracy' ? 'the priesthood' : 'clergy',
+    era <= 1 ? 'craftsfolk' : g === 'merchant' ? 'burghers' : era >= 6 ? 'the middle class' : 'townsfolk',
+    era <= 1 ? 'tribesfolk' : era >= 6 ? 'workers' : 'peasants',
+    bond === 'slave' ? 'slaves' : bond === 'serf' ? 'serfs' : null,
+  ];
+}
+
+/** The people, wealth and rights each estate would have now: [[p, w, rT] × 5], or null (no towns counted). */
+function estateShape(world, civ, agg) {
+  let all = 0, cl = 0, ur = 0;
+  for (const s of agg.ss) {
+    const j = s.jobs;
+    if (!Array.isArray(j)) continue;
+    let t = 0;
+    for (const v of j) t += v;
+    if (!(t > 0)) continue;
+    const k = Math.max(0, fin(s.population)) / t;
+    all += t * k;
+    cl += fin(j[7]) * k;
+    if ((s.tier | 0) >= 2) { let u = 0; for (const i of URBAN) u += fin(j[i]); for (let i = 11; i < j.length; i++) u += fin(j[i]); ur += u * k; }
+  }
+  if (!(all > 0)) return null;
+  const law = civ.laws || {};
+  const own = ownEstates(world, civ);
+  let g = GREAT[civ.government] ?? 0.02;
+  if (law.land === 'nobles') g *= 1.4; else if (law.land === 'freeholds') g *= 0.7;
+  const c = cl / all, t = ur / all;
+  let rest = Math.max(0.05, 1 - g - c - t);
+  let u = 0;
+  if (!(own && own.unfree === false)) {
+    if (law.bond === 'serf') u = rest * 0.4;
+    else if (law.bond === 'slave') u = Math.min(0.3, 0.06 + 0.04 * Math.min(5, fin(civ.flags.conquests)));
+  }
+  rest = Math.max(0.02, rest - u);
+  const p = [g, c, t, rest, u];
+  const sum = p.reduce((a, v) => a + v, 0);
+  const rT = (RIGHTS[civ.government] || RIGHTS.kingdom).slice();
+  // the laws move rights (phase C): elective crowns and fiefs raise the great, freeholds the commons
+  if (law.inherit === 'elective') rT[0] += 0.1;
+  if (law.land === 'nobles') { rT[0] += 0.1; rT[3] -= 0.05; } else if (law.land === 'crown') rT[0] -= 0.1; else if (law.land === 'freeholds') rT[3] += 0.1;
+  if (law.faith === 'one') rT[1] += 0.1; else if (law.faith === 'free') rT[1] -= 0.1;
+  if (law.bond === 'serf') rT[3] -= 0.1;
+  if (own && Array.isArray(own.rights)) for (let i = 0; i < 5; i++) rT[i] += fin(own.rights[i]);
+  let wsum = 0;
+  const w = p.map((x, i) => { const v = (x / sum) * WEALTH[i] * (i === 2 ? 0.7 + 0.6 * fin(civ.traits?.commerce, 0.5) : 1); wsum += v; return v; });
+  return p.map((x, i) => [x / sum, wsum > 0 ? w[i] / wsum : 0, clamp(rT[i], 0, 1)]);
+}
+
+/** Each estate's power (sums to 1): its wealth and its rights, and the great their arms. */
+export function estatePower(civ) {
+  const e = civ.est;
+  if (!Array.isArray(e) || e.length !== 5) return null;
+  const arms = civ.forces?.sys === 'feudal' || civ.government === 'horde' || civ.government === 'feudal' ? 0.15 : 0.06;
+  const raw = e.map(([p, w, r], i) => (p > 0 ? Math.pow(Math.max(0, w), 0.7) * (0.3 + r) + (i === 0 ? arms : 0) : 0));
+  const s = raw.reduce((a, v) => a + v, 0);
+  return s > 0 ? raw.map((v) => v / s) : raw;
+}
+
+/** Once a year: the estates' sizes, wealth, rights and loyalty. */
+export function estatesYearly(world, civ, agg) {
+  const shape = estateShape(world, civ, agg);
+  if (!shape) return;
+  const fresh = !Array.isArray(civ.est) || civ.est.length !== 5;
+  const est = fresh ? shape.map(([p, w, r]) => [p, w, r, 0.55]) : civ.est;
+  for (let i = 0; i < 5; i++) {
+    const [p, w, rT] = shape[i];
+    est[i][0] = p; est[i][1] = w;
+    est[i][2] = fresh ? rT : est[i][2] + (rT - est[i][2]) * 0.1;
+  }
+  civ.est = est;
+  const pw = estatePower(civ);
+  const tp = temper(civ);
+  const law = civ.laws || {};
+  const tax = fin(civ.taxRate, 0.08), coin = fin(civ.purse?.coin), court = fin(civ.purse?.court, 0.06);
+  const hunger = div0(agg.ss.filter((s) => fin(s.famine) >= 2).length, agg.ss.length);
+  const weary = Math.min(1, fin(civ.warWeariness));
+  const purged = fin(civ.court?.purged) > world.time.day ? 0.2 : 0;
+  for (let i = 0; i < 5; i++) {
+    const [p, , r, l] = est[i];
+    if (!(p > 0)) { est[i][3] = 0.55; continue; }
+    // content by default; angry when its rights fall short of what its power claims
+    const want = 0.1 + 0.9 * pw[i];
+    let t = 0.6 + 0.4 * clamp(r - want, -0.5, 0.3);
+    if (i === 0) t += 0.8 * (court - 0.06) + (law.land === 'nobles' ? 0.08 : law.land === 'crown' ? -0.1 : 0) + 0.1 * (tp[TP.HON] - 0.5) - purged;
+    else if (i === 1) t += (law.faith === 'one' ? 0.08 : law.faith === 'free' ? -0.12 : 0) + 0.3 * (tp[TP.PIE] - 0.5) - 0.1 * fin(civ.flags.faithDis);
+    else if (i === 2) t += -1.0 * Math.max(0, tax - 0.1) - 0.4 * coin + (civ.government === 'merchant' || civ.government === 'republic' ? 0.05 : 0) - 0.08 * weary;
+    else if (i === 3) t += -1.2 * Math.max(0, tax - 0.07) - 0.4 * hunger - (tax > 0.12 ? 0.6 * Math.max(0, court - 0.08) : 0)
+      + (law.land === 'freeholds' ? 0.08 : 0) - (law.bond === 'serf' ? 0.08 : 0) + 0.1 * (tp[TP.MER] - 0.5) - 0.15 * weary;
+    else t = 0.25 + 0.2 * (tp[TP.MER] - 0.5) - (law.bond === 'slave' ? 0.1 : 0) - 0.2 * hunger;
+    est[i][3] = l + (clamp(t, 0, 1) - l) * 0.15;
+  }
+  for (const row of est) for (let k = 0; k < 4; k++) row[k] = r3(row[k]);
+}
+const div0 = (a, b) => (b > 0 ? a / b : 0);
+
+/** The estates' part of stability: each estate's loyalty against content, weighed by its power. */
+export function estatesStability(civ) {
+  const pw = estatePower(civ);
+  if (!pw) return 0;
+  let s = 0;
+  for (let i = 0; i < 5; i++) s += pw[i] * (fin(civ.est[i][3], 0.55) - 0.55);
+  return 0.3 * s;
+}
+
+/** A town's grievance from its own estates' anger: its commoners, unfree and townsfolk, by its trades. */
+export function estateGrievance(civ, s) {
+  const e = civ.est, j = s.jobs;
+  if (!Array.isArray(e) || e.length !== 5 || !Array.isArray(j)) return 0;
+  let t = 0;
+  for (const v of j) t += v;
+  if (!(t > 0)) return 0;
+  let urb = 0;
+  if ((s.tier | 0) >= 2) { for (const i of URBAN) urb += fin(j[i]); for (let i = 11; i < j.length; i++) urb += fin(j[i]); }
+  const towns = urb / t, rest = Math.max(0, 1 - towns - fin(j[7]) / t);
+  const bound = e[3][0] + e[4][0] > 0 ? e[4][0] / (e[3][0] + e[4][0]) : 0;
+  const anger = (i) => Math.max(0, 0.4 - fin(e[i][3], 0.55));
+  return 0.6 * (towns * anger(2) + rest * ((1 - bound) * anger(3) + bound * anger(4)));
 }

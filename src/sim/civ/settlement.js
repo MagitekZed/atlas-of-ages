@@ -53,6 +53,7 @@ import { updateJobs, J } from './jobs.js';
 import { peopleMonthly, peopleYearly } from './peoplenews.js';
 import { fin, div, record, rateOk, civCache, ensureSettlementFields, touched } from './state.js';
 import { theName, peopleOf, pick, peopleCount, seasonWord, approx } from './prose.js';
+import { estateGrievance } from './power.js';
 
 // Yields (person-months per month)
 const WILD_BASE = 62;      // fully vegetated tile, wildFood 1
@@ -473,7 +474,7 @@ function socialPhase(world, s, civ, cctx, X) {
   const garRatio = div(s.garrison, pop, 0);
   const grievance = 1.6 * Math.max(0, 0.5 - s.happiness) + 1.1 * Math.max(0, 0.55 - s.loyalty)
     + (s.famine >= 2 ? 0.15 : 0) + (houseRatio > 1.05 ? 0.06 : 0) + Math.max(0, civ.taxRate - 0.15) * 0.8
-    + (s.siege ? 0.08 : 0) + 0.2 * dis;
+    + (s.siege ? 0.08 : 0) + 0.2 * dis + estateGrievance(civ, s);   // (its own estates' anger: power.js)
   const calm = Math.min(0.15, garRatio * 4) + (s.happiness > 0.6 ? 0.05 : 0) + (civ.government === 'dictatorship' ? 0.06 : 0);
   const unrestT = clamp01(grievance - calm + X.sm.unrest);
   s.unrest = clamp01(s.unrest + (unrestT - s.unrest) * (unrestT > s.unrest ? 0.15 : 0.1));

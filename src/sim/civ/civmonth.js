@@ -24,7 +24,8 @@ import { theName, TheName, pick } from './prose.js';
 import { buildingVec, BV, townMods } from './settlement.js';
 import { dynastyMonthly } from './dynasty.js';
 import { temperMonthly, temperYearly } from './temper.js';
-import { purseMonthly, purseYearly, maybeDebase } from './power.js';
+import { purseMonthly, purseYearly, maybeDebase, estatesYearly } from './power.js';
+import { lawsYearly, partitionMonthly } from './laws.js';
 
 /** Σ army strength per civ this month (built once per month from world.armies). */
 export function armyStrength(world, civId) {
@@ -263,11 +264,12 @@ export function monthlyCiv(world, civ) {
   if (!civ.alive) return;
   dynastyMonthly(world, civ, agg);
   if (!civ.alive) return;
+  partitionMonthly(world, civ);   // a realm divided between heirs by its law (laws.js)
   figuresMonthly(world, civ, agg);
   ageTick(world, civ);
   // temperament: tallied monthly, drifts once a year at the people's own month (temper.js)
   temperMonthly(world, civ, agg);
-  if (civ.id % 12 === month) { temperYearly(world, civ, agg); purseYearly(world, civ); }
+  if (civ.id % 12 === month) { temperYearly(world, civ, agg); purseYearly(world, civ); lawsYearly(world, civ); estatesYearly(world, civ, agg); }
   civ.prestige = fin(civ.prestige) * 0.9995;
 
   if (month === 4) { rebellionCheck(world, civ); if (!civ.alive) return; }

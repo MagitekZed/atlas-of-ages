@@ -474,6 +474,39 @@ function archStyle(world, civ) {
 }
 
 registerProvider('nameStyle', 'myth', nameStyle);
+
+// A people's own estates (civ/power.js, chunk 7): the names of its five estates (the great,
+// clergy, townsfolk, commoners, the unfree), how its rights lean from the government's, and
+// whether it keeps any unfree at all.
+const ESTATES = {
+  dwarf: { names: ['thanes', 'rune-priests', 'guilds', 'delvers', 'thralls'], rights: [0.05, 0.05, 0.15, 0, 0], unfree: true },
+  elf: { names: ['great houses', 'wardens', 'artisans', 'kin', null], rights: [0.1, 0.05, 0, 0.15, 0], unfree: false },
+  orc: { names: ['warlords', 'shamans', 'smiths', 'the warband', 'slaves'], rights: [0.15, 0, -0.1, 0.05, -0.05], unfree: true },
+  halfling: { names: ['old families', 'elders', 'shopkeepers', 'smallfolk', null], rights: [-0.1, 0, 0.1, 0.15, 0], unfree: false },
+  lizardfolk: { names: ['brood-lords', 'egg-priests', 'traders', 'hatchling-kin', 'thralls'], rights: [0.05, 0.15, -0.05, 0, 0], unfree: true },
+};
+function estates(world, civ) {
+  if (!isMythic(world) || !civ || !civ.race || !ESTATES[civ.race]) return null;
+  const e = ESTATES[civ.race];
+  // a people that keeps thralls names them by the realm's law; a free people names none
+  const names = e.names.slice();
+  if (e.unfree && !civ.laws?.bond) names[4] = null;
+  return { ...e, names };
+}
+registerProvider('estates', 'myth', estates);
+
+// A people's own starting laws (civ/laws.js): elves elect among their great houses and keep no
+// thralls; dwarven holds pass to the eldest of the clan and bind thralls; orc warlords split their
+// spoils and keep slaves; halflings share their land among heirs and hold it free; lizardfolk
+// broods choose their lords, keep one faith and take thralls.
+const LAW_START = {
+  elf: { inherit: 'elective', bond: 'none', land: 'nobles' },
+  dwarf: { inherit: 'seniority', bond: 'serf', land: 'crown' },
+  orc: { inherit: 'divided', bond: 'slave', land: 'nobles' },
+  halfling: { inherit: 'divided', bond: 'none', land: 'freeholds', faith: 'tolerated' },
+  lizardfolk: { inherit: 'elective', bond: 'slave', faith: 'one' },
+};
+registerProvider('lawStart', 'myth', (world, civ) => (isMythic(world) && civ && civ.race && LAW_START[civ.race]) || null);
 registerProvider('archStyle', 'myth', archStyle);
 
 // ---------------------------------------------------------------------------

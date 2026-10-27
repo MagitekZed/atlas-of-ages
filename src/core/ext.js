@@ -60,6 +60,12 @@ export const EXT_POINTS = {
   lendingRule: { combine: 'first', sig: '(w, lenderCiv, borrowerCiv) → { allowed?, rateMul? } | null (geo/debt.js)' },
   upkeep: { combine: 'sum', clamp: [0, 1e12], sig: '(w, civ) → crowns a month the realm owes its armies, regiments and garrisons (geo/raising.js; civmonth.js adds it to the expenses)' },
   armySystem: { combine: 'first', sig: "(w, civ) → 'levy' | 'feudal' | 'standing' | 'hired' | null (geo/raising.js)" },
+  // who holds power (chunk 7, civ/power.js)
+  reserveRule: { combine: 'mul', clamp: [0.25, 6], sig: '(w, civ) → × the years of income the realm keeps in reserve' },
+  courtSpend: { combine: 'mul', clamp: [0.2, 4], sig: '(w, civ) → × the share of income its court spends' },
+  estates: { combine: 'first', sig: '(w, civ) → { names: [5], rights?: [5 deltas], unfree?: bool } | null (a people\'s own estates)' },
+  lawStart: { combine: 'first', sig: '(w, civ) → partial { inherit, faith, bond, land } | null (the laws a realm starts with)' },
+  factions: { combine: 'first', sig: '(w, civ) → [faction keys] | null (the factions a court may hold)' },
   armyPay: { combine: 'mul', clamp: [0.25, 4], sig: '(w, civ) → × a soldier’s pay (geo/raising.js)' },
   armyMix: { combine: 'first', sig: '(w, civ) → 7 shares (spears, blades, bows, light horse, heavy horse, engineers, war beasts) | null (geo/army.js)' },
   claimRule: { combine: 'first', sig: '(w, civ) → { tau, foundedTau } years a lost town is claimed (e-folding) | null (geo/claims.js)' },
