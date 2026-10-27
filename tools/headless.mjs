@@ -6,6 +6,7 @@
 //                           [--set key=value ...] [--chronicle 40] [--save out.json] [--load in.json]
 //                           [--json metrics.json] [--hash] [--fullhash]
 //   node tools/headless.mjs --determinism [--years 200] [--seed …] [--size …]
+//   node tools/headless.mjs --hand-check [--years 60] [--seed …] [--size …] [--set mythLevel=2]
 //   node tools/headless.mjs --rewind-test [--seed …] [--size …]
 //   node tools/headless.mjs --trial [--seed …] [--size small] [--years 60] [--acts 14] [--set mythLevel=2]
 //   node tools/headless.mjs --keyframe-check [--seed …] [--size medium] [--years 600] [--every 360] [--back 60]
@@ -16,6 +17,9 @@
 // --determinism runs the years (default 200) at mythLevel 0 twice in child processes, once
 //   with the myth module not loaded at all; the FNV of serializeWorld minus sys.myth must match
 //   (the verdict is that comparison alone; the children's own checks are listed for information).
+// --hand-check runs the years (default 60) twice with the same scripted acts (--acts-script: powers
+//   at Years 20 and 40), once without the hand's observer (sim/hand.js); the world's history minus
+//   what the observer keeps and what reads the Chronicle (--fnv-history) must match.
 // --fullhash prints the FNV of the whole saved state (sys.myth included) minus world.versions:
 //   what an optimisation that must not change results has to leave equal.
 // --rewind-test captures a keyframe at Y40, drops a scripted meteor with applyTool at Y45, runs
@@ -54,7 +58,7 @@ import { ERAS, WATER, DAYS_PER_YEAR, DAYS_PER_MONTH, CATEGORIES } from '../src/c
 import { serializeWorld, serializeWorldText, deserializeWorld } from '../src/core/serialize.js';
 import { worldChecksum, jsonHash, captureKeyframe, restoreKeyframe, KEYFRAME_DEV } from '../src/core/keyframe.js';
 import { replayTo } from '../src/core/replay.js';
-import { applyTool } from '../src/core/tools.js';
+import { applyTool, applyEntityTool, applyPairTool } from '../src/core/tools.js';
 import { mythLevel } from '../src/core/params.js';
 import * as cohorts from '../src/core/cohorts.js';
 import { fallbackGenerate } from './fallback-gen.mjs';
@@ -69,6 +73,7 @@ const flag = (name) => argv.includes('--' + name);
 const sets = []; argv.forEach((a, k) => { if (a === '--set') sets.push(argv[k + 1]); });
 
 if (flag('determinism')) process.exit(await determinism());
+if (flag('hand-check')) process.exit(await handCheck());
 if (flag('trial')) process.exit(await trial());
 if (flag('keyframe-check')) process.exit(await keyframeCheck());
 const cohortCheck = flag('cohort-check');
@@ -234,8 +239,10 @@ let lastSeq = world.chronicle.seq;
 const t0 = now();
 let bad = [];
 const totalDays = years * DAYS_PER_YEAR;
+const actsScript = flag('acts-script');
 for (let d = 0; d < totalDays; d++) {
   sim.step();
+  if (actsScript && (world.time.day === 20 * DAYS_PER_YEAR || world.time.day === 40 * DAYS_PER_YEAR)) scriptedActs(world);
   balanceDay();
   if (world.time.day % (report * DAYS_PER_YEAR) === 0 || d === totalDays - 1) {
     const civs = liveCivs(world), towns = liveSettlements(world);
@@ -396,6 +403,7 @@ if (opt('save', null)) {
 
 if (flag('hash')) console.log(`\nworldChecksum ${worldChecksum(world)} (day ${world.time.day})`);
 if (flag('fnv')) console.log(`\nFNV ${stateHash(world)}`);
+if (flag('fnv-history')) console.log(`\nFNVH ${historyHash(world)}`);
 // the whole saved state (sys.myth included) minus the version counters: what an optimisation
 // that must leave results identical has to keep equal
 if (flag('fullhash')) { const d = serializeWorld(world); delete d.versions; console.log(`\nfullHash ${jsonHash(JSON.stringify(d))}`); }
@@ -415,6 +423,69 @@ function stateHash(w, noVersions = false) {
   if (data.sys) delete data.sys.myth;
   if (noVersions) delete data.versions;
   return jsonHash(JSON.stringify(data));
+}
+
+/**
+ * FNV-1a of the world's history without what the hand's observer keeps or what reads the Chronicle
+ * (its reports are Chronicle lines): sys.hand, the Chronicle, the yearly history and stats, and
+ * the annals' tallies dropped (what --hand-check compares).
+ */
+function historyHash(w) {
+  const data = serializeWorld(w);
+  delete data.versions; delete data.chronicle; delete data.history; delete data.stats;
+  if (data.sys) { delete data.sys.hand; if (data.sys.events) delete data.sys.events.annals; }
+  // numbers that point into the Chronicle shift with every report line (an effect's or a heat's
+  // source entry, a war's declaration, a band's last raid, the tallies of entries read): every
+  // such field by name (…seq, src, hsrc, tally)
+  const pointer = (k) => /seq$/i.test(k) || k === 'src' || k === 'hsrc' || k === 'tally';
+  return jsonHash(JSON.stringify(data, (k, v) => (pointer(k) ? undefined : v)));
+}
+
+/** The scripted acts of --acts-script (Year 20 and Year 40): a spread of powers on the largest places. */
+function scriptedActs(w) {
+  const towns = liveSettlements(w).slice().sort((p, q) => q.population - p.population || p.id - q.id);
+  const civs = liveCivs(w).slice().sort((p, q) => q.population - p.population || p.id - q.id);
+  const at = (k) => towns[k % Math.max(1, towns.length)];
+  if (!towns.length || !civs.length) return;
+  if (w.time.day === 20 * DAYS_PER_YEAR) {
+    applyTool(w, 'rain', at(0).x + 2, at(0).y, { radius: 5, strength: 1 });
+    applyTool(w, 'meteor', at(2).x, at(2).y, { strength: 1 });
+    applyTool(w, 'herds', at(1).x + 3, at(1).y, { radius: 4 });
+    applyEntityTool(w, 'bless_ruler', { kind: 'civ', id: civs[0].id }, {});
+  } else {
+    applyTool(w, 'drought', at(1).x, at(1).y, { radius: 5, strength: 1 });
+    if (civs[1]) applyPairTool(w, 'incite_war', { kind: 'civ', id: civs[0].id }, { kind: 'civ', id: civs[1].id }, {});
+    applyTool(w, 'nothing_here', at(0).x, at(0).y, {});
+  }
+}
+
+/**
+ * --hand-check (chunk 10): the same world twice with the same scripted acts, once without the hand's
+ * observer (sim/hand.js, not even imported); the world's history (everything but the observer's own
+ * record and what reads the Chronicle) must be identical. Returns the exit code.
+ */
+async function handCheck() {
+  const yrs = opt('years', '60');
+  const script = fileURLToPath(import.meta.url);
+  const pass = [];
+  for (const k of ['seed', 'size', 'gen']) if (opt(k, null) != null) pass.push('--' + k, opt(k));
+  for (const s of sets) pass.push('--set', s);
+  const base = [script, '--years', yrs, '--chronicle', '0', '--report', String(Math.max(1, Number(yrs))), '--acts-script', '--fnv-history', ...pass];
+  const run = (extra) => new Promise((resolve) => {
+    execFile(process.execPath, [...base, ...extra], { maxBuffer: 64 * 1024 * 1024 }, (err, stdout, stderr) => {
+      const m = /\nFNVH ([0-9a-f]{8})/.exec(stdout);
+      resolve({ hash: m ? m[1] : null, code: err ? err.code ?? 1 : 0, out: stdout, err: stderr });
+    });
+  });
+  console.log(`Hand check: ${yrs} years with scripted acts, with and without the hand's observer…`);
+  const t = now();
+  const [a, b] = await Promise.all([run([]), run(['--exclude', 'hand'])]);
+  console.log(`  with the observer    FNVH ${a.hash ?? '—'} (exit ${a.code})`);
+  console.log(`  without the observer FNVH ${b.hash ?? '—'} (exit ${b.code})`);
+  if (!a.hash || !b.hash) console.log((a.err || '') + (b.err || ''));
+  const ok = Boolean(a.hash) && a.hash === b.hash;
+  console.log(`  ${ok ? 'ok' : '!!'} the world's history ${ok ? 'identical' : 'DIFFERS'} (${((now() - t) / 1000).toFixed(1)} s)`);
+  return ok ? 0 : 1;
 }
 
 /**

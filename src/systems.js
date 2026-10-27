@@ -4,7 +4,7 @@
 // (tools/build-standalone.mjs). Listed in system order (SPEC §6); the Simulation sorts by
 // `order` anyway: terraform 5, climate 10, weather 15, ecology 20, disasters 25, civ 40,
 // religion 50, disease 55, trade 60, diplomacy 70, war 80, bands 82, events 84, myth 86,
-// stats 100.
+// hand 99 (an observer: sim/hand.js), stats 100.
 
 const LOADERS = {
   './gen/terraform.js': () => import('./gen/terraform.js'),
@@ -21,6 +21,7 @@ const LOADERS = {
   './sim/bands/index.js': () => import('./sim/bands/index.js'),
   './sim/events/index.js': () => import('./sim/events/index.js'),
   './sim/myth/index.js': () => import('./sim/myth/index.js'),
+  './sim/hand.js': () => import('./sim/hand.js'),
   './sim/stats.js': () => import('./sim/stats.js'),
 };
 

@@ -61,8 +61,12 @@ record left out.
 ## Gates
 
 - `npm test`, `--trial` at myth level 2, the 300-year Mythic trials, the keyframe and cohort checks.
-- **Same history:** a world run with and without the hand's observer serialises identically, its
-  record left out.
+- **Same history** (`headless --hand-check`): a world run twice with the same scripted acts, once
+  without the hand's observer (not even imported), must serialise identically, leaving out the
+  observer's record, the Chronicle and what reads it (the yearly history and statistics, the
+  annals), and every field that points into the Chronicle by entry number (an effect's or a heat's
+  source, a war's declaration, a band's last raid, the tallies: fields named …seq, src, hsrc,
+  tally), since each report line shifts those numbers.
 - Speed: at most +0.5 % per sim-year (the observer works only around acts). Save: at most +50 KB for
   a world with a few hundred acts.
 
@@ -116,8 +120,12 @@ each against the world's change over the same years:
 - "Your blessing on Queen Ilsa in Year 701: when it faded, her realm's stability stood at 0.78, up
   from 0.61; she still reigns."
 
-It reaches you as a Chronicle line (category Divine Hand) and a toast (decision 3), and is kept on
-the act for the deed card and the Lessons page.
+It reaches you as a Chronicle line (category Divine Hand) and a toast (decision 3) that open the
+act's record, and is kept on the act for the Hand tab and the Lessons page. (The deed card is gone
+by then; the report is its follow-up.) Each report leads with what the power is for: soil, harvests
+and food for the sky; herds, plants and fish for life; people and towns for catastrophes; stability,
+legitimacy and the ruler for fate (and a few powers their own: a plague's people, enlightenment's
+inventions).
 
 ### The war watch
 
@@ -152,7 +160,6 @@ No heat; reports never start events.
 
 ## Interface
 
-- **Deed card:** an act's card gains its reports as they come ("What came of it").
 - **An act's record** (the Inspector): the power, the place, the strength, the before and after,
   and both reports with their numbers.
 - **The war card**, the dossier's score chart, the front on the map.
