@@ -10,12 +10,13 @@
 // set its own). Yearly at the realm's own month (lawsYearly) a law may change: a ruler's bent, an
 // estate's power, the age (later ages free the bound), or a new government; at most one a year,
 // and none within fifteen years of its last change. What they do:
-//   - inherit: under 'divided', a realm of six or more towns is split between two heirs at most
-//     successions (60 %; the 'succession' hook marks it, partitionMonthly splits it at the end of
-//     the month): the heir keeps the capital and the towns nearest it, a younger heir of the same
-//     house takes the rest; the two are kin, allied (geo/diplomacy.js hears 'realmPartition') and
-//     hold claims on each other. 'elective' raises the great's rights (power.js); 'seniority'
-//     gives the throne to grown heirs (a little legitimacy at each succession).
+//   - inherit: under 'divided', a realm of eight or more towns is split between two heirs at about
+//     a third of successions (35 %; the 'succession' hook marks it, partitionMonthly splits it at
+//     the end of the month): the heir keeps the capital and the towns nearest it, a younger heir
+//     of the same house takes the rest; the two are kin, allied (geo/diplomacy.js hears
+//     'realmPartition') and hold claims on each other. A realm once split drops the custom
+//     readily (10 % a year). 'elective' raises the great's rights (power.js); 'seniority' gives
+//     the throne to grown heirs (a little legitimacy at each succession).
 //   - faith: the realm's tolerance trait drifts toward it (one 0.15, tolerated 0.5, free 0.85),
 //     which the faith code and town happiness already read; the clergy's loyalty follows it.
 //   - bond: serfdom binds two fifths of the commoners to the land (harvests +4 %), slavery holds
@@ -42,7 +43,7 @@ export const LAWS = {
   land: ['crown', 'nobles', 'freeholds'],
 };
 const TOLERANCE = { one: 0.15, tolerated: 0.5, free: 0.85 };
-const SPLIT_MIN = 6, SPLIT_P = 0.6, GAP = 15;
+const SPLIT_MIN = 8, SPLIT_P = 0.35, GAP = 15;
 
 const temper = (civ) => (civ.ruler ? temperOf(civ.ruler, civ) : [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
 const elective = (g) => g === 'republic' || g === 'democracy' || g === 'theocracy' || g === 'merchant';
@@ -53,8 +54,8 @@ function startLaws(world, civ) {
   const tol = fin(civ.traits?.tolerance, 0.5);
   const L = {};
   L.inherit = elective(g) ? 'elective'
-    : g === 'tribe' || g === 'chiefdom' || g === 'horde' ? (rng.chance(0.6) ? 'divided' : 'eldest')
-    : g === 'kingdom' || g === 'feudal' ? (era <= 4 && rng.chance(0.25) ? 'divided' : rng.chance(0.1) ? 'seniority' : rng.chance(0.08) ? 'elective' : 'eldest')
+    : g === 'tribe' || g === 'chiefdom' || g === 'horde' ? (rng.chance(0.4) ? 'divided' : 'eldest')
+    : g === 'kingdom' || g === 'feudal' ? (era <= 4 && rng.chance(0.15) ? 'divided' : rng.chance(0.1) ? 'seniority' : rng.chance(0.08) ? 'elective' : 'eldest')
     : 'eldest';
   L.faith = g === 'theocracy' || tol < 0.35 ? 'one' : tol > 0.65 ? 'free' : 'tolerated';
   L.bond = era >= 5 || g === 'democracy' || g === 'constitutional' ? 'none'
@@ -168,7 +169,8 @@ export function lawsYearly(world, civ) {
     else if (L.faith === 'tolerated' && era >= 4 && tp[TP.PIE] < 0.4 && fin(civ.flags.faithDis) > 0.2) tries.push(['faith', 'free', 0.015, '']);
   }
   if (ready('inherit') && !elective(g)) {
-    if (L.inherit === 'divided' && (fin(civ.flags.partitions) >= 1 || era >= 3) && tp[TP.AMB] > 0.55) tries.push(['inherit', 'eldest', 0.04, 'so that the realm would not be torn apart again']);
+    if (L.inherit === 'divided' && fin(civ.flags.partitions) >= 1) tries.push(['inherit', 'eldest', 0.1, 'so that the realm would not be torn apart again']);
+    else if (L.inherit === 'divided' && era >= 3 && tp[TP.AMB] > 0.55) tries.push(['inherit', 'eldest', 0.04, 'so that the realm would not be torn apart']);
     else if (L.inherit === 'eldest' && pw[0] > 0.4 && fin(civ.legitimacy, 0.6) < 0.4) tries.push(['inherit', 'elective', 0.01, 'forced by its nobles']);
     else if (L.inherit === 'eldest' && rng.chance(0.2)) tries.push(['inherit', 'seniority', 0.005, '']);
   }
