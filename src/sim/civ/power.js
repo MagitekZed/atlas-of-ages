@@ -36,7 +36,7 @@ export const COIN_MAX = 0.6;
 /** The realm's purse, made on first use (old saves too). */
 export function purseOf(civ) {
   let p = civ.purse;
-  if (!p || typeof p !== 'object') p = civ.purse = { court: COURT[civ.government] ?? 0.1, graft: 0.05, coin: 0, ruin: null, clean: null, m: null };
+  if (!p || typeof p !== 'object') p = civ.purse = { court: COURT[civ.government] ?? 0.1, graft: 0.05, coin: 0, ruin: null, clean: null, m: null, ry: 4 };
   return p;
 }
 
@@ -113,8 +113,9 @@ export function purseMonthly(world, civ, gross, treasury) {
   const net = gross - graft;
   const lost = net * Math.min(0.6, ruinNow(world, civ) + 0.25 * fin(p.coin));
   const income = net - lost;
-  // the court: its share, and above the reserve four tenths of the excess a year
-  const reserve = Math.max(100, income * 12 * reserveYears(world, civ));
+  // the court: its share, and above the reserve four tenths of the excess a year (the reserve's
+  // years are worked out once a year: p.ry)
+  const reserve = Math.max(100, income * 12 * fin(p.ry, 4));
   const excess = Math.max(0, fin(treasury) - reserve);
   const court = income * fin(p.court) + excess * (0.4 / 12);
   p.m = [Math.round(gross), Math.round(graft), Math.round(lost), Math.round(court), Math.round(reserve)];
@@ -142,6 +143,7 @@ export function maybeDebase(world, civ, income) {
 /** Once a year, at the realm's own month: the court and corruption drift; the coin recovers. */
 export function purseYearly(world, civ) {
   const p = purseOf(civ);
+  p.ry = r3(reserveYears(world, civ));
   p.court = r3(fin(p.court) + (courtTarget(world, civ) - fin(p.court)) * 0.2);
   const before = fin(p.graft);
   p.graft = r3(before + (graftTarget(world, civ) - before) * 0.1);
@@ -326,6 +328,8 @@ export function estatesStability(civ) {
 export function estateGrievance(civ, s) {
   const e = civ.est, j = s.jobs;
   if (!Array.isArray(e) || e.length !== 5 || !Array.isArray(j)) return 0;
+  // content estates (loyalty 0.4 and above) add nothing: most months, most realms
+  if (!(fin(e[2][3], 0.55) < 0.4 || fin(e[3][3], 0.55) < 0.4 || (e[4][0] > 0 && fin(e[4][3], 0.55) < 0.4))) return 0;
   let t = 0;
   for (const v of j) t += v;
   if (!(t > 0)) return 0;

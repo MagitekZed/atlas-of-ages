@@ -13,7 +13,6 @@ import { hasTech, refreshMods, getMods } from './tech.js';
 import { fin, record, rateOk } from './state.js';
 import { theName, TheName, rulerName, pick, demonym } from './prose.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
-import { reserveYears } from './power.js';
 
 export const govDef = (civ) => GOVERNMENTS[civ?.government] || GOVERNMENTS.tribe;
 export const govLabel = (civ) => govDef(civ).label;
@@ -73,7 +72,7 @@ export function targetTax(world, civ, atWar) {
   if (civ.court && civ.court.cut > world.time.day) t -= 0.03;   // a tax cut granted to the guilds or a rising (court.js)
   if (civ.treasury < 0) t += 0.05;
   // a crown that has its reserve (power.js: years of income × its thrift) asks no more than it needs
-  else if (civ.treasury > Math.max(200, 0.75 * 12 * fin(civ.income) * reserveYears(world, civ))) t -= 0.03;
+  else if (civ.treasury > Math.max(200, 0.75 * 12 * fin(civ.income) * fin(civ.purse?.ry, 4))) t -= 0.03;
   return Math.max(0.02, Math.min(0.45, t));
 }
 
