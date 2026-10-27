@@ -43,7 +43,7 @@ export function factionName(world, civ, k) {
     case 'army': return 'the army';
     case 'church': return `the ${names[1] && !/^the /.test(names[1]) ? names[1] : 'church'}`.replace(/^the the /, 'the ');
     case 'old': return names[0] && /^the /.test(names[0]) ? names[0] : `the ${names[0] || 'old blood'}`;
-    case 'guilds': return names[2] && /guild/.test(names[2]) ? `the ${names[2]}` : 'the guilds';
+    case 'guilds': return names[2] && !/^(craftsfolk|townsfolk|burghers|the middle class)$/.test(names[2]) ? `the ${names[2].replace(/^the /, '')}` : 'the guilds';
     default: return 'the reformers';
   }
 }
@@ -109,7 +109,7 @@ const WANT_WORDS = {
   war: (world, w) => `war on ${theName(world.civs[w.on] || { name: 'its enemies' })}`,
   tax: () => 'lower taxes', court: () => 'a grander court', graft: () => 'an end to the officials’ thieving',
 };
-const wantWords = (world, w) => (w.kind === 'law' ? { faith: { one: 'one faith for the realm', tolerated: 'tolerance of the other faiths', free: 'freedom of worship' }, land: { nobles: 'the land in fiefs', freeholds: 'the land for those who work it', crown: 'the land for the crown' }, bond: { none: 'the end of bondage' }, inherit: { elective: 'the right to choose the ruler' } }[w.law]?.[w.value] || 'a change of law' : (WANT_WORDS[w.kind] || (() => 'its due'))(world, w));
+export const wantWords = (world, w) => (w.kind === 'law' ? { faith: { one: 'one faith for the realm', tolerated: 'tolerance of the other faiths', free: 'freedom of worship' }, land: { nobles: 'the land in fiefs', freeholds: 'the land for those who work it', crown: 'the land for the crown' }, bond: { none: 'the end of bondage' }, inherit: { elective: 'the right to choose the ruler' } }[w.law]?.[w.value] || 'a change of law' : (WANT_WORDS[w.kind] || (() => 'its due'))(world, w));
 
 /** Grant a faction's demand. */
 function grant(world, civ, f, w) {
