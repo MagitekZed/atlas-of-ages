@@ -328,11 +328,15 @@ const ILL_KEYS = Object.keys(ILLNESSES);
  * much again before the Classical age); madness from 50 (0.2 % a year, three times as likely with
  * the falling sickness), which takes the 'mad' trait and throws the temperament about each year.
  * Both by the years of the ruler's people (an elf falls ill a fifth as often in a calendar year), and
- * the illness × how sickly the people is (ext 'sickness': in Mythic worlds, by race).
+ * the illness × how sickly the people is (ext 'sickness': in Mythic worlds, by race) and × the health
+ * of the seat (× 1 at the usual 0.75, × 0.75 at the healthiest, × 1.4 in a sick, crowded one).
  */
 function bodyYear(world, civ, r, a, era, life = 1) {
   const bd = r.bd || null;
-  const sick = hasProviders('sickness') ? mulOf('sickness', world, civ, r) : 1;   // how sickly the people (ext; elves seldom, orcs often)
+  // how sickly the people (ext; elves seldom, orcs often), and how healthy the seat the court lives in
+  // (crowding against aqueducts and sewers, hunger, plague, foul air: civ/settlement.js; × 1 at 0.75)
+  const seat = civ.capitalId != null ? world.settlements[civ.capitalId] : null;
+  const sick = (hasProviders('sickness') ? mulOf('sickness', world, civ, r) : 1) * (seat && Number.isFinite(seat.health) ? (1.65 - seat.health) / 0.9 : 1);
   if (a > 40 && !(bd && bd.ill) && world.rng.chance(0.006 * (era < 3 ? 1.5 : 1) / life * sick)) {
     const b = bodyOf(r);
     b.ill = ILL_KEYS[Math.floor(world.rng.next() * ILL_KEYS.length)];

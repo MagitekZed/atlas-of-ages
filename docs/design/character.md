@@ -150,7 +150,9 @@ are counted once.
   - Scars are only a story.
   - A wounded ruler's epithet may come from the wound ("the One-Eyed").
 - **Lasting illness.** 0.6 % a year after 40 (by the years of the ruler's people), half as much again
-  before the Classical age, × how sickly the people is (`sickness`). It raises the yearly hazard
+  before the Classical age, × how sickly the people is (`sickness`), × the health of the realm's seat
+  (`(1.65 − health) / 0.9`: × 1 at the usual 0.75, × 0.75 at the healthiest, × 1.4 in a crowded,
+  hungry or plague-struck one). It raises the yearly hazard
   × 1.7, takes
   a skill's growth away, and its name is told when the person dies.
 - **Madness.** From age 50, 0.2 % a year, more with the falling sickness. A mad ruler takes the
