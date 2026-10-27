@@ -21,9 +21,10 @@ strength, a sentence, Undo) and a Chronicle line; nothing reports back later, so
 learns whether the rain fed the harvest or flooded the valley, nor whether a stronger rain did more.
 
 After this change:
-- **A war watch.** A watched war's chip opens a war card: the score over time, towns taken by each
-  side, the losses on each side, each side's aim, the latest battle. The war's dossier gains the
-  score over time. The front is shown on the map while the war is watched or selected.
+- **A war watch.** A watched war's chip carries a war card (each side's leader and allies, towns
+  taken and razed, its fallen, its aim, the latest battle), and opens the dossier, which gains the
+  same at a glance above the score over time it already charts. The front is shown on the map
+  while the war is watched or selected.
 - **What came of it.** Every act of the hand records what it touched when it was cast (the land,
   the towns, the realm), and measures the same things again when its work is done and a generation
   later, against the rest of the world over the same years. Each report is a short line: "The rains
@@ -49,28 +50,23 @@ After this change:
 
 ## Rule: simulation untouched
 
-Nothing here changes what happens in a world. Two small records are kept, as bookkeeping only:
-- **A war's score over time** (`war.ledger.s`), sampled when it changes, by the war module.
-- **The acts of the hand** (`world.sys.hand`), by a new observer system that reads the world and
-  never draws on its chance.
+Nothing here changes what happens in a world. One small record is kept, as bookkeeping only: **the
+acts of the hand** (`world.sys.hand`), by a new observer system that reads the world and never draws
+on its chance. (A war's score over time is already kept by the history ledger, `sim/ledger.js`, and
+charted in the war's dossier as "The course of the war"; nothing new is needed for it.)
 
-So a world with this chunk runs the same history as one without: the determinism test compares
-them with the records left out.
+So a world with this chunk runs the same history as one without: a check compares them with the
+record left out.
 
 ## Gates
 
 - `npm test`, `--trial` at myth level 2, the 300-year Mythic trials, the keyframe and cohort checks.
-- **Same history:** a world run with and without the hand's observer and the score samples
-  serialises identically, those records left out.
+- **Same history:** a world run with and without the hand's observer serialises identically, its
+  record left out.
 - Speed: at most +0.5 % per sim-year (the observer works only around acts). Save: at most +50 KB for
   a world with a few hundred acts.
 
 ## Data
-
-### A war's score over time: `war.ledger.s`
-
-`[[day, score]]`: a sample whenever the score moves by 5 or more, or yearly while it holds; at most
-120 (when full, every other old sample goes). Read by the war card and the dossier's chart.
 
 ### The acts of the hand: `world.sys.hand`
 
@@ -125,12 +121,13 @@ the act for the deed card and the Lessons page.
 
 ### The war watch
 
-- **The war card:** clicking a watched war's chip, or its dossier's head, shows the score over time
-  as a line (each side's colour above and below the middle), towns taken by each side, the dead on
-  each side, each side's aim, and the latest named battle.
+- **The war card:** a watched war's chip carries, as its card, each side's leader and allies, towns
+  taken and razed, fallen and aim, and the latest named battle; clicking it opens the dossier, where
+  "Each side" tells the same above "The course of the war" (the score over time, already charted).
 - **The front on the map** (decision 4): while the war is watched or selected, the two sides'
-  lands are washed in their colours, towns taken are marked (an arrow in the taker's colour), sieges
-  under way ringed, and the war's battles shown as today.
+  realms are outlined and faintly washed in their leaders' colours, the border between the two
+  sides is drawn as the front (a dark band in the two colours' alternating dashes), sieges under way
+  are ringed, and a selected war's battles and towns taken show as today.
 
 ### The hand on the map
 
@@ -164,18 +161,19 @@ No heat; reports never start events.
 ## Saves, keyframes and old worlds
 
 An old world has no `sys.hand`: its acts before the load have no records (the log of interventions
-keeps no measures). Its wars rebuild a coarse score line from their battles and towns taken.
+keeps no measures).
 
 ## Performance
 
 The observer measures only around acts: a brush of a few hundred tiles twice, then twice more years
-later; nothing per tile per month. The score samples are a comparison a month per war.
+later; nothing per tile per month. The front is traced from the border grid, cached until borders
+change.
 
 ## Build order
 
 One go on `ui/seeing-and-hand`, a commit per phase, stopping only for the user's decisions:
 
-1. **The war watch.** Score samples, the war card, the dossier chart, the front on the map.
+1. **The war watch.** The war card, "Each side" in the dossier, the front on the map.
 2. **What came of it.** The observer, the measures, the reports, the deed card's follow-ups.
 3. **The hand on the map, and the act's record.**
 4. **Lessons of the hand.**
