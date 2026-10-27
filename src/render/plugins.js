@@ -15,6 +15,7 @@ const PLUGINS = [
   ['neatline', 'UI', () => import('./neatline.js')],
   ['pastborders', 'UI', () => import('./pastborders.js')],
   ['knowledge', 'UI', () => import('./knowledge.js')],
+  ['hand', 'UI', () => import('./hand.js')],
 ];
 
 const status = [];
