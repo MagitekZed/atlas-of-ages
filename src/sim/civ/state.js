@@ -7,6 +7,8 @@
 //   terrDirty       territory must be recomputed soon (settlement created/destroyed/moved)
 //   lastTerrDay     day territory last ran
 //   firstTech       { techId: civId } first civ in the world to learn each tech
+//   firstWhere      { techId: [sid | null, day] } where and when (its capital then; knowledge.js)
+//   reach           { techId: [landmass ids, 'r:race' …] } the lands and peoples it has reached
 //   eraReached      { era: count } how many civs have entered each era
 //   rl              { key: day } rate-limit stamps for chronicle entries (pruned yearly)
 //   wonderKinds     { kind: wonderId } wonders currently standing, one per kind
@@ -42,6 +44,8 @@ export function newCivState() {
     terrDirty: true,
     lastTerrDay: -9999,
     firstTech: {},
+    firstWhere: {},
+    reach: {},
     eraReached: {},
     rl: {},
     wonderKinds: {},

@@ -2,7 +2,18 @@
 // advancement, and the derived modifier object every other module reads via getMods().
 //
 // civ.tech = { known: { techId: dayLearned }, points (lifetime research), research (techId
-//              being studied | null), progress (points into it), era (0..7) }
+//              being studied | null), progress (points into it), era (0..7),
+//              from: { techId: 'h' | 'h:civId' } how each was learned (knowledge.js HOW; missing
+//              in an old save: its own research), head: { techId: [points, 'h:civId'] } head
+//              starts from conquest, arms, scholars and refugees, cue: [techId, 'h:civId'] the
+//              source of the research under way }
+//
+// Tiers (docs/design/inventions.md): every tech is common or uncommon (t.tier); a tech with
+// t.needs(world, civ) costs ALONE times as much to invent without that land or situation and
+// with no teacher in reach (ext 'inventRule' may answer instead). Spread: each contact that
+// knows a tech cuts its cost (trade or alliance 22 %, else 14 %; across peoples half, for an
+// arcane art, unless the learner is human), so do towns taken from a realm that knows it (up to
+// 30 %), all × the realm's openness (1.15 − 0.3 × isolation, ext 'learnRule'), at most 60 %.
 //
 // Mods (getMods(world, civ) → always a complete object; multipliers default 1):
 //   farming        0/1 agriculture known          farmYield, gatherYield, fishYield
@@ -41,12 +52,12 @@
 // research, and the optional costMul(w, civ) / researchWeight(w, civ) of a def scale its cost
 // and its pull on the research choice (an arcane pick is held to under a quarter of research).
 
-import { DAYS_PER_YEAR, DAYS_PER_MONTH, ERAS, RESOURCES } from '../../core/constants.js';
+import { DAYS_PER_YEAR, DAYS_PER_MONTH, ERAS, RESOURCES, BIOME } from '../../core/constants.js';
 import { emitFx } from '../../core/world.js';
 import { emit } from '../../core/hooks.js';
-import { concatOf, mulOf, hasProviders, extVersion, getModKeys, getRegisteredTechs } from '../../core/ext.js';
+import { concatOf, mulOf, firstOf, hasProviders, extVersion, getModKeys, getRegisteredTechs } from '../../core/ext.js';
 import { GOVERNMENTS, RULER_TRAITS, wonderDef } from './data.js';
-import { fin, record } from './state.js';
+import { fin, record, civTowns } from './state.js';
 import { borderNeighbours } from './territory.js';
 import { PeopleOf, TheName, theName, peopleOf, pick } from './prose.js';
 
@@ -175,6 +186,48 @@ export const TECHS = [
     'to draw clean power from wind and sun', 'built a great field of sun-mirrors', 1.05),
 ];
 
+// ---------------------------------------------------------------------------
+// Tiers: what a realm needs to invent a tech alone
+
+/** Three times the cost to invent an uncommon tech without its land and with no teacher in reach. */
+export const ALONE = 3;
+/** Bits of a town's land scan (s.flags.lnd, civ/settlement.js): one per biome (BIOME ids), then these. */
+export const LAND = { river: 1 << 17, hills: 1 << 18, mountains: 1 << 19 };
+const B = (...keys) => keys.reduce((m, k) => m | (1 << BIOME[k]), 0);
+const RES_ID = Object.fromEntries(RESOURCES.map((r) => [r.key, r.id]));
+const hasRes = (civ, key) => (fin(civ.flags?.res) & (1 << RES_ID[key])) !== 0;
+const hasLand = (civ, mask) => (fin(civ.flags?.lnd) & mask) !== 0;
+const onCoast = (civ) => fin(civ.flags?.coastShare) > 0;
+const FOREST_WET = B('TEMPERATE_FOREST', 'TEMPERATE_RAINFOREST', 'TROPICAL_FOREST', 'RAINFOREST', 'WETLAND', 'TAIGA');
+const SALTPETRE = B('HOT_DESERT', 'COLD_DESERT', 'SHRUBLAND') | LAND.mountains;
+/** A town of city size (tier 4+) with a market: banking's counting houses. */
+const cityMarket = (world, civ) => civTowns(world, civ).some((s) => s.tier >= 4 && fin(s.buildings?.market) > 0);
+
+/** The condition to invent each uncommon tech alone. */
+const NEEDS = {
+  bronze: (w, c) => hasRes(c, 'copper') || hasRes(c, 'tin'),
+  horseback: (w, c) => hasRes(c, 'horses'),
+  irrigation: (w, c) => hasLand(c, LAND.river | B('LAKE')),
+  sailing: (w, c) => onCoast(c) || hasLand(c, B('LAKE')),
+  shipbuilding: (w, c) => onCoast(c),
+  navigation: (w, c) => hasLand(c, B('DEEP_OCEAN')),
+  banking: cityMarket,
+  gunpowder: (w, c) => hasLand(c, SALTPETRE),
+  steam: (w, c) => hasRes(c, 'coal'),
+  railways: (w, c) => hasRes(c, 'coal') && hasRes(c, 'iron'),
+  combustion: (w, c) => hasRes(c, 'oil'),
+};
+/** The land each condition asks for, in words (dossiers, the invention view). */
+export const NEEDS_WORDS = {
+  bronze: 'copper or tin', horseback: 'horses', irrigation: 'a river or lake', sailing: 'a coast or lake', shipbuilding: 'a coast',
+  navigation: 'a coast on the open sea', banking: 'a city with a market', gunpowder: 'saltpetre (desert, dry scrub or mountains)',
+  steam: 'coal', railways: 'coal and iron', combustion: 'oil',
+};
+for (const t of TECHS) {
+  t.tier = NEEDS[t.id] ? 'uncommon' : 'common';
+  if (NEEDS[t.id]) t.needs = NEEDS[t.id];
+}
+
 export const TECH_BY_ID = Object.fromEntries(TECHS.map((t) => [t.id, t]));
 export const TECHS_BY_ERA = ERAS.map((e) => TECHS.filter((t) => t.era === e.id));
 const BUILTIN_TECH = new Set(TECHS.map((t) => t.id));
@@ -228,6 +281,7 @@ function normaliseTech(d) {
     first: d.first || `to master ${String(d.name || d.id).toLowerCase()}`,
     deed: d.deed || `mastered ${String(d.name || d.id).toLowerCase()}`,
     cost: Number.isFinite(d.cost) && d.cost > 0 ? d.cost : ERA_COST[era],
+    tier: d.tier === 'uncommon' ? 'uncommon' : 'common',
   };
 }
 
@@ -417,13 +471,55 @@ export function computeEra(civ) {
   return era;
 }
 
-/** Silently grant a tech (genesis, inheritance, emergence). */
-export function grantTech(civ, id, day = 0) {
+/** Silently grant a tech (genesis, inheritance, emergence). from: how it came (knowledge.js HOW; 'g' given at birth). */
+export function grantTech(civ, id, day = 0, from = 'g') {
   syncRegistry();
   if (!TECH_BY_ID[id] || !civ?.tech || hasTech(civ, id)) return;
   civ.tech.known[id] = day;
+  noteFrom(civ, id, from);
   if (civ.tech.research === id) { civ.tech.research = null; civ.tech.progress = 0; }
 }
+
+/** Note how civ came by tech id ('t:12': by trade from realm 12). Own research is the default and not stored. */
+export function noteFrom(civ, id, from) {
+  if (!civ?.tech || !from || from === 'r') return;
+  (civ.tech.from ||= {})[id] = from;
+  if (civ.tech.head && civ.tech.head[id]) delete civ.tech.head[id];
+}
+
+/** Can civ invent t alone (its land or situation; the ext 'inventRule' may answer)? */
+export function canInventAlone(world, civ, t) {
+  if (hasProviders('inventRule')) { const v = firstOf('inventRule', world, civ, t.id); if (v === true || v === false) return v; }
+  return typeof t.needs !== 'function' || !world || Boolean(t.needs(world, civ));
+}
+
+/** How readily civ learns from others: × (1.15 − 0.3 × isolation), × the ext 'learnRule'. */
+export function learnMul(world, civ) {
+  let m = 1.15 - 0.3 * fin(civ?.traits?.isolation, 0.5);
+  if (hasProviders('learnRule')) m *= mulOf('learnRule', world, civ);
+  return m;
+}
+
+/** A head start toward id (conquest, arms, scholars, refugees): a share of its cost, and whence it came. */
+export function headStart(civ, id, frac, from) {
+  const t = TECH_BY_ID[id];
+  if (!t || !civ?.tech || hasTech(civ, id)) return false;
+  const head = (civ.tech.head ||= {});
+  const prev = head[id] ? head[id][0] : 0;
+  head[id] = [Math.min(t.cost * 0.8, prev + t.cost * frac), from];
+  if (civ.tech.research === id) applyHead(civ, id);
+  const ids = Object.keys(head);
+  if (ids.length > 8) delete head[ids.sort((a, b) => head[a][0] - head[b][0] || (a < b ? -1 : 1))[0]];
+  return true;
+}
+function applyHead(civ, id) {
+  const h = civ.tech.head && civ.tech.head[id];
+  if (!h) return;
+  civ.tech.progress += h[0];
+  civ.tech.cue = [id, h[1]];
+  delete civ.tech.head[id];
+}
+const headPts = (civ, id) => (civ.tech.head && civ.tech.head[id] ? civ.tech.head[id][0] : 0);
 
 /**
  * Start a civ in `era`: every tech of earlier eras, plus the cheapest ERA_ENTRY techs of
@@ -475,7 +571,7 @@ export function diffusionPeers(world, civ) {
     const o = world.civs[+k];
     if (!o || !o.alive || o.id === civ.id) continue;
     seen.add(o.id);
-    peers.push({ civ: o, trade: fin(rels[k]?.trade) > 0 });
+    peers.push({ civ: o, trade: fin(rels[k]?.trade) > 0 || (civ.allies || []).includes(o.id) });
   }
   for (const other of borderNeighbours(world, civ.id)) {
     if (seen.has(other)) continue;
@@ -495,12 +591,44 @@ function defCostMul(world, civ, tech) {
   return Number.isFinite(v) && v > 0 ? Math.min(8, Math.max(0.1, v)) : 1;
 }
 
-/** Research cost after diffusion from peers who already know the tech (× a def's own costMul). */
+/**
+ * Research cost after diffusion from peers who already know the tech and from the towns taken
+ * from realms that knew it (× the realm's openness), × ALONE for an uncommon tech with no
+ * teacher in reach and no land for it (× a def's own costMul).
+ */
 export function effectiveCost(tech, peers, world = null, civ = null) {
-  let disc = 0;
-  for (const p of peers) if (hasTech(p.civ, tech.id)) disc += p.trade ? 0.22 : 0.14;
-  const base = tech.cost * COST_SCALE * (1 - Math.min(0.6, disc));
+  let disc = 0, taught = false;
+  const across = isArcane(tech) && civ && civ.race && civ.race !== 'human';
+  for (const p of peers) {
+    if (!hasTech(p.civ, tech.id)) continue;
+    taught = true;
+    disc += (p.trade ? 0.22 : 0.14) * (across && p.civ.race !== civ.race ? 0.5 : 1);
+  }
+  const tb = civ && civ.flags && civ.flags.taught;
+  if (tb && world) for (const [oid, share] of tb) { const o = world.civs[oid]; if (o && hasTech(o, tech.id)) { taught = true; disc += Math.min(0.3, 0.6 * share); } }
+  if (civ && world && disc > 0) disc *= learnMul(world, civ);
+  let base = tech.cost * COST_SCALE * (1 - Math.min(0.6, disc));
+  if (!taught && civ && tech.needs && !canInventAlone(world, civ, tech)) base *= ALONE;
   return tech.costMul ? base * defCostMul(world, civ, tech) : base;
+}
+
+/**
+ * Whence civ learns tech now: the research's cue (a head start's source), else a trading or
+ * allied teacher, a neighbour or contact, a realm whose towns it took, or its own research.
+ * Returns [code, teacherCiv | null].
+ */
+function sourceOf(world, civ, tech, peers) {
+  const cue = civ.tech.cue;
+  if (cue && cue[0] === tech.id && typeof cue[1] === 'string') {
+    const [h, idStr] = cue[1].split(':');
+    return [h, idStr != null && world.civs[+idStr] ? world.civs[+idStr] : null];
+  }
+  let border = null;
+  for (const p of peers) if (hasTech(p.civ, tech.id)) { if (p.trade) return ['t', p.civ]; border ||= p.civ; }
+  if (border) return ['b', border];
+  const tb = civ.flags && civ.flags.taught;
+  if (tb) for (const [oid] of tb) { const o = world.civs[oid]; if (o && hasTech(o, tech.id)) return ['c', o]; }
+  return ['r', null];
 }
 
 const CAT_TRAIT = { military: 'militarism', commerce: 'commerce', faith: 'religiosity', science: 'innovation', civic: 'tolerance' };
@@ -512,7 +640,8 @@ function chooseResearch(world, civ, peers, ctx) {
   if (!avail.length) return null;
   let minCost = Infinity, minArc = Infinity;
   const costs = avail.map((t) => {
-    const c = effectiveCost(t, peers, world, civ);
+    // what is left to learn: a head start (conquest, arms, scholars, refugees) draws a realm on
+    const c = Math.max(0.2 * t.cost, effectiveCost(t, peers, world, civ) - headPts(civ, t.id));
     if (isArcane(t)) { if (c < minArc) minArc = c; } else if (c < minCost) minCost = c;
     return c;
   });
@@ -567,6 +696,7 @@ export function researchMonthly(world, civ, ctx) {
   if (!t.research || hasTech(civ, t.research) || !TECH_BY_ID[t.research]) {
     t.research = chooseResearch(world, civ, peers, ctx);
     if (!t.research) return;
+    applyHead(civ, t.research);
   }
   const mods = getMods(world, civ);
   const innov = fin(civ.traits?.innovation, 0.5);
@@ -580,8 +710,9 @@ export function researchMonthly(world, civ, ctx) {
   const cost = effectiveCost(tech, peers, world, civ);
   if (t.progress >= cost) {
     t.progress = Math.min(cost * 0.5, t.progress - cost);
-    const teacher = peers.find((q) => hasTech(q.civ, tech.id))?.civ || null;
-    discover(world, civ, tech.id, teacher ? 'diffusion' : 'research', teacher);
+    const [via, teacher] = sourceOf(world, civ, tech, peers);
+    t.cue = null;
+    discover(world, civ, tech.id, teacher ? 'diffusion' : 'research', teacher, { via });
   }
 }
 
@@ -592,6 +723,7 @@ export function researchBurst(world, civ, fraction) {
   if (!t.research || !TECH_BY_ID[t.research]) {
     t.research = chooseResearch(world, civ, diffusionPeers(world, civ), { coastShare: civ.flags?.coastShare || 0 });
     if (!t.research) return null;
+    applyHead(civ, t.research);
   }
   const tech = TECH_BY_ID[t.research];
   t.progress += tech.cost * COST_SCALE * fraction;
@@ -612,6 +744,18 @@ export function giftableTechs(world, civ) {
 }
 
 const LEARN = ['learned the art of {tech}', 'mastered {tech}', 'took up {tech}', 'came to know {tech}'];
+/** The code of a discovery's kind (knowledge.js HOW); a diffusion's own code comes as opts.via. */
+const HOW_OF = { research: 'r', figure: 'r', divine: 'd', grant: 'g', diffusion: 'b' };
+const NO_TEACHER = new Set(['r', 'g', 'd']);
+/** How a realm learned from a teacher, opening its Chronicle line. */
+const VIA_TEXT = {
+  t: (T) => `Through its trade with ${T}`,
+  b: (T) => `Learning from ${T}`,
+  c: (T) => `From the towns it had taken from ${T}`,
+  a: (T) => `Beaten by the arms of ${T}`,
+  s: (T) => `Taught by a scholar of ${T}`,
+  f: (T) => `Helped by refugees from ${T}`,
+};
 const LEARN_ARCANE = ['learned the art of {tech}', 'were initiated into {tech}', 'took up the secrets of {tech}'];
 
 /**
@@ -629,12 +773,16 @@ export function discover(world, civ, id, how = 'research', teacher = null, opts 
   const st = world.sys.civ;
   civ.tech.known[id] = world.time.day;
   if (civ.tech.research === id) civ.tech.research = null;
+  if (civ.tech.cue && civ.tech.cue[0] === id) civ.tech.cue = null;
+  // how it came (knowledge.js HOW): the caller's via, else by the kind of discovery
+  const via = opts.via || HOW_OF[how] || 'r';
+  noteFrom(civ, id, teacher && !NO_TEACHER.has(via) ? `${via}:${teacher.id}` : via);
   refreshMods(world, civ);
   if (civ.ruler?.deeds) civ.ruler.deeds.techs = (civ.ruler.deeds.techs || 0) + 1;
   const cap = civ.capitalId != null ? world.settlements[civ.capitalId] : null;
   const arcane = isArcane(tech);
   const firstInWorld = Boolean(st && st.firstTech[id] == null);
-  if (st && firstInWorld) st.firstTech[id] = civ.id;
+  if (st && firstInWorld) { st.firstTech[id] = civ.id; (st.firstWhere ||= {})[id] = [cap ? cap.id : null, world.time.day]; }
   let entry = null;
   const quiet = how === 'grant' || Boolean(opts.quiet);
   if (!quiet) {
@@ -647,7 +795,8 @@ export function discover(world, civ, id, how = 'research', teacher = null, opts 
         : `${PeopleOf(civ)} were the first ${tech.first}.`;
       entry = record(world, { cat, imp: 2, key, text, civ, tags: [id] });   // (integration: arcane firsts are notable like any other first)
     } else if (how === 'diffusion' && teacher) {
-      entry = record(world, { cat, imp: 1, key, text: `Learning from ${theName(teacher)}, ${theName(civ)} ${pick(world, arcane ? LEARN_ARCANE : LEARN).replace('{tech}', midName(tech))}.`, civ, tags: [id] });
+      const lead = (VIA_TEXT[via] || VIA_TEXT.b)(theName(teacher));
+      entry = record(world, { cat, imp: 1, key, text: `${lead}, ${theName(civ)} ${pick(world, arcane ? LEARN_ARCANE : LEARN).replace('{tech}', midName(tech))}.`, civ, tags: [id] });
     } else {
       entry = record(world, { cat, imp: 1, key, text: `${TheName(civ)} ${pick(world, arcane ? LEARN_ARCANE : LEARN).replace('{tech}', midName(tech))}.`, civ, tags: [id] });
     }

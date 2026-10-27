@@ -48,10 +48,11 @@ export function canLearn(civ, id) {
   return !Array.isArray(t.prereqs) || t.prereqs.every((p) => hasTech(civ, p));
 }
 /** Grant a tech quietly through WP3 (our entry tells the story). Returns true if learnt. */
-export function grantTechTo(world, civ, id) {
+export function grantTechTo(world, civ, id, via = 'r') {
   if (!tech || !civ || hasTech(civ, id)) return false;
   try {
-    if (typeof tech.discover === 'function') tech.discover(world, civ, id, 'grant');
+    // via: how the realm came by it (civ/knowledge.js HOW): its own people by default, 'u:civId' from a ruin
+    if (typeof tech.discover === 'function') tech.discover(world, civ, id, 'grant', null, { via });
     // grantTech(civ, id, day) today; tolerate a (world, civ, id) form (each no-ops on the other)
     if (!hasTech(civ, id) && typeof tech.grantTech === 'function') tech.grantTech(civ, id, world.time.day);
     if (!hasTech(civ, id) && typeof tech.grantTech === 'function') tech.grantTech(world, civ, id);

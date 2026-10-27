@@ -45,7 +45,7 @@ import { mulEachOf, sumOf, hasProviders } from '../../core/ext.js';
 import { reconcileCohorts, cohortMonth, settleCohorts, verifyCohorts, isSet, COHORT_DEV } from '../../core/cohorts.js';
 import { clamp, clamp01, smoothstep, majorToll } from '../../core/util.js';
 import { proxies, climGrid, BIO_WILD, BIO_VEGMAX, BIO_HERB, BIO_WOOD, BIO_FARM, BIO_FISH } from './land.js';
-import { getMods, hasTech, modValue } from './tech.js';
+import { getMods, hasTech, modValue, LAND as LANDBIT } from './tech.js';
 import { allowedLevel, progressProject, buildingSmods } from './buildings.js';
 import { buildingDef } from './data.js';
 import { routeMigrants, trySettlers } from './expansion.js';
@@ -627,7 +627,7 @@ function scanCatchment(world, s, mods, era, since) {
   const soilRef = f.soilBase && f.soilBase.length === world.N ? f.soilBase : civCache(world).soil0;
   let n = 0;
   let wildPot = 0, fishPot = 0, farmCap = 0, farmLoad = 0, timber = 0, ore = 0, lux = 0, strat = 0, weightSum = 0, farmland = 0;
-  let resBits = 0;
+  let resBits = 0, lnd = 0;   // the land in reach: a bit per biome, rivers, hills, mountains (tech.js LAND)
   for (let dy = -r; dy <= r; dy++) {
     const y = sy + dy;
     if (y < 0 || y >= H) continue;
@@ -638,6 +638,7 @@ function scanCatchment(world, s, mods, era, since) {
       if (x < 0 || x >= W) continue;
       const i = y * W + x;
       if (water[i] !== LAND) {
+        lnd |= 1 << biome[i];
         if (d2 > fishR2 || !ws || ws[i] !== sid || n >= 511) continue;
         let fv = pfish ? 0.6 : fishF[i];
         if (fishTake > 0) { fv -= fv * fishTake; fishF[i] = fv; }
@@ -649,6 +650,9 @@ function scanCatchment(world, s, mods, era, since) {
       if (n >= 511) continue;
       if (!tflag[i]) { tflag[i] = 1; tlist[tn++] = i; }
       const b = biome[i];
+      lnd |= 1 << b;
+      if (riverF[i] > 0) lnd |= LANDBIT.river;
+      if (elevF[i] > 0.62) lnd |= elevF[i] > 0.75 ? LANDBIT.hills | LANDBIT.mountains : LANDBIT.hills;
       let fm = farmF[i];
       let sl = soil[i];
       if (farming) {
@@ -715,6 +719,7 @@ function scanCatchment(world, s, mods, era, since) {
   sc.n = n;
   tch.n = tn;
   s.flags.res = resBits;
+  s.flags.lnd = lnd;
   if (farming) s.farmland = farmland;
   const pot = Array.isArray(s.flags.pot) && s.flags.pot.length === POT_LEN ? s.flags.pot : (s.flags.pot = new Array(POT_LEN).fill(0));
   pot[0] = wildPot; pot[1] = fishPot; pot[2] = farmCap; pot[3] = farmLoad; pot[4] = timber;

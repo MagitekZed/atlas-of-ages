@@ -231,7 +231,7 @@ registerEvent({
     const span = yearsWord(Math.round((world.time.day - fellDay(site)) / DAYS_PER_YEAR));
     let text;
     const t = lost ? techDef(lost) : null;
-    if (t && grantTechTo(world, civ, lost)) {
+    if (t && grantTechTo(world, civ, lost, `u:${fallen.id}`)) {
       text = say(world, [
         '{who} of {town} dug into the ruins of {old}, dead for {span}, and found tablets that taught {people} the lost art of {tech}.',
         'In the buried archive of {old} the {who2} of {town} rediscovered {tech}, known to {fallen} before their fall.',

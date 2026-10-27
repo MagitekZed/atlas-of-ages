@@ -1679,6 +1679,8 @@ function battle(world, st, A, B) {
     emit(world, 'rulerCaptured', cl, cw, war, where);
     L.general = null; L.flags.ruler = null; L.flags.skill = 0.9;
   }
+  // beaten in a named battle by better-armed foes: the loser takes up their arms (civ/knowledge.js)
+  if (bname && !naval && cl && cw && gearTier(cw) > gearTier(cl)) emit(world, 'outgunned', cl, cw);
   // fame: a great victory, or a third real win (a fight of hosts, not of war bands) crowned by
   // a battle men give a name to
   const g0 = Wn.general;

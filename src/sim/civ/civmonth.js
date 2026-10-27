@@ -53,7 +53,8 @@ export function aggregate(world, civ) {
   let k = 0;
   const mods = getMods(world, civ);
   const levy = ruleOf(world, 'levy', civ);
-  let levyPop = 0, sch = 0, youth = 0;
+  let levyPop = 0, sch = 0, youth = 0, lnd = 0, taught = null;
+  const teachDay = world.time.day - 100 * DPY;
   for (const s of ss) {
     const p = Math.max(0, fin(s.population));
     pop += p; wealth += fin(s.wealth); culture += fin(s.culture);
@@ -73,6 +74,10 @@ export function aggregate(world, civ) {
     nEff += s.tier >= 3 ? 1 : s.tier === 2 ? 0.7 : 0.4;
     if (s.disease) plagued = true;
     res |= fin(s.flags?.res, 0);
+    lnd |= fin(s.flags?.lnd, 0);
+    // a town taken from another realm teaches its new masters for a century (knowledge.js)
+    const tb = s.flags?.tb;
+    if (tb && tb[0] !== civ.id && tb[1] > teachDay) (taught ||= new Map()).set(tb[0], (taught.get(tb[0]) || 0) + p);
     dist += Math.hypot(s.x - cap.x, s.y - cap.y);
   }
   const n = ss.length;
@@ -84,7 +89,8 @@ export function aggregate(world, civ) {
     faithDis: div(faithOff, pop, 0), libBonus: div(lib, pop, 0), diversity: div(foreign, pop, 0),
     resMul: div(resW, pop, 1) * Math.max(0.9, Math.min(1.1, 1 + 0.25 * (div(sch, pop, 1) - 1))),
     coastShare: n ? coast / n : 0, plagued,
-    hasOre: Boolean(res & (RES_BIT.copper | RES_BIT.tin)), hasHorses: Boolean(res & RES_BIT.horses),
+    hasOre: Boolean(res & (RES_BIT.copper | RES_BIT.tin)), hasHorses: Boolean(res & RES_BIT.horses), res, lnd,
+    taught: taught ? [...taught].map(([id, q]) => [id, Math.round(1000 * div(q, pop, 0)) / 1000]).filter((x) => x[1] > 0.005).sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, 4) : null,
     distRatio: n > 1 ? div(dist / (n - 1), Math.max(4, mods.adminRange), 0) : 0,
     atWar: atWarSet(world).has(civ.id),
   };
@@ -198,6 +204,9 @@ export function monthlyCiv(world, civ) {
   if (agg.pop > civ.peakPopulation) civ.peakPopulation = agg.pop;
   civ.flags.avgHappy = agg.avgHappy; civ.flags.avgLoyal = agg.avgLoyal; civ.flags.avgUnrest = agg.avgUnrest;
   civ.flags.faithDis = agg.faithDis; civ.flags.coastShare = agg.coastShare;
+  // the land and resources in reach, and the towns that teach (tech.js tiers and spread)
+  civ.flags.res = agg.res; civ.flags.lnd = agg.lnd;
+  if (agg.taught && agg.taught.length) civ.flags.taught = agg.taught; else if (civ.flags.taught) delete civ.flags.taught;
   civ.flags.conquests = fin(civ.flags.conquests) * 0.99;
   civ.flags.losses = fin(civ.flags.losses) * 0.99;
   if (civ.capitalId == null || !world.settlements[civ.capitalId]?.alive) civ.capitalId = agg.cap.id;

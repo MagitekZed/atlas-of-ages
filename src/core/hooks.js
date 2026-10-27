@@ -40,6 +40,8 @@
 //   armyDisbanded  (world, army, reason)                      before the army is removed
 //   crownWon       (world, war, winnerCiv, loserCiv)          war.js makePeace, a war for a crown won;
 //                                                              civ/dynasty.js crowns the victor's ruler there too
+//   outgunned      (world, loserCiv, winnerCiv)               geo/war.js, a named battle lost to better-armed foes;
+//                                                              civ/knowledge.js gives a head start on their arms
 //   armyCoup       (world, civ, gen|null)                     geo/raising.js, a standing army seizes power;
 //                                                              civ/rulers.js overthrows the ruler
 //   regimentDisbanded (world, civ, regiment, why)             geo/raising.js ('cost' | 'reform')
