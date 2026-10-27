@@ -343,21 +343,17 @@ myth level 2, the 300-year Mythic trials on seeds deep, trial and amber, the key
 cohort check. The chunk's own state in the Historical Year-1000 save is about 28 KB (companies 2 KB,
 the realms' war footing 16 KB, battle accounts 10 KB), against a budget of 150 KB.
 
-### Open for the user
+### Decided after the build (the user, 2026-10-26)
 
-1. **Mythic worlds fragment and fight more:** realms +77 % and wars +92 % by Year 1000, with the share
-   at war rising from 15 % to 24 %, the world's own target (23 %). Historical worlds stay close.
-   - The cause is a loop: more wars, more weariness, lower stability, more secessions, more realms,
-     more wars. Main's Mythic worlds sat well below the target, so the loop had room to run.
-   - Halving the debt penalty to stability changed little (realms +72 %, wars +101 %).
-   - Keep it, or damp it (for example lighter weariness from arrears)?
-2. **Treasuries split in two.** Levy realms at peace still pile up decades or centuries of income,
-   because surplus is only spent on building projects, while a few realms are stuck broke: most war
-   loans still default, and desertion is heavy.
-   - Options: a spending outlet for a rich realm at peace (court, display, tribute; perhaps chunk 7),
-     softer loan terms, or leave it.
-3. **Speed:** Historical worlds +5.3 % against a +2 % budget, because more armies are in the field.
-   Accept, or look for savings in the war system?
+1. **Mythic fragmentation: keep it.** Fantasy worlds should be more fragmented and war-torn. Mythic
+   worlds now fight at about the world's own target share of time at war (23 %), with many more
+   realms by Year 1000.
+2. **The treasury split: more drains than war, in chunk 7.** Rich realms at peace should have other
+   ways to lose money: a despot's or a lavish court's spending, the economic ruin a revolt or civil
+   war leaves, and the like. These join chunk 7 (Who holds power) as new ideas in the Deep Dive.
+   Nothing changes here.
+3. **Speed: accepted for now.** Historical worlds +5.3 % per sim-year against the +2 % budget, from
+   more armies in the field. It can be looked at again in a later speed pass.
 
 ## Decisions
 
