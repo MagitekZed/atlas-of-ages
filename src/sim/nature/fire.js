@@ -184,6 +184,22 @@ export function updateFires(world) {
         if (!s.alive) ev.gone.push(name);
       }
     }
+    // A town beside the fire: the flames reach into it once, by how dry the land is.
+    if (ev && I >= 0.15) {
+      const x = i % W, y = (i / W) | 0;
+      for (let d = 0; d < 8; d++) {
+        const nx = x + DX8[d], ny = y + DY8[d];
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const sj = settle[ny * W + nx];
+        if (sj < 0 || ev.hit.includes(sj)) continue;
+        const s = world.settlements[sj];
+        if (!s || !s.alive) continue;
+        ev.hit.push(sj);
+        const k = (0.5 + 0.5 * dry) * I, name = s.name;
+        ev.deaths += damageSettlement(world, s, { pop: 0.01 + 0.03 * k, buildings: 0.1 + 0.2 * k, food: 0.1 + 0.2 * k, wealth: 0.06 * k, cause: 'fire' });
+        if (!s.alive) ev.gone.push(name);
+      }
+    }
     if (nv < 0.05 || I < 0.04) {
       // Burnt out (or drowned by rain).
       fire[i] = 0;

@@ -131,7 +131,7 @@ export function stormRadius(st) {
   switch (st.kind) {
     case 'cyclone': return 2 + 4.5 * st.intensity;
     case 'blizzard': return 3 + 3 * st.intensity;
-    case 'thunderstorm': return 1 + 1.2 * st.intensity;
+    case 'thunderstorm': return st.tempest ? 2 + 2.5 * st.intensity : 1 + 1.2 * st.intensity;
     default: return 2 + 3 * st.intensity;
   }
 }
@@ -151,8 +151,8 @@ export function forecastTrack(world, st, days = 30, push = null) {
   let x = st.x, y = st.y, vx = fin(st.vx), vy = fin(st.vy), I = fin(st.intensity, 0.3), age = fin(st.age);
   const maxAge = fin(st.maxAge, 12);
   let p = push ? { vx: fin(push.vx), vy: fin(push.vy), days: fin(push.days) } : st.push ? { vx: fin(st.push.vx), vy: fin(st.push.vy), days: fin(st.push.days) } : null;
-  const probe = { kind: st.kind, intensity: I };
-  out.push({ x, y, r: stormRadius({ kind: st.kind, intensity: I }), I, day: 0 });
+  const probe = { kind: st.kind, intensity: I, tempest: st.tempest };
+  out.push({ x, y, r: stormRadius({ kind: st.kind, intensity: I, tempest: st.tempest }), I, day: 0 });
   const aim = { tx: 0, ty: 0, blend: 0 };
   for (let d = 1; d <= Math.min(90, days); d++) {
     const xi = clampR(Math.floor(x), 0, W - 1), yi = clampR(Math.floor(y), 0, H - 1);
@@ -399,7 +399,10 @@ function effects(world, st, ox, oy) {
   const y0 = Math.max(0, Math.floor(st.y - R)), y1 = Math.min(H - 1, Math.ceil(st.y + R));
   const R2 = R * R;
   const water = f.water, soilW = f.soilWater, dev = f.devastation, veg = f.veg, biome = f.biome, fire = f.fire, snow = f.snow, herb = f.herb;
-  const kind = st.kind === 'cyclone' ? 0 : st.kind === 'blizzard' ? 1 : st.kind === 'thunderstorm' ? 2 : 3;
+  // a tempest (the hand's storm over land) lays the land waste as a cyclone does; the hand's might
+  // (1 + 2 x fury) deepens a blizzard's freeze
+  const kind = st.kind === 'cyclone' || st.tempest ? 0 : st.kind === 'blizzard' ? 1 : st.kind === 'thunderstorm' ? 2 : 3;
+  const M = fin(st.might, 1);
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
     const dx = x + 0.5 - st.x, dy = y + 0.5 - st.y, d2 = dx * dx + dy * dy;
     if (d2 > R2) continue;
@@ -415,7 +418,7 @@ function effects(world, st, ox, oy) {
       if (fire[i] > 0) fire[i] = 0;
     } else if (kind === 1) {
       snow[i] = Math.min(1, snow[i] + 0.16 * I * g);
-      herb[i] *= 1 - 0.02 * I * g;
+      herb[i] *= 1 - Math.min(0.5, 0.02 * I * g * M);
     } else if (kind === 2) {
       soilW[i] = Math.min(1, soilW[i] + 0.03 * I * g);
     } else {
@@ -456,7 +459,8 @@ function lightning(world, st) {
 }
 
 function hitSettlements(world, st) {
-  if (st.kind === 'thunderstorm') return;
+  if (st.kind === 'thunderstorm' && !st.tempest) return;
+  const M = fin(st.might, 1);   // the hand's storms strike harder (1 + 2 x fury)
   const I = st.intensity;
   if (I < 0.15) return;
   const R = st.radius + (st.kind === 'cyclone' ? 0.5 : 0);
@@ -465,20 +469,20 @@ function hitSettlements(world, st) {
     if (st.hit.includes(s.id)) continue;
     const d = Math.hypot(s.x + 0.5 - st.x, s.y + 0.5 - st.y) / Math.max(1, R);
     let sev, dmg;
-    if (st.kind === 'cyclone') {
+    if (st.kind === 'cyclone' || st.tempest) {
       if (world.f.water[Math.floor(st.y) * world.W + Math.floor(st.x)] !== WATER.LAND && !s.coastal) continue; // still at sea: only coasts feel it
       const surge = s.coastal ? 1.35 + (s.harbor ? 0.25 : 0) : 0.55;
       sev = Math.pow(I, 1.4) * Math.pow(Math.max(0, 1 - d), 0.7) * surge;
       if (sev < 0.05) continue;
-      dmg = { pop: 0.032 * sev, buildings: 0.22 * sev, food: 0.3 * sev, wealth: 0.14 * sev, defense: 0.08 * sev, cause: 'storm' };
+      dmg = { pop: 0.032 * sev * M, buildings: 0.22 * sev * M, food: 0.3 * sev * M, wealth: 0.14 * sev * M, defense: 0.08 * sev * M, cause: 'storm' };
     } else if (st.kind === 'blizzard') {
       sev = I * (1 - d);
       if (sev < 0.15) continue;
-      dmg = { pop: 0.003 * sev, food: 0.05 * sev, cause: 'blizzard' };
+      dmg = { pop: 0.003 * sev * M, food: 0.05 * sev * M, cause: 'blizzard' };
     } else {
       sev = I * (1 - d);
       if (sev < 0.2) continue;
-      dmg = { food: 0.035 * sev, wealth: 0.02 * sev, cause: 'sandstorm' };
+      dmg = { food: 0.035 * sev * M, wealth: 0.02 * sev * M, cause: 'sandstorm' };
     }
     st.hit.push(s.id);
     const pop0 = s.population, tier = s.tier, name = s.name, harbor = s.harbor, coastal = s.coastal;
@@ -552,6 +556,15 @@ function stormChronicle(world, sys, st, dmg, deaths, day) {
       `${lead} made ${st.landfalls > 1 ? `${numberWord(st.landfalls)} landfalls` : 'landfall'} and fell hardest on ${worst.name}${rest}${dc ? ', ' + dc : ''}.`,
     ]);
     return chronicle(world, { cat: st.divine ? 'divine' : 'disaster', imp, text, x: worst.x, y: worst.y, sid: worst.sid, key: st.divine ? 'divine.storm' : 'storm.cyclone', ref, tags: [`category-${catOf(st.peak)}`] });
+  } else if (st.tempest) {
+    if (!dmg.length) return null;
+    const worst = dmg.slice().sort((a, b) => b.killed - a.killed || b.sev - a.sev)[0];
+    const dc = deathsClause(deaths);
+    const others = dmg.filter((d) => d !== worst).map((d) => d.name);
+    return chronicle(world, { cat: 'divine', imp: deaths >= 250 || dmg.length >= 3 ? 2 : 1, x: worst.x, y: worst.y, sid: worst.sid, key: 'divine.storm', ref, text: pick(world, [
+      `A tempest out of a clear sky tore through ${worst.name}${others.length ? ` and ${listJoin(others.slice(0, 2))}` : ''}, unroofing houses and flattening the fields${dc ? ', ' + dc : ''}.`,
+      `For a day and a night a god-sent tempest raged over ${listJoin([worst.name, ...others].slice(0, 3))}${dc ? ', ' + dc : ''}.`,
+    ]) });
   } else if (st.kind === 'blizzard') {
     const worst = dmg.slice().sort((a, b) => b.pop - a.pop)[0];
     if (!worst || worst.pop < 1500 || st.peak < 0.65) return null;

@@ -326,16 +326,13 @@ function provisionalStorm(world, kind, x, y, s) {
   return st;
 }
 
-const STORM_WORD = { cyclone: 'A cyclone would gather', blizzard: 'A blizzard would rise', sandstorm: 'A sandstorm would boil up', thunderstorm: 'A thunderstorm would break' };
+const STORM_WORD = { cyclone: 'A cyclone would gather', blizzard: 'A blizzard would rise', sandstorm: 'A sandstorm would boil up', thunderstorm: 'A tempest would break' };
 
 export function stormPreview(world, x, y, opts = {}) {
   const kind = stormKindAt(world, y * world.W + x);
   const s = clampR(fin(opts.strength, 0.75), 0.05, 1);
   const st = provisionalStorm(world, kind, x, y, s);
-  if (kind === 'thunderstorm') {
-    const dry = 1 - cl01((world.f.soilWater[y * world.W + x] - 0.12) / 0.3);
-    return { ok: true, tone: 'bane', severity: 1, text: `${STORM_WORD[kind]}${dry > 0.5 ? '; its lightning could kindle the dry country' : ''}`, rings: [{ x: x + 0.5, y: y + 0.5, r: st.radius + 1, tone: 'bane' }] };
-  }
+  if (kind === 'thunderstorm') { st.tempest = true; st.radius = stormRadius(st); }   // the hand's storm over land
   return stormForecastPreview(world, st, kind === 'cyclone' ? 24 : 8, STORM_WORD[kind]);
 }
 
