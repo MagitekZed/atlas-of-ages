@@ -211,7 +211,10 @@ E. The interface and the Ledger; calibration (twelve worlds against main), speed
 - **Divided inheritance: real splits, often.** Under the divided law, a realm of six or more
   towns splits between two heirs at most successions (60 %): the heir keeps the capital and the
   towns nearest it, a younger heir founds a sister realm of the same house with the rest,
-  allied at first, each with a claim on the other.
+  allied at first, each with a claim on the other. **Toned down after the first calibration**
+  (realms +42 to +72 %, a split every 25 to 30 years per world): a split now needs eight towns
+  and comes at about a third of successions (35 %), fewer realms start with the custom, and a
+  realm once split drops it readily. The sister realms' claims stay as they were.
 - **Bondage: serfdom and slavery,** both as laws, each with its risings, and later ages pushing
   for abolition.
 - **Mythic peoples have estates of their own:** their own names for each estate, their own
@@ -242,6 +245,12 @@ section). Choices made while building, with the reasons:
   elective). A faction now rests eight to sixteen years after it gets its way and presses again
   three years after a refusal; laws are granted at six tenths of the odds; the old blood asks for
   an elective crown only in a crisis of legitimacy; purges need a faction refused twice.
+- **Splits, rarer.** The first run split a realm every 25 to 30 years in each world; most of
+  the split-off realms were swallowed again within a few generations, so the splits made churn
+  more than lasting realms. A split now needs eight towns (six), comes at 35 % of successions
+  (60 %), and fewer realms start with the custom: 40 % of tribes, chiefdoms and hordes (60 %),
+  15 % of early kingdoms (25 %). A realm that has split once gives it up at 10 % a year, whoever
+  rules (4 %, and only under an ambitious ruler). Orcs and halflings keep it as their custom.
 - **The bound rise in desperation** (loyalty under 0.15, not 0.3), or they would rise every few
   years everywhere bondage is the law.
 
@@ -267,32 +276,37 @@ crowning a full copy; the check passes.
 
 ### Twelve worlds against main
 
-Against main at 3e17cc1 (which reproduces the hand-powers runs exactly):
+Against main at 3e17cc1 (which reproduces the hand-powers runs exactly), after splits were made
+rarer (the first run in brackets):
 
-    Historical Y500   pop −5%   realms +56%  towns +6%  wars +50%  at war 0.179→0.216
-    Mythic     Y500   pop +1%   realms +19%  towns +9%  wars +90%  at war 0.111→0.159
-    Historical Y1000  pop −8%   realms +42%  towns +6%  wars +34%  at war 0.264→0.273
-    Mythic     Y1000  pop −3%   realms +72%  towns +9%  wars +65%  at war 0.199→0.239
-    smallest world at Y1000: 16 realms (main 7), 211 towns
+    Historical Y500   pop −2%   realms +53% (+56)  towns +2%  wars +30% (+50)  at war 0.179→0.193
+    Mythic     Y500   pop +5%   realms +27% (+19)  towns +8%  wars +98% (+90)  at war 0.111→0.163
+    Historical Y1000  pop −7%   realms +31% (+42)  towns +5%  wars +31% (+34)  at war 0.264→0.270
+    Mythic     Y1000  pop −3%   realms +51% (+72)  towns +9%  wars +78% (+65)  at war 0.199→0.251
+    smallest world at Y1000: 12 realms (main 7)
 
-- **No more hoards.** The median realm in each world holds 0.7 to 2.6 years of income at Year
-  1000 (main: 4 to 58, one world's median 58). Realms long at peace hold two to five; the middle
-  of all realms sits lower because more of them are at war or paying for one. Open loans
-  between crowns rose from 48 to 181: crowns without hoards borrow.
-- **More realms and wars.** Divided inheritance splits a realm every 40 to 75 years per world,
-  the sister realms hold claims on each other, and the army's faction presses for war on hated
-  neighbours; risings and coups add more breaks. Population and the ages reached are about
-  main's.
-- **Stability** lands near main in some worlds and below in others (Year 600, three test worlds:
-  0.62 against 0.72, 0.67 against 0.60, 0.56 against 0.55): realms that no longer hoard tax
-  harder in hard times, and their towns are less content.
+- **Splits about once a century.** 3 to 20 per world in a thousand years (median 10); the first
+  run had 33 to 40.
+- **No more hoards.** The median realm in each world holds 0.3 to 3.8 years of income at Year
+  1000 (main: 0.3 to 58). Realms long at peace hold two to five; the middle of all realms sits
+  lower because more of them are at war or paying for one. Open loans between crowns: 124
+  (main 48): crowns without hoards borrow.
+- **More realms and wars, still.** Rarer splits took about a quarter of the extra realms away
+  and few of the wars: wars per realm are about main's, and the rest of the extra realms come
+  from breaks of other kinds (collapses, rebellions, civil wars), most in the worlds where main
+  has one great empire (7 and 12 realms on main, 33 and 23 here). Worlds swing widely between
+  runs (one world's holy wars: 51 on main, 1 in the first run, 130 in this one), so these are
+  trends, not exact figures. Population and the ages reached are about main's.
+- **Stability** (first run) lands near main in some worlds and below in others (Year 600, three
+  test worlds: 0.62 against 0.72, 0.67 against 0.60, 0.56 against 0.55): realms that no longer
+  hoard tax harder in hard times, and their towns are less content.
 
 ### Speed
 
-Year-900 main saves, 100 years, three rounds: +11.6 % (historical) and +13.8 % (Mythic) per
-simulated year. The chunk's own code (purse, estates, laws, court) costs about 1.5 ms a year,
-under 1 % of the 190 ms a simulated year takes (budget: 1 ms); the rest is the larger world it
-makes: more realms and wars to simulate (war +30 %, diplomacy +37 %, the realm system +15 %).
+Year-900 main saves, 100 years, three rounds: +4.5 % (historical) and +8.5 % (Mythic) per
+simulated year (the first run: +11.6 % and +13.8 %). The chunk's own code (purse, estates, laws,
+court) costs about 1.5 ms a year, under 1 % of the 170 to 190 ms a simulated year takes (budget:
+1 ms); the rest is the larger world it makes: more realms and wars to simulate.
 
 ### Save
 
