@@ -145,7 +145,7 @@ export const TOOL_GROUPS = [
  */
 export const REF_KINDS = [
   'civ', 'settlement', 'war', 'army', 'plague', 'religion', 'volcano', 'storm', 'figure',
-  'route', 'wonder', 'fire', 'band', 'site', 'ruler', 'dynasty', 'event',
+  'route', 'wonder', 'fire', 'band', 'site', 'ruler', 'dynasty', 'event', 'act',
 ];
 
 /**

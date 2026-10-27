@@ -21,6 +21,7 @@ import { tip, openModal, promptDialog, openPopover, closePopover } from './widge
 import { statusToast, actionToast, focusEntry } from './toasts.js';
 import { describeSel, selectionPoint, selectionExists, isMoverKind } from './app.js';
 import * as F from './format.js';
+import { warSides, sideLine } from './warsides.js';
 
 const MAX_WATCH = 8;
 const MAX_PINS = 9;
@@ -208,6 +209,12 @@ export function mount(app) {
       el._dot.title = n ? `${n} new since you looked` : '';
       const d = describeSel(app, q);
       el.classList.toggle('is-gone', d.alive === false);
+      // a watched war: each side's gains and losses on the chip's card (chunk 10)
+      if (q.kind === 'war' && w.wars[q.id] && (w.time.day >> 4) !== el._warTipAt) {
+        el._warTipAt = w.time.day >> 4;
+        const sd = warSides(w, w.wars[q.id]);
+        tip(el, `${d.sub || ''}${d.sub ? '. ' : ''}Attackers: ${sideLine(sd.att)}. Defenders: ${sideLine(sd.def)}.${sd.latest ? ` Latest: ${F.headName(sd.latest.name)}${sd.latest.winner ? `, won by ${sd.latest.winner.name}` : ''}.` : ''} The number is the war score, out of 100. Click for the war.`, d.name);
+      }
       el.classList.toggle('is-following', app.isFollowing(q));
     }
     if (patronEl) {

@@ -6,7 +6,8 @@
 // nations it would set against or beside each other, and a red slash over the brush when the
 // act cannot be done here. renderer.setHighlights rings any places with optional lettering, and
 // the selection kinds { kind: 'civs', ids } and { kind: 'box', x0, y0, x1, y1 } outline several
-// realms or a region. Screen and world passes; purely cosmetic.
+// realms or a region; a war that is selected or watched has its sides outlined and its front
+// drawn (drawFronts). Screen and world passes; purely cosmetic.
 
 import { traceEdges, edgesToPath } from './vectors.js';
 import { tierRadius } from './entities.js';
@@ -62,11 +63,86 @@ function targetPlace(r, t) {
   }
 }
 
-/** World pass (entity-coordinate transform): realm outlines (preview and civs selection), box selection. */
+// ---------------------------------------------------------------------------
+// A war's front (chunk 10, docs/design/seeing-and-hand.md): while a war is selected or on the
+// watchlist (world.ui.watch), each side's realms are outlined in its leader's colour, the
+// border between the two sides is drawn as the front, and the towns its armies besiege ringed.
+
+const hexRgb = (hex) => { const v = parseInt(String(hex || '#c9a466').replace('#', ''), 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
+
+/** The active wars to draw: the selected one and the watched ones (at most four). */
+function frontWars(r) {
+  const w = r.world, sel = r.selection, out = [];
+  const add = (id) => { const war = w.wars && w.wars[id]; if (war && war.active && !out.includes(war)) out.push(war); };
+  if (sel && sel.kind === 'war') add(sel.id);
+  const wl = w.ui && Array.isArray(w.ui.watch) ? w.ui.watch : [];
+  for (const q of wl) if (q && q.kind === 'war') add(q.id);
+  return out.slice(0, 4);
+}
+
+/** The border between a war's two sides, from the border vote grid (cached by sides and borders). */
+function frontPath(r, war) {
+  if (!r._bvote) return null;
+  const key = `${war.id}|${war.attackers.join(',')}|${war.defenders.join(',')}|${r.vec.borderKey}`;
+  r._frontPaths = r._frontPaths || new Map();
+  let p = r._frontPaths.get(key);
+  if (p !== undefined) return p;
+  const A = new Set(war.attackers), D = new Set(war.defenders);
+  const pix = r._bvote.pix, BF = r._bvote.F;
+  const chains = traceEdges(r._bvote.cw, r._bvote.ch, (i, j) => j >= 0 && ((A.has(pix[i]) && D.has(pix[j])) || (D.has(pix[i]) && A.has(pix[j]))), false);
+  p = chains.length ? edgesToPath(chains, 1, null, 1 / BF) : null;
+  r._frontPaths.set(key, p);
+  if (r._frontPaths.size > 16) r._frontPaths.delete(r._frontPaths.keys().next().value);
+  return p;
+}
+
+function drawFronts(r, ctx, z) {
+  const w = r.world;
+  const wars = frontWars(r);
+  if (!wars.length) return;
+  for (const war of wars) {
+    const lead = (ids) => { for (const id of ids) { const c = w.civs[id]; if (c && c.alive) return c; } return null; };
+    const sides = [[war.attackers, lead(war.attackers)], [war.defenders, lead(war.defenders)]];
+    for (const [ids, leader] of sides) {
+      const rgb = hexRgb(leader && leader.colorHex);
+      for (const id of ids.slice(0, 12)) {
+        const c = w.civs[id];
+        if (!c || !c.alive) continue;
+        const path = realmPath(r, id);
+        if (!path) continue;
+        ctx.fillStyle = css(rgb, 0.07); ctx.fill(path);
+        ctx.strokeStyle = css(rgb, 0.75); ctx.lineWidth = 1.6 / z; ctx.stroke(path);
+      }
+    }
+    // the front itself: a dark band, then the two sides' colours in alternating dashes
+    const fp = frontPath(r, war);
+    if (fp) {
+      ctx.strokeStyle = 'rgba(16,10,8,0.6)'; ctx.lineWidth = 6 / z; ctx.stroke(fp);
+      ctx.lineWidth = 3 / z;
+      ctx.setLineDash([6 / z, 6 / z]);
+      ctx.strokeStyle = css(hexRgb(sides[0][1] && sides[0][1].colorHex), 0.95); ctx.lineDashOffset = -r.now * 0.006 / z; ctx.stroke(fp);
+      ctx.strokeStyle = css(hexRgb(sides[1][1] && sides[1][1].colorHex), 0.95); ctx.lineDashOffset = -r.now * 0.006 / z + 6 / z; ctx.stroke(fp);
+      ctx.setLineDash([]); ctx.lineDashOffset = 0;
+    }
+    // towns under siege by the war's armies
+    for (const a of w.armies || []) {
+      if (!a || a.warId !== war.id || a.targetId == null) continue;
+      const s = w.settlements[a.targetId];
+      if (!s || !s.alive || !s.siege || s.siege.armyId !== a.id) continue;
+      ctx.strokeStyle = css(hexRgb(w.civs[a.civId] && w.civs[a.civId].colorHex), 0.9); ctx.lineWidth = 2 / z;
+      ctx.setLineDash([3 / z, 3 / z]); ctx.lineDashOffset = -r.now * 0.01 / z;
+      ctx.beginPath(); ctx.arc(s.x, s.y, 1.6, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]); ctx.lineDashOffset = 0;
+    }
+  }
+}
+
+/** World pass (entity-coordinate transform): realm outlines (preview and civs selection), box selection, war fronts. */
 export function drawHighlightsWorld(r, ctx, z) {
   const sel = r.selection, p = r.toolPreview;
   const pulse = 0.75 + 0.25 * Math.sin(r.now * 0.004);
   ctx.lineJoin = 'round';
+  drawFronts(r, ctx, z);
   // several realms selected at once
   if (sel && sel.kind === 'civs' && Array.isArray(sel.ids)) {
     for (const id of sel.ids.slice(0, 24)) {

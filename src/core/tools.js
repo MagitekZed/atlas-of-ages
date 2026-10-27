@@ -32,7 +32,7 @@
 //
 // Every apply goes through applyTool / applyPairTool / applyEntityTool / finishTool, which
 // log an intervention (world.interventions; see core/world.js logIntervention) and emit the
-// toolApplied hook. That log is what undo and rewind replay (core/replay.js). An apply the
+// toolApplying hook (just before; sim/hand.js measures the moment) and the toolApplied hook. That log is what undo and rewind replay (core/replay.js). An apply the
 // world refused (result ok: false) is logged with refused: true; refusals must be pure (no
 // rng, no mutation), so replaying or leaving one out comes to the same thing — and an undo
 // leaves out those that follow the undone act, which might succeed in the changed history.
@@ -162,6 +162,7 @@ function applyToolImpl(world, id, x, y, opts, logMode, merge = 'auto') {
   const args = toolArgs(t, o);
   const snap = plain(args);   // taken before the apply, so a tool that edits its opts replays alike
   const log = begin(world, logMode, opts);
+  emit(world, 'toolApplying', { kind: 'tool', id, x: fx, y: fy, opts: snap });   // (sim/hand.js measures the moment before)
   let r;
   try {
     r = t.apply(world, fx, fy, args) || { ok: true };
@@ -209,6 +210,7 @@ function applyPairImpl(world, id, a, b, opts, logMode) {
   const o = stripLog(opts) || {};
   const snap = { a: plain(a), b: plain(b), opts: plain(o) };
   const log = begin(world, logMode, opts);
+  emit(world, 'toolApplying', { kind: 'pair', id, a: snap.a, b: snap.b, opts: snap.opts });
   let r;
   try {
     r = t.applyPair(world, a, b, o) || { ok: true };
@@ -237,6 +239,7 @@ function applyEntityImpl(world, id, target, args, logMode) {
   const a = stripLog(args) || {};
   const snap = { target: plain(target), args: plain(a) };
   const log = begin(world, logMode, args);
+  emit(world, 'toolApplying', { kind: 'entity', id, target: snap.target, opts: snap.args });
   let r;
   try {
     r = t.applyEntity(world, target, a) || { ok: true };

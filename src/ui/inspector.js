@@ -19,6 +19,7 @@ import { NJ, TRADE_LABELS } from '../sim/civ/jobs.js';
 import { manpowerReason } from '../sim/civ/peoplenews.js';
 import { claimantsOf, claimsOfCiv, CLAIM_WHY } from '../sim/geo/claims.js';
 import { aimWords } from '../sim/geo/terms.js';
+import { warSides, sideLine } from './warsides.js';
 import { memoriesOf, MEM_WHY } from '../sim/geo/memory.js';
 import { loansOf, housesOf, houseName } from '../sim/geo/debt.js';
 import { hostagesOf } from '../sim/geo/terms.js';
@@ -1699,6 +1700,14 @@ function warView(app, sel, b) {
       { k: 'Fallen', v: () => F.people(Object.values(war.casualties || {}).reduce((a, v) => a + (v || 0), 0)) },
       { k: 'Towns taken', v: () => F.int(war.captured?.length || 0) },
     ]),
+    // the war at a glance (chunk 10): each side's gains, losses and aim, and the latest battle
+    section('Each side', kv(b, [
+      { k: 'Attackers', v: () => sideLine(warSides(w, war).att), txt: true },
+      { k: 'Their aim', v: () => warSides(w, war).att.aim, txt: true, hide: () => !warSides(w, war).att.aim },
+      { k: 'Defenders', v: () => sideLine(warSides(w, war).def), txt: true },
+      { k: 'Their aim', v: () => warSides(w, war).def.aim, txt: true, hide: () => !warSides(w, war).def.aim },
+      { k: 'Latest battle', v: () => { const l = warSides(w, war).latest; return l ? `${F.headName(l.name)}, ${F.monthYear(l.day)}${l.winner ? `, won by ${l.winner.name}` : ''}` : '—'; }, txt: true, hide: () => !warSides(w, war).latest },
+    ])),
     section('The course of the war', ledgerChart(app, b, 'w', war.id, { zero: true, initial: 'score', marks: battleMarks, live: () => war.active }),
       (() => { const p = h('div.score-legend'); const l = h('span'), r = h('span'); p.append(l, r); b.text(l, () => '▼ defenders ahead'); b.text(r, () => `attackers ahead ▲ · ${war.active ? 'now' : 'final'} ${F.signed(war.warScore || 0, 0)}`); return p; })()),
     section('The fallen', toll),

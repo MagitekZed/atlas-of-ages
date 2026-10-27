@@ -42,6 +42,8 @@
 //                                                              civ/dynasty.js crowns the victor's ruler there too
 //   darkAge        (world, civ, why)                          civ/stability.js, a realm sinks into a dark age
 //                                                              ('defeat' | 'plague' | 'strife' | 'collapse'); civ/knowledge.js
+//   toolApplying   (world, { kind, id, x, y, opts | a, b | target }) core/tools.js, just before a power acts
+//                                                              (sim/hand.js measures the moment before)
 //   outgunned      (world, loserCiv, winnerCiv)               geo/war.js, a named battle lost to better-armed foes;
 //                                                              civ/knowledge.js gives a head start on their arms
 //   armyCoup       (world, civ, gen|null)                     geo/raising.js, a standing army seizes power;
