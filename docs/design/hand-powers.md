@@ -65,6 +65,53 @@ keyframe and cohort checks, three 300-year Mythic trials (deep, trial, amber), a
 with and without myth (the world's history identical with and without the observer, now that it
 asks a point power's forecast for its reach).
 
+### The powers, measured again
+
+The powers' audit again on the same fifteen worlds (five seeds, Years 150, 500 and 850; medians):
+
+| Power, at full | Before | After |
+|---|---|---|
+| Earthquake M9.5 on the largest town | its town −20%, reach −12% | its town −40%, reach −24% |
+| Earthquake M9.5 3–5 tiles offshore | worst coast town −30%, coast −5% | worst −58%, coast −10% |
+| Earthquake M9.5 9–14 tiles out | worst −23% | worst −41% |
+| Tsunami, full height | worst −28%, 7 towns lose a tenth, coast −4% | worst −55%, 9, coast −9% |
+| Storm over land | nothing | its town −8% (a tempest) |
+| Storm over warm sea | worst coast town −3% | worst −8% |
+| Flood, one click / held | −2% / −4% | −4% / −7% (worst town −9%) |
+| Wildfire, held | worst town −2% | worst town −4% |
+| Raise Island off a coastal town | town drowned in 4 of 15 worlds at full | 0 of 60 trials at any strength |
+| Forge Alliance | 3 of 8 standing after 5 years | 6 of 6 |
+
+A full blizzard still barely moves a year's numbers: it bites over days (herds −4–5% across its
+area and food −6–16% after ten days in a test of four towns) and the temperate towns the audit
+aims at thaw it quickly.
+
+### Twelve worlds against main
+
+The calibration matrix (twelve worlds to Year 1000, against main at d1dc8cd, which reproduces the
+previous baseline exactly):
+
+    Historical Y500   pop −7%   civs −3%   towns −0%  wars +3%   at war 0.163→0.154
+    Mythic     Y500   pop −27%  civs +11%  towns −3%  wars −8%   at war 0.140→0.132
+    Historical Y1000  pop +2%   civs −10%  towns +3%  wars −6%   at war 0.231→0.229
+    Mythic     Y1000  pop −14%  civs +0%   towns −3%  wars +4%   at war 0.194→0.206
+    smallest world at Y1000: 7 realms, 179 towns
+
+Natural disasters to Year 1000, summed over the twelve: fire deaths 1.07 M → 4.24 M, flood deaths
+130 k → 367 k, quake deaths 5.3 k → 10.9 k (wave and cyclone tolls move with chance: the main run
+had an ocean meteor).
+
+The Mythic drop is the fire rule. With only the fire-into-towns rule turned off, the six Mythic
+worlds come out at +2% (Y500) and +2% (Y1000) against main. Fire deaths themselves are small (300–600 a
+year in worlds of 3–5 million), but in a Mythic world at Year 300 fires struck towns 2.5 times a year
+instead of 0.5 (mostly halfling towns in burnable grass), and each strike burns buildings and stores:
+61 towns at Year 300 instead of 71.
+
+### Speed and save
+
+Year-900 main saves, 100 years, three rounds: wall time −2.2% (historical) and −0.2% (Mythic) per
+simulated year, within noise. A save 100 years on: 22.84 MB on main, 22.71 MB on the branch.
+
 ### Checked in the game
 
 Storm's forecast over land reads "A tempest would break · Ziriankee (370) in its path"; raised at
