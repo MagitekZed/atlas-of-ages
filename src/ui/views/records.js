@@ -204,6 +204,15 @@ export function findRuler(w, id) {
 
 const TP_ROWS = [[0, 'Ambition', 'How much they want: land, glory, a name.'], [1, 'Mercy', 'Low is cruelty: who is spared, who is razed.'], [2, 'Piety', ''], [3, 'Greed', 'High taxes, a hunger for land and gold.'], [4, 'Honour', 'Pacts kept, envoys respected.'], [5, 'Boldness', 'Low is caution.']];
 const SK_ROWS = [[0, 'War'], [1, 'Diplomacy'], [2, 'Stewardship'], [3, 'Intrigue'], [4, 'Learning']];
+/** "Lost an eye; the wasting sickness; mad from Y812" (core/character.js), or ''. */
+function bodyLine(r) {
+  const bd = r && r.bd;
+  if (!bd) return '';
+  const out = (bd.w || []).map((c) => (WOUND_WORDS[c] || c).replace(/^./, (x) => x.toUpperCase()));
+  if (bd.ill && ILLNESSES[bd.ill]) out.push(`Suffered ${ILLNESSES[bd.ill]}`);
+  if (bd.mad) out.push(`Mad from ${F.year(bd.mad)}`);
+  return out.join('; ');
+}
 const skillWord = (v) => (!Number.isFinite(v) ? '—' : v >= 0.8 ? 'Masterly' : v >= 0.6 ? 'Able' : v >= 0.4 ? 'Fair' : v >= 0.2 ? 'Poor' : 'Hopeless');
 
 const rulerView = {
@@ -240,6 +249,7 @@ const rulerView = {
         { k: 'By-name', v: () => (r.gloss ? `${r.epithet} · “${r.gloss}” in ${civ.adjective ? `the ${civ.adjective}` : 'their own'} tongue` : r.epithet || '—'), txt: true, hide: () => !r.epithet },
         { k: 'Temperament', v: () => (r.traits?.length ? r.traits.map(F.humanize).join(', ') : '—'), txt: true },
         { k: 'Nature', v: () => natureWords(r, civ, 3).join(', ') || 'Even-tempered', txt: true, hide: () => !Array.isArray(r.tp) },
+        { k: 'Body', v: () => bodyLine(r), txt: true, hide: () => !bodyLine(r) },
         { k: 'Deeds', v: () => deedWords(r.deeds) || 'None remembered', txt: true },
         { k: 'Dynasty', ref: () => { const d = dynastyName(r.dynasty); return d ? { key: 'd' + d, make: () => linkBtn(app, { kind: 'dynasty', id: `${civ.id}:${d}` }, d) } : { key: 'none', make: () => textNode('—') }; } },
         { k: 'Came as', v: () => (r.relation ? F.headName(r.relation) : '—'), hide: () => !r.relation },

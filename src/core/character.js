@@ -14,7 +14,12 @@
 // growSkills moves them yearly (fastest at 20 to 40, a little lost after 60), and use adds to
 // them (useSkill: battles, years on the throne).
 //
-// Exports: TP, SK, temperOf, skillsOf, growSkills, useSkill, warTemper, natureWords, whyWords
+//   person.bd = { w: [code], ill: code|null, illDay, mad: day|null }   the body: wounds (eye, hand,
+//                lame, scar), a lasting illness, madness (bodyOf; the civ module rolls illness and
+//                madness, the war module the wounds)
+//
+// Exports: TP, SK, temperOf, skillsOf, growSkills, useSkill, warTemper, natureWords, whyWords,
+//          bodyOf, wound, WOUND_WORDS, WOUND_EPITHETS, ILLNESSES, madTemper
 
 import { DAYS_PER_YEAR } from './constants.js';
 
@@ -147,4 +152,35 @@ export function whyWords(person, civ = null) {
   if (tp[TP.MER] <= 0.25) out.push('ruthless');
   if (tp[TP.GRE] >= 0.8) out.push('greedy for land');
   return out.slice(0, 2);
+}
+
+// ---------------------------------------------------------------------------
+// The body
+
+export const WOUND_WORDS = { eye: 'lost an eye', hand: 'lost a hand', lame: 'was lamed', scar: 'took a wound to the face' };
+export const WOUND_EPITHETS = { eye: 'the One-Eyed', hand: 'the One-Handed', lame: 'the Lame', scar: 'the Scarred' };
+export const ILLNESSES = { wasting: 'the wasting sickness', falling: 'the falling sickness', shaking: 'the shaking palsy', lungs: 'a sickness of the lungs' };
+
+/** A person's body record, made when first needed. */
+export function bodyOf(person) {
+  if (!person.bd || typeof person.bd !== 'object') person.bd = { w: [], ill: null, illDay: null, mad: null };
+  return person.bd;
+}
+
+/** A wound: an eye or a hand costs skill at arms, lameness boldness in the field. */
+export function wound(person, code) {
+  const bd = bodyOf(person);
+  if (bd.w.includes(code) && code !== 'scar') return false;
+  bd.w.push(code);
+  if (bd.w.length > 4) bd.w.shift();
+  if (Array.isArray(person.sk) && (code === 'eye' || code === 'hand')) person.sk[SK.WAR] = r2(clamp01(person.sk[SK.WAR] - 0.1));
+  if (Array.isArray(person.tp) && code === 'lame') person.tp[TP.BOL] = r2(clamp01(person.tp[TP.BOL] - 0.15));
+  return true;
+}
+
+/** A mad person's temperament for the year: their own, thrown about by the year (no rng). */
+export function madTemper(person, year) {
+  const tp = temperOf(person);
+  person.tp = tp.map((v, k) => r2(clamp01(v + (grain(person, 900 + year * 7 + k) - 0.5) * 0.8)));
+  return person.tp;
 }

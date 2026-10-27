@@ -86,7 +86,7 @@ import { soldierPay } from './raising.js';
 import { forcesOf, deployRegiments, regimentsHome, raisingMonthly } from './raising.js';
 import { aimFor, defenderAim, aimsFromCause, aimMet, winnerAim, peaceAllows, takeHostage, hostageHeld, killHostage } from './terms.js';
 import { addReparations, monthlyIncome, debtClaim, settleDebtClaim } from './debt.js';
-import { temperOf, skillsOf, warTemper, whyWords, TP, SK } from '../../core/character.js';
+import { temperOf, skillsOf, warTemper, whyWords, wound, TP, SK } from '../../core/character.js';
 import { bindWar } from './acts.js';   // the geopolitical divine acts (they call back into this module at use time)
 
 const MONTH_DAY = 25;
@@ -353,6 +353,29 @@ function recruitGeneral(world, civ) {
   const skill = rng.chance(0.06) ? 1.35 + rng.next() * 0.15 : 0.82 + rng.next() * 0.4;
   const born = world.time.day - Math.round((25 + rng.next() * 20) * DAYS_PER_YEAR);
   return { leader: { name, skill: Math.round(skill * 1000) / 1000, born, wins: 0, battles: 0, honours: 0 }, genId: null };
+}
+
+// how often a bold ruler skilled at war leads the host in person, by era (the user's choice: a
+// Stone Age chief nearly always, a Renaissance king rarely)
+const ERA_LEAD = [0.9, 0.8, 0.65, 0.5, 0.4, 0.15, 0.03, 0.03];
+
+/**
+ * The ruler takes the field at the head of this army (core/character.js), or null: likelier the
+ * earlier the age, the smaller the host, the bolder the ruler and the better at war; never two
+ * armies at once, never a captive, a child or an old ruler.
+ */
+function rulerTakesField(world, civ, men) {
+  const r = civ.ruler;
+  if (!r || !r.name || (civ.flags && civ.flags.captive) || (civ.flags && civ.flags.union && !civ.flags.union.senior)) return null;
+  for (const a of world.armies) if (a.civId === civ.id && a.flags && a.flags.ruler != null) return null;
+  const life = hasProviders('lifespan') ? mulOf('lifespan', world, civ, r) : 1;
+  const age = ageOf(world, r.born) / Math.max(0.2, life);
+  if (age < 16 || age > 65) return null;
+  const tp = temperOf(r, civ), sk = skillsOf(r, world.time.day, life);
+  const size = men <= 1000 ? 1 : Math.max(0.3, 1 - 0.7 * Math.log(men / 1000) / Math.log(20));
+  const p = ERA_LEAD[Math.min(ERA_LEAD.length - 1, eraOf(civ))] * size * (0.4 + tp[TP.BOL]) * (0.5 + sk[SK.WAR]);
+  if (!world.rng.chance(Math.min(1, p))) return null;
+  return { name: rulerName(civ) || r.name, skill: Math.round((0.8 + 0.7 * sk[SK.WAR]) * 1000) / 1000, born: r.born, wins: 0, battles: 0, honours: 0, ruler: true };
 }
 
 /**
@@ -1017,8 +1040,11 @@ function mobilize(world, civ, war) {
   }
   // a standing army's regiments at home march out first, ready at once (raising.js)
   if (forces.regs.some((r) => r.out == null && r.n >= 1)) {
-    const gen0 = recruitGeneral(world, civ);
+    const men0 = forces.regs.reduce((s, r) => s + (r.out == null ? r.n : 0), 0);
+    const lead0 = rulerTakesField(world, civ, men0);
+    const gen0 = lead0 ? { leader: lead0, genId: null } : recruitGeneral(world, civ);
     const army0 = createArmy(world, { civId: civ.id, x: stage.x, y: stage.y, homeId: stage.id, strength: 1, warId: war ? war.id : null, general: gen0.leader, state: 'idle' });
+    if (lead0) army0.flags.ruler = civ.ruler.id;
     const dep = deployRegiments(world, civ, army0.id);
     army0.co = dep.co;
     army0.strength = dep.men;
@@ -1046,9 +1072,11 @@ function mobilize(world, civ, war) {
     const take = Math.min(s.population * 0.2, str * 0.6 * s.population / Math.max(1, pop));
     drawn += takePeople(world, s, take, 'levy', levy, civ);
   }
-  const gen = recruitGeneral(world, civ);
+  const lead = rulerTakesField(world, civ, str);
+  const gen = lead ? { leader: lead, genId: null } : recruitGeneral(world, civ);
   const era = eraOf(civ);
   const army = createArmy(world, { civId: civ.id, x: stage.x, y: stage.y, homeId: stage.id, strength: str, warId: war ? war.id : null, general: gen.leader, state: 'idle' });
+  if (lead) army.flags.ruler = civ.ruler.id;
   // its companies: the realm's way of war, its gear and how well it is made (army.js); a feudal
   // host rides with its lords' retinues, knights and men-at-arms of some experience
   const feudal = forces.sys === 'feudal';
@@ -1485,8 +1513,9 @@ function battle(world, st, A, B) {
   const wx = naval ? 0 : weatherAt(world, i);
   const rf = naval ? null : roleFactor(ground, wx);
   const skillOf = (army) => (finite(army.flags?.skill) ? army.flags.skill : 1);
-  const planA = naval ? 0 : choosePlan(ca, shA, shB, ground, wx, skillOf(A), A.strength / Math.max(1, B.strength), homeA, Math.round(gA));
-  const planB = naval ? 0 : choosePlan(cb, shB, shA, ground, wx, skillOf(B), B.strength / Math.max(1, A.strength), homeB, Math.round(gB));
+  const boldOf = (army, civ) => (army.flags?.ruler != null && civ.ruler ? temperOf(civ.ruler, civ)[TP.BOL] : army.general && typeof army.general === 'object' ? temperOf(army.general, civ)[TP.BOL] : 0.5);
+  const planA = naval ? 0 : choosePlan(ca, shA, shB, ground, wx, skillOf(A), A.strength / Math.max(1, B.strength), homeA, Math.round(gA), boldOf(A, ca));
+  const planB = naval ? 0 : choosePlan(cb, shB, shA, ground, wx, skillOf(B), B.strength / Math.max(1, A.strength), homeB, Math.round(gB), boldOf(B, cb));
   const eff = (army, m, civ, other, enemy, home) => {
     const mine = army === A;
     let e = naval ? army.strength * (1 + 0.15 * (eraOf(civ) - eraOf(other))) : forcePower(mine ? coA : coB, mine ? shB : shA, mine ? gB : gA, rf) * planBonus(mine ? planA : planB, mine ? shB : shA);
@@ -1524,8 +1553,9 @@ function battle(world, st, A, B) {
   // the leaders: a fallen general is remembered; the victor's grows in fame
   const wName = leaderName(Wn), lName = leaderName(L);
   let fallen = null, fallenSide = null;
-  if (rng.chance(0.1) && L.general) { fallen = lName; fallenSide = cl; }
-  else if (rng.chance(0.03) && Wn.general) { fallen = wName; fallenSide = cw; }
+  // a ruler leading in person is guarded: they fall a third as often as a captain
+  if (rng.chance(L.flags.ruler != null ? 0.035 : 0.1) && L.general) { fallen = lName; fallenSide = cl; }
+  else if (rng.chance(Wn.flags.ruler != null ? 0.01 : 0.03) && Wn.general) { fallen = wName; fallenSide = cw; }
   // war score and bookkeeping
   const sizeF = clamp(Math.sqrt(killed) / 15, 0.4, 2.2);
   let war = null;
@@ -1606,6 +1636,25 @@ function battle(world, st, A, B) {
   });
   // the commanders' fortunes
   if (fallen) killGeneral(world, fallenSide === cl ? L : Wn, bname || `a fight at ${site}`, entry);
+  // wounds (core/character.js): the beaten's commander 8 % (15 % in a rout), the victor's 3 %; a
+  // ruler leading in person is wounded through the civ module (rulerWounded), or taken in a rout
+  const where = bname || site;
+  for (const [army, civ, lost] of [[L, cl, true], [Wn, cw, false]]) {
+    if (!army.general || (fallen && (lost ? fallenSide === cl : fallenSide === cw))) continue;
+    if (!rng.chance(lost ? (rout ? 0.15 : 0.08) : 0.03)) continue;
+    const code = rng.pick(['scar', 'scar', 'eye', 'lame', 'hand']);
+    if (army.flags.ruler != null && civ.ruler) emit(world, 'rulerWounded', civ, code, where);
+    else if (typeof army.general === 'object') {
+      wound(army.general, code);
+      if (code === 'eye' || code === 'hand') army.flags.skill = Math.max(0.7, (finite(army.flags.skill) ? army.flags.skill : 1) - 0.07);
+      const gf = figureById(world, army.flags.genId);
+      if (gf && gf.died == null) { wound(gf, code); gf.deeds = (gf.deeds || []).concat(`${code === 'eye' ? 'lost an eye' : code === 'hand' ? 'lost a hand' : code === 'lame' ? 'was lamed' : 'was scarred'} at ${where}`).slice(-12); }
+    }
+  }
+  if (rout && L.flags.ruler != null && cl.ruler && rng.chance(0.06)) {
+    emit(world, 'rulerCaptured', cl, cw, war, where);
+    L.general = null; L.flags.ruler = null; L.flags.skill = 0.9;
+  }
   // fame: a great victory, or a third real win (a fight of hosts, not of war bands) crowned by
   // a battle men give a name to
   const g0 = Wn.general;
@@ -1635,6 +1684,8 @@ function battle(world, st, A, B) {
 
 /** A commander falls: a great general dies as a figure (figureDied); a plain leader is simply gone. */
 function killGeneral(world, army, where, entry) {
+  // a ruler at the head of the host falls (civ/rulers.js crowns the next)
+  if (army.flags.ruler != null) { const civ = world.civs[army.civId]; army.flags.ruler = null; if (civ && civ.alive) emit(world, 'rulerFell', civ, where); }
   const fig = figureById(world, army.flags.genId);
   if (fig && fig.died == null) {
     fig.died = world.time.day;
@@ -2269,6 +2320,18 @@ function makePeace(world, st, war, end, opts = {}) {
     }
     g.pris = null;
   }
+  // a ruler taken in this war: ransomed for a year's income by a beaten realm, freed otherwise
+  let royalRansom = null;
+  for (const id of [...war.attackers, ...war.defenders]) {
+    const c = world.civs[id], cap = c && c.flags && c.flags.captive;
+    if (!cap || cap.war !== war.id || !c.alive) continue;
+    const holder = world.civs[cap.by];
+    if (holder && holder.alive && losers.includes(c.id) && winners.includes(holder.id)) {
+      const pay = Math.min(Math.max(0, finite(c.treasury) ? c.treasury : 0) * 0.6, 12 * monthlyIncome(c));
+      c.treasury -= pay; holder.treasury = (finite(holder.treasury) ? holder.treasury : 0) + pay;
+      royalRansom = c;
+    }
+  }
   const truce = Math.round((opts.truceYears ?? (10 + sc / 6)) + rng.int(0, 6));
   const hostage = hostageTerm && Wc && Lc ? takeHostage(world, Lc, Wc, truce) : null;
   const outcome = end === 'white' ? 'white_peace' : end;
@@ -2349,6 +2412,7 @@ function makePeace(world, st, war, end, opts = {}) {
     if (hostage) more.push(`${hostage.name}, heir of ${civName(Lc)}, went to the court of ${civName(Wc)} as a hostage.`);
     if (renounced.length) more.push(`${L} gave up its claim to ${listJoin(renounced.slice(0, 3))}${renounced.length > 3 ? ' and other towns' : ''}.`);
     if (ransomed >= 100) more.push(`${L} ransomed ${fmtCount(ransomed)} of its men taken prisoner.`);
+    if (royalRansom && royalRansom.ruler) more.push(`${capFirst(rulerName(royalRansom) || 'its ruler')}, taken in the war, was ransomed and came home.`);
     if (harsh > 0.5) more.push(hashPick([`It was a peace that shamed ${peopleOf(Lc)}.`, `${capFirst(peopleOf(Lc))} would not forget so hard a peace.`], war.id, Lc.id));
     if (more.length) text += ' ' + more.join(' ');
     if (crown) imp = Math.max(imp, 4); else if (faith != null) imp = Math.max(imp, 3);
@@ -2897,6 +2961,12 @@ on('settlementDestroyed', (world, s) => {
     if (a.targetId === s.id) { a.targetId = null; if (a.state === 'sieging' || a.state === 'marching') { a.state = 'idle'; a.path = null; } }
     if (a.homeId === s.id) a.homeId = null;
   }
+});
+
+// an army whose ruler-commander is no longer the ruler (dead, deposed) passes to a lesser captain
+on('succession', (world, civ) => {
+  if (!civ) return;
+  for (const a of world.armies) if (a.civId === civ.id && a.flags && a.flags.ruler != null && a.flags.ruler !== civ.ruler?.id) { a.flags.ruler = null; a.general = null; a.flags.skill = 0.9; }
 });
 
 // Civil wars and other wars begun outside this module get our bookkeeping at once.

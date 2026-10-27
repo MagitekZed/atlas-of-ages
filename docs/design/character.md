@@ -148,7 +148,8 @@ are counted once.
   - Lame costs boldness in the field.
   - Scars are only a story.
   - A wounded ruler's epithet may come from the wound ("the One-Eyed").
-- **Lasting illness.** 1 % a year after 40, more in early eras. It doubles the yearly hazard, takes
+- **Lasting illness.** 0.6 % a year after 40, half as much again before the Classical age. It raises
+  the yearly hazard × 1.7, takes
   a skill's growth away, and its name is told when the person dies.
 - **Madness.** From age 50, 0.2 % a year, more with the falling sickness. A mad ruler takes the
   `mad` trait (as today) and decides erratically: temperament is rerolled each year.
