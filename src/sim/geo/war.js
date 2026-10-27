@@ -68,6 +68,7 @@ import { clamp01, clamp, dist, SQRT2 } from '../../core/util.js';
 import { makePerson, makeEpithet, composeName, possessive } from '../../core/names.js';
 import { findPath, costGrid } from './pathfinding.js';
 import { civPower, addTribute, setVassal, releaseVassal, betrayal } from './diplomacy.js';
+import { addRuin } from '../civ/power.js';
 import { faithOf, boostFervor, imposeFaith } from './religion.js';
 import { expose } from './disease.js';
 import { ledgerOf, noteBattle, noteTransfer, serviceOf, notePeak, noteLoss, noteFight, archiveArmy } from './ledger.js';
@@ -1965,7 +1966,7 @@ function capture(world, st, army, s, opts = {}) {
     if (g && g.occupied[s.id] == null) g.occupied[s.id] = oldId;
     if (war && !war.captured.includes(s.id)) war.captured.push(s.id);
     r.grievance = Math.min(100, (r.grievance || 0) + 6 + (s.tier || 0) * 2);
-    if (wasCapital) { s.flags ||= {}; s.flags.wasCapital = oldId; }
+    if (wasCapital) { s.flags ||= {}; s.flags.wasCapital = oldId; addRuin(world, old, 0.15, 6); }   // a sacked capital leaves its realm poorer for years (civ/power.js)
     endSiege(world, s, 'captured');
     transferSettlement(world, s.id, att.id, gates ? 'defection' : 'conquest');
     if (war) { rescore(world, war); noteTransfer(world, war, s.id, oldId, att.id, 'cap'); }
