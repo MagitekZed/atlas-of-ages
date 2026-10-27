@@ -32,9 +32,12 @@ All ten fixes, with natural quakes, waves and floods changed too; the fault's li
    harvest and the silt stay.
 5. **Alliances.** An alliance the hand forges cannot lapse for twenty years (`allyUntil` on both
    relations); war between the two still ends it.
-6. **Raise Island.** During play, a stretch of sea that the land closes off stays sea at sea level
-   (a lagoon) instead of being filled to its rim as a lake (`recomputeWater(world, { keepSea })`;
-   world generation is unchanged).
+6. **Raise Island.** Two causes, two rules. An island rises from the sea alone: the brush leaves
+   existing land at its height and keeps a strait of sea (just below sea level) beside the shore,
+   so a new isle never dams a bay into a hollow that fills as a lake over the town on its shore
+   (the forecast says so when the brush sits beside the shore). And during play, a stretch of sea
+   closed off from the ocean stays sea at sea level, a lagoon, instead of filling to its rim
+   (`recomputeWater(world, { keepSea })`; world generation is unchanged).
 7. **Lower.** Its forecast already named the town that would drown and after how many
    applications; it now also gives the people at risk and the severity Sink's does.
 8. **The fault's lift.** A quake of 7 or more lifts one side and sinks the other by 0.0007 ×

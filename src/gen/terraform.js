@@ -25,7 +25,7 @@ import { RNG } from '../core/rng.js';
 import { makePlace } from '../core/names.js';
 import { nearestSettlement } from '../core/entities.js';
 import { WATER } from '../core/constants.js';
-import { clamp, clamp01 } from '../core/util.js';
+import { clamp, clamp01, DX8, DY8 } from '../core/util.js';
 import { ridgedL, num } from './grid.js';
 import { recomputeWater } from './hydrology.js';
 import { emitFx } from '../core/world.js';
@@ -69,7 +69,7 @@ export const system = {
 export function refreshTerrain(world) {
   const st = (world.sys.terraform ||= { lastHydroDay: -1e9, lastChronicle: {}, strokes: 0, created: 0 });
   syncLapse(world);
-  recomputeWater(world);
+  recomputeWater(world, { keepSea: true });
   classifyBiomes(world);
   world.pending ||= {};
   world.pending.hydro = false;
@@ -285,15 +285,26 @@ registerTool({
   preview: islandPreview,
   apply(world, x, y, opts) {
     const s = begin(world, 'island', x, y);
+    s.isle ||= {};   // tiles this stroke has raised out of the sea: { tile: 1 }
     const nb = s.newLand, db = s.drowned;
-    const e = world.f.elevation;
+    const e = world.f.elevation, W = world.W, H = world.H;
     const sea = seaOf(world);
     const str = strengthOf(opts);
     const r = radiusOf(opts, 3);
+    // An island rises from the sea alone: the shore it rises beside keeps its height, and a strait
+    // of sea stays between them, so a new isle never dams a bay over the towns on its shore.
+    const shore = (i) => e[i] >= sea && !s.isle[i];
+    const besideShore = (i) => {
+      const x0 = i % W, y0 = (i / W) | 0;
+      for (let d = 0; d < 8; d++) { const nx = x0 + DX8[d], ny = y0 + DY8[d]; if (nx >= 0 && ny >= 0 && nx < W && ny < H && shore(ny * W + nx)) return true; }
+      return false;
+    };
     brush(world, x, y, r, (i, w, tx, ty) => {
       const v = e[i];
-      const t = islandTarget(world, tx, ty, w, sea, str);
-      if (v < t) setElev(world, s, i, islandStep(v, t));
+      if (shore(i)) return;
+      let t = islandTarget(world, tx, ty, w, sea, str);
+      if (t >= sea && besideShore(i)) t = Math.min(t, sea - 0.0005);
+      if (v < t) { setElev(world, s, i, islandStep(v, t)); if (v < sea && e[i] >= sea) s.isle[i] = 1; }
     });
     after(world, x, y, r, 1, str);
     // only claim the surface is broken when a tile actually crossed sea level

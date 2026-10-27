@@ -15,7 +15,7 @@ export const hasBiomes = () => Boolean(biomes && typeof biomes.classifyBiomes ==
 /** Recompute the water mask from elevation and sea level. Returns true if it ran. */
 export function recomputeWaterSafe(world) {
   if (!hasHydrology()) return false;
-  try { hydro.recomputeWater(world); return true; } catch (e) { console.error('[nature] recomputeWater failed', e); return false; }
+  try { hydro.recomputeWater(world, { keepSea: true }); return true; } catch (e) { console.error('[nature] recomputeWater failed', e); return false; }
 }
 
 /** Reclassify biomes; returns the number of changed tiles (gen's classifier, else the local fallback). */
