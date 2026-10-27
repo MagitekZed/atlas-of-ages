@@ -768,13 +768,13 @@ function chooseResearch(world, civ, peers, ctx) {
     histW += w;
     return w;
   });
-  // the next age calls (chunk 5): with five inventions of its own age known, a realm gives a
-  // growing share of its choices to the next age (a fifth at five, two fifths at six, at most
+  // the next age calls (chunk 5): with four inventions of its own age known, a realm gives a
+  // growing share of its choices to the next age (a fifth at four, two fifths at five, at most
   // three quarters), so it moves on before it has learned everything of its own
   const cur = fin(civ.tech.era, 0);
   let nCur = 0;
   for (const t of HIST_BY_ERA[cur] || []) if (hasTech(civ, t.id)) nCur++;
-  const share = Math.min(0.75, 0.2 * (nCur - 4));
+  const share = Math.min(0.75, 0.2 * (nCur - 3));
   if (share > 0) {
     let ahead = 0;
     for (let j = 0; j < avail.length; j++) if (!isArcane(avail[j]) && avail[j].era > cur) ahead += weights[j];
