@@ -5,7 +5,8 @@
 // its own Chronicle lines (key 'hand.report'), which no system reads back for its choices.
 //
 //   world.sys.hand = { v, n (acts so far), acts: [act] (the last 150), refused: { tool: { reason: n } },
-//                      next (the first day a report is due) }
+//                      next (the first day a report is due), open (a brush stroke still held: { tool, id,
+//                      last (its last tick's day) }, or null) }
 //   act = { id, seq (its intervention, for undo and the deed card), tool, grp, kind ('area' |
 //           'town' | 'realm' | 'pair'), day, x, y, r, pts (a stroke's points, ≤ 24), tgt, a, b
 //           (pair targets), str (strength), land (the kind of land at the spot), name (the place),
@@ -20,7 +21,9 @@
 // year for the sky (one harvest), 2 for catastrophes, 5 for the rest) and 25 years after the act.
 //
 // Hooks: toolApplying (before: measure), toolApplied (after: the act, or a refusal counted, or a
-// stroke's next point). Exports: system, MEASURES, actOf, reportText, reportRows, whenWords, shareWords,
+// stroke's next point), toolFinished (a held stroke ends: measured again right after). A brush held
+// while the days run is logged as one entry a day; it is still one act here, until it is let go.
+// Exports: system, MEASURES, actOf, reportText, reportRows, whenWords, shareWords,
 // levelWords, focusOf, changeOf
 
 import { on } from '../core/hooks.js';
@@ -57,7 +60,7 @@ const LAND = (() => {
 })();
 
 const stateOf = (world) => {
-  const st = (world.sys.hand ||= { v: 1, n: 0, acts: [], refused: {}, next: Infinity });
+  const st = (world.sys.hand ||= { v: 1, n: 0, acts: [], refused: {}, next: Infinity, open: null });
   if (!Array.isArray(st.acts)) st.acts = [];
   if (!st.refused || typeof st.refused !== 'object') st.refused = {};
   if (!Number.isFinite(st.next)) st.next = Infinity;
@@ -243,8 +246,19 @@ function reachOf(world, act, p) {
 
 let pending = null;
 
+const OPEN_GAP = 30;   // days: a stroke left open longer than this (never let go) is not joined again
+
+/** The act of the brush stroke still held for tool id, or null. */
+function openAct(world, st, id) {
+  const o = st.open;
+  if (!o || o.tool !== id || world.time.day - fin(o.last) > OPEN_GAP) return null;
+  const last = st.acts[st.acts.length - 1];
+  return last && last.id === o.id && !last.c ? last : null;
+}
+
 on('toolApplying', (world, p) => {
   if (!world.sys || !world.sys.hand || !p || !p.id) { pending = null; return; }
+  if (p.kind === 'tool' && openAct(world, stateOf(world), p.id)) { pending = { id: p.id, cont: true }; return; }   // the stroke goes on
   const sh = shapeOf(world, p);
   const act = { tool: p.id, grp: sh.grp, kind: sh.kind, day: world.time.day, x: Number.isFinite(p.x) ? p.x : null, y: Number.isFinite(p.y) ? p.y : null, r: sh.r || 0,
     tgt: sh.tgt || null, a: sh.a || null, b: sh.b || null, str: Number.isFinite(p.opts?.strength) ? p.opts.strength : null };
@@ -266,12 +280,17 @@ on('toolApplied', (world, p) => {
     if (r[why] != null || Object.keys(r).length < 8) r[why] = (r[why] || 0) + 1;
     return;
   }
-  // a stroke of a continuous power: the same act, one more point
+  // a stroke of a continuous power: the same act, one more point (the same log entry, or the next
+  // day's entry of a brush still held)
   const last = st.acts[st.acts.length - 1];
-  if (last && p.seq != null && last.seq === p.seq && last.tool === p.id) {
-    if (last.kind === 'area' && Number.isFinite(p.x) && last.pts.length < 24 && !last.pts.some(([x, y]) => x === p.x && y === p.y)) last.pts.push([p.x, p.y]);
+  const held = pend && pend.cont ? openAct(world, st, p.id) : null;
+  if (held || (last && p.seq != null && last.seq === p.seq && last.tool === p.id)) {
+    const a = held || last;
+    if (a.kind === 'area' && Number.isFinite(p.x) && Array.isArray(a.pts) && a.pts.length < 24 && !a.pts.some(([x, y]) => x === p.x && y === p.y)) a.pts.push([p.x, p.y]);
+    if (st.open && st.open.id === a.id) st.open.last = world.time.day;
     return;
   }
+  if (pend && pend.cont) return;
   if (!pend || pend.id !== p.id) return;
   const act = pend.act;
   act.id = st.n++;
@@ -297,6 +316,22 @@ on('toolApplied', (world, p) => {
   st.acts.push(act);
   if (st.acts.length > CAP) st.acts.splice(0, st.acts.length - CAP);
   st.next = Math.min(st.next, act.endDay);
+  const t = getTool(act.tool);
+  st.open = t && t.continuous ? { tool: act.tool, id: act.id, last: act.day } : null;
+});
+
+// A held stroke is let go: what it did is measured again right after it, and its work runs from here.
+on('toolFinished', (world, p) => {
+  const st = world.sys && world.sys.hand ? stateOf(world) : null;
+  if (!st || !st.open || !p || st.open.tool !== p.id) return;
+  const act = openAct(world, st, p.id);
+  st.open = null;
+  if (!act) return;
+  act.m1 = { m: measure(world, act).m };
+  if (!act.eff) {
+    act.endDay = Math.max(act.endDay, world.time.day + Math.round((SPAN[act.grp] || 5) * DPY));
+    st.next = Math.min(st.next, act.endDay);
+  }
 });
 
 // ---------------------------------------------------------------------------
