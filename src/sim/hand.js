@@ -4,17 +4,19 @@
 // An observer: it reads the world, never draws on its chance, and writes only world.sys.hand and
 // its own Chronicle lines (key 'hand.report'), which no system reads back for its choices.
 //
-//   world.sys.hand = { v, n (acts so far), acts: [act] (the last 300), refused: { tool: { reason: n } },
+//   world.sys.hand = { v, n (acts so far), acts: [act] (the last 150), refused: { tool: { reason: n } },
 //                      next (the first day a report is due) }
 //   act = { id, seq (its intervention, for undo and the deed card), tool, grp, kind ('area' |
 //           'town' | 'realm' | 'pair'), day, x, y, r, pts (a stroke's points, ≤ 24), tgt, a, b
 //           (pair targets), str (strength), land (the kind of land at the spot), name (the place),
-//           m0, m1 (before and right after: { m: [measures], w: [the world's] }), end, gen
+//           m0 (before: { m: [measures], w: [the world's] }), m1 (right after: { m }), end, gen
 //           ({ day, m, w } once reported), endDay, genDay, eff (true when the end is a timed
-//           effect's) }
+//           effect's); beyond the newest 40, an act with both reports in is folded: its measures
+//           go and L = { n, e, g: [[measure index, change]] } (at once, at its end against the
+//           world, a generation on) keeps what the lessons read (c: 1) }
 // Measures by kind (MEASURES below): the land in the brush and its towns; a town; a realm; or two
 // of them and the opinion between. A report is due when the timed effect the act set ends (else 2
-// years for the sky and catastrophes, 5 for the rest) and 25 years after the act.
+// year for the sky (one harvest), 2 for catastrophes, 5 for the rest) and 25 years after the act.
 //
 // Hooks: toolApplying (before: measure), toolApplied (after: the act, or a refusal counted, or a
 // stroke's next point). Exports: system, MEASURES, actOf, reportText, focusOf
@@ -24,11 +26,12 @@ import { getTool } from '../core/tools.js';
 import { chronicle } from '../core/chronicle.js';
 import { DAYS_PER_YEAR as DPY, WATER, BIOME } from '../core/constants.js';
 
-const CAP = 300;
+const CAP = 150;
+const FULL = 40;   // the newest acts keep every measure; older ones, both reports in, keep their lessons (fold)
 const GEN = 25;
-const SPAN = { weather: 2, catastrophe: 2, life: 5, peoples: 5, fate: 5, myth: 5, terrain: 5 };
+const SPAN = { weather: 1, catastrophe: 2, life: 5, peoples: 5, fate: 5, myth: 5, terrain: 5 };
 const fin = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
-const r3 = (v) => Math.round(fin(v) * 1000) / 1000;
+const r3 = (v) => { const x = fin(v); return Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 1000) / 1000; };
 
 /**
  * What each kind of act measures: [id, words, how] where how is 'q' (a quantity, told as a change
@@ -254,7 +257,11 @@ on('toolApplied', (world, p) => {
   if (act.x == null && Number.isFinite(p.x)) { act.x = p.x; act.y = p.y; }
   act.land = landAt(world, act.x, act.y);
   act.name = placeName(world, act);
-  act.m1 = measure(world, act);
+  act.m1 = { m: measure(world, act).m };   // (the world is as it was a moment before)
+  if (!act.tgt) delete act.tgt;
+  if (!act.a) delete act.a;
+  if (!act.b) delete act.b;
+  if (act.str == null) delete act.str;
   // the end: the timed effect it set on its target, else a span by power
   let until = -1;
   if (pend.eff) {
@@ -347,7 +354,13 @@ export function reportText(world, act, which) {
     if (war0 !== war1) parts.unshift(war1 ? 'they were at war' : 'their war was over');
   } else parts = moves(act.kind, act.m0.m, rep.m, act.m0.w, rep.w, 3, TOOL_FOCUS[act.tool] || FOCUS[act.grp] || null).map((x) => x[1]);
   const body = parts.length ? parts.join('; ') : 'little had changed there beyond the way of the world';
-  return `${label} ${act.name || ''}, Year ${Math.floor(act.day / DPY)}: ${when}, ${body}.`.replace(/\s+,/g, ',');
+  // the first report also tells what the act did at once (right after against right before)
+  let now = '';
+  if (which === 'end' && act.kind !== 'pair' && act.m1) {
+    const at = moves(act.kind, act.m0.m, act.m1.m, act.m0.w, act.m0.w, 2, focusOf(act).filter((id) => id !== 'ruler')).filter((x) => x[0] >= 10).map((x) => x[1].replace(/ \(the world: [^)]*\)/, ''));
+    if (at.length) now = `at once, ${at.join('; ')}; `;
+  }
+  return `${label} ${act.name || ''}, Year ${Math.floor(act.day / DPY)}: ${now}${when}, ${body}.`.replace(/\s+,/g, ',');
 }
 
 function report(world, act, which) {
@@ -358,6 +371,44 @@ function report(world, act, which) {
     cat: 'divine', imp: 2, key: 'hand.report', text, x: act.x, y: act.y, civId: civ, sid: act.tgt && act.tgt.kind === 'settlement' ? act.tgt.id : null,
     ref: { k: 'act', id: act.id }, tags: [act.tool, which === 'end' ? 'hand.end' : 'hand.gen'],
   });
+}
+
+/**
+ * An act's change in measure id: at once ('now': right after against right before), or at a report
+ * ('end' | 'gen') against the world's change over the same years. { v, how } or null.
+ */
+export function changeOf(act, which, id) {
+  if (act.c) {
+    const defs = MEASURES[act.kind] || [];
+    const k = defs.findIndex((d) => d[0] === id);
+    const e = (act.L && act.L[which === 'now' ? 'n' : which === 'end' ? 'e' : 'g']) || [];
+    const hit = k >= 0 ? e.find((x) => x[0] === k) : null;
+    return hit ? { v: hit[1], how: defs[k][2] } : null;
+  }
+  const rep = which === 'now' ? (act.m1 ? { m: act.m1.m, w: act.m0.w } : null) : act[which];
+  if (!rep || act.kind === 'pair') return null;
+  const defs = MEASURES[act.kind] || [];
+  const k = defs.findIndex((d) => d[0] === id);
+  if (k < 0) return null;
+  const how = defs[k][2];
+  const v0 = fin(act.m0.m[k]), v1 = fin(rep.m[k]), w0 = fin(act.m0.w[k]), w1 = fin(rep.w[k]);
+  if (how === 'q') return v0 > 0 ? { v: (v1 - v0) / v0 - (w0 > 0 ? (w1 - w0) / w0 : 0), how } : null;
+  if (how === 'l') return { v: (v1 - v0) - (w1 - w0), how };
+  if (how === 'n') return { v: v1 - v0, how };
+  return null;
+}
+
+/** Fold an act with both reports in: keep only its changes in the measures its power is for. */
+function fold(act) {
+  if (act.c || !act.end || !act.gen) return;
+  const ids = focusOf(act).filter((id) => (MEASURES[act.kind] || []).some((d) => d[0] === id));
+  const L = { n: [], e: [], g: [] };
+  const defs = MEASURES[act.kind] || [];
+  for (const [which, k] of [['now', 'n'], ['end', 'e'], ['gen', 'g']]) for (const id of ids) { const c = changeOf(act, which, id); if (c && (k !== 'n' || Math.abs(c.v) > 1e-4)) L[k].push([defs.findIndex((d) => d[0] === id), Math.round(c.v * 1000) / 1000]); }
+  act.L = L;
+  act.c = 1;
+  act.end = 1; act.gen = 1;
+  for (const k of ['m0', 'm1', 'pts', 'r', 'seq', 'eff', 'endDay', 'genDay', 'tgt', 'a', 'b']) delete act[k];
 }
 
 /** The act with id, or null. */
@@ -379,5 +430,6 @@ export const system = {
       if (!act.gen) next = Math.min(next, act.genDay);
     }
     st.next = next;
+    for (let k = 0; k < st.acts.length - FULL; k++) fold(st.acts[k]);
   },
 };

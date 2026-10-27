@@ -10,7 +10,7 @@ import * as F from '../format.js';
 import { registerView, registerTab } from '../registry.js';
 import { section, kv, cells, rows } from '../inspector.js';
 import { setPref, getPref } from '../prefs.js';
-import { MEASURES, actOf, reportText, focusOf } from '../../sim/hand.js';
+import { MEASURES, actOf, reportText, focusOf, changeOf } from '../../sim/hand.js';
 
 const fin = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const note = (text) => h('p.empty-note', { text });
@@ -76,10 +76,10 @@ export const actView = {
     btn.addEventListener('click', () => showOnHandMap(app));
     const repLine = (which) => {
       const p = h('p.ins-prose');
-      b.text(p, () => (act[which] ? reportText(w, act, which) : `Not yet: ${which === 'end' ? 'when its work is done' : 'a generation on'}, in Year ${yearOf(which === 'end' ? act.endDay : act.genDay)}.`));
+      b.text(p, () => (act.c ? (which === 'end' ? 'This older act has been folded into the Lessons of the hand: its main measures are kept there, and its two reports are in the Chronicle.' : '') : act[which] ? reportText(w, act, which) : `Not yet: ${which === 'end' ? 'when its work is done' : 'a generation on'}, in Year ${yearOf(which === 'end' ? act.endDay : act.genDay)}.`));
       return p;
     };
-    const table = rows(b, () => measureRows(act).map(([label, how, b0, b1, e, g], k) => ({
+    const table = rows(b, () => (act.c ? [] : measureRows(act)).map(([label, how, b0, b1, e, g], k) => ({
       key: `m${k}:${e != null}:${g != null}`, label, n: `${fmt(how, b0)} → ${fmt(how, b1)}`, s: `at its end ${fmt(how, e)} · a generation on ${fmt(how, g)}`,
     })), 'Nothing was measured.', app);
     return [
@@ -101,20 +101,6 @@ export const actView = {
 
 const median = (xs) => { if (!xs.length) return null; const s = xs.slice().sort((a, b) => a - b); const k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; };
 
-/** An act's change in measure id at a report against the world's: { v, how } or null. */
-function changeOf(act, which, id) {
-  const rep = act[which];
-  if (!rep || act.kind === 'pair') return null;
-  const defs = MEASURES[act.kind] || [];
-  const k = defs.findIndex((d) => d[0] === id);
-  if (k < 0) return null;
-  const how = defs[k][2];
-  const v0 = fin(act.m0.m[k]), v1 = fin(rep.m[k]), w0 = fin(act.m0.w[k]), w1 = fin(rep.w[k]);
-  if (how === 'q') return v0 > 0 ? { v: (v1 - v0) / v0 - (w0 > 0 ? (w1 - w0) / w0 : 0), how } : null;
-  if (how === 'l') return { v: (v1 - v0) - (w1 - w0), how };
-  if (how === 'n') return { v: v1 - v0, how };
-  return null;
-}
 const say = (how, v) => (how === 'q' ? `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100))} %` : how === 'l' ? `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100)) / 100}` : `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 10) / 10)}`);
 const words = (act, id) => { const d = (MEASURES[act.kind] || []).find((q) => q[0] === id); return d ? d[1] : id; };
 
@@ -140,8 +126,8 @@ function lessonCard(w, tool, acts, refused) {
   card.append(h('p.ins-sub', { text: GROUP[last.grp] || 'The hand' }));
   card.append(h('p.ins-prose', { text: `${used}${bandWords ? `: ${bandWords}` : ''}.` }));
   const lines = [];
-  for (const which of ['end', 'gen']) {
-    const done = acts.filter((a) => a[which]);
+  for (const which of ['now', 'end', 'gen']) {
+    const done = which === 'now' ? acts.filter((a) => a.m1 || (a.c && a.L && a.L.n && a.L.n.length)) : acts.filter((a) => a[which]);
     if (!done.length) continue;
     const focus = focusOf(done[0]).filter((id) => (MEASURES[done[0].kind] || []).some((d) => d[0] === id)).slice(0, 2);
     for (const id of focus) {
@@ -157,7 +143,8 @@ function lessonCard(w, tool, acts, refused) {
         return ks.length > 1 ? ks.sort((p, q) => g[q].length - g[p].length).slice(0, 4).map((k) => `${k} ${say(how, median(g[k]))} (${g[k].length})`).join('; ') : '';
       };
       const land = by((a) => a.land), str = by(band);
-      lines.push(`${which === 'end' ? 'When its work was done' : 'A generation on'}, ${words(done[0], id)} ${say(how, m)} against the world${all.length > 1 ? ` (the middle of ${all.length} acts)` : ''}${land ? `. By land: ${land}` : ''}${str ? `. By strength: ${str}` : ''}.`);
+      if (which === 'now' && Math.abs(m) < 0.005) continue;
+      lines.push(`${which === 'now' ? 'At once' : which === 'end' ? 'When its work was done' : 'A generation on'}, ${words(done[0], id)} ${say(how, m)}${which === 'now' ? '' : ' against the world'}${all.length > 1 ? ` (the middle of ${all.length} acts)` : ''}${land ? `. By land: ${land}` : ''}${str ? `. By strength: ${str}` : ''}.`);
     }
   }
   if (!lines.length) lines.push('No report has come in yet: the first will come when its work is done.');
