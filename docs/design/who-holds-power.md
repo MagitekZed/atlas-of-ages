@@ -253,3 +253,49 @@ over their bondage"); its laws (eldest heir since Year 29, one faith, slavery, t
 since Year 397, levies); its court (the brood-lords' faction at 66 % sway led by Axssa, the army,
 the traders, the egg-priests); and its money (22 a month in taxes, 10 % to corruption, 5 to the
 court, a reserve of 3.5 years against a treasury of 936). No console errors.
+
+## Results (2026-10-27)
+
+### Gates
+
+All pass: `npm test`, the Mythic trial, the cohort check, three 300-year Mythic trials, and the
+hand check with and without myth. The keyframe check first failed (17 stale shared copies: a
+fallen realm's ruler's skills changing after it closed): a claimant crowned after a war of
+succession was a shallow copy sharing its skills, temperament and body with the rebel realm's
+closed record, an older bug that divided inheritance's wars of succession made common. Fixed by
+crowning a full copy; the check passes.
+
+### Twelve worlds against main
+
+Against main at 3e17cc1 (which reproduces the hand-powers runs exactly):
+
+    Historical Y500   pop −5%   realms +56%  towns +6%  wars +50%  at war 0.179→0.216
+    Mythic     Y500   pop +1%   realms +19%  towns +9%  wars +90%  at war 0.111→0.159
+    Historical Y1000  pop −8%   realms +42%  towns +6%  wars +34%  at war 0.264→0.273
+    Mythic     Y1000  pop −3%   realms +72%  towns +9%  wars +65%  at war 0.199→0.239
+    smallest world at Y1000: 16 realms (main 7), 211 towns
+
+- **No more hoards.** The median realm in each world holds 0.7 to 2.6 years of income at Year
+  1000 (main: 4 to 58, one world's median 58). Realms long at peace hold two to five; the middle
+  of all realms sits lower because more of them are at war or paying for one. Open loans
+  between crowns rose from 48 to 181: crowns without hoards borrow.
+- **More realms and wars.** Divided inheritance splits a realm every 40 to 75 years per world,
+  the sister realms hold claims on each other, and the army's faction presses for war on hated
+  neighbours; risings and coups add more breaks. Population and the ages reached are about
+  main's.
+- **Stability** lands near main in some worlds and below in others (Year 600, three test worlds:
+  0.62 against 0.72, 0.67 against 0.60, 0.56 against 0.55): realms that no longer hoard tax
+  harder in hard times, and their towns are less content.
+
+### Speed
+
+Year-900 main saves, 100 years, three rounds: +11.6 % (historical) and +13.8 % (Mythic) per
+simulated year. The chunk's own code (purse, estates, laws, court) costs about 1.5 ms a year,
+under 1 % of the 190 ms a simulated year takes (budget: 1 ms); the rest is the larger world it
+makes: more realms and wars to simulate (war +30 %, diplomacy +37 %, the realm system +15 %).
+
+### Save
+
+A Year-900 save from main, 100 years on: 22.68 MB on main, 22.84 MB on the branch (+0.7 %, about
+900 bytes a realm). The old save loads and runs: every realm gains its estates, laws and court
+on its first yearly pass.
