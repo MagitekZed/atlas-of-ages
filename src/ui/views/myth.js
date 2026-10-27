@@ -92,6 +92,7 @@ const link = (app, sel, label, swatch = null) => {
 };
 const lifeWord = (life) => (life >= 4 ? 'many human lifetimes' : life >= 2.5 ? 'three human lifetimes' : life > 1.15 ? 'a little longer than men' : life < 0.8 ? 'hard and short' : 'a human span');
 const rateWord = (v) => (v >= 1.3 ? 'very fast' : v >= 1.1 ? 'fast' : v > 0.9 ? 'like men' : v >= 0.6 ? 'slow' : 'very slow');
+const sickWord = (v) => (v >= 1.2 ? 'often' : v > 0.85 ? 'like men' : v >= 0.55 ? 'seldom' : 'rarely');
 const manaWord = (m) => (m >= 0.8 ? 'blazing' : m >= 0.55 ? 'rich' : m >= 0.35 ? 'steady' : m >= 0.18 ? 'thin' : 'all but dead');
 // ---------------------------------------------------------------------------
 // Sections
@@ -110,6 +111,7 @@ function civSection(app, sel, el) {
   el.appendChild(kv(b, [
     { k: 'Lifespan', v: () => `${lifeWord(R().life)} (×${F.num(R().life, 1)})` },
     { k: 'Births · deaths', v: () => `${rateWord(R().birth)} · ${rateWord(R().mortality)}` },
+    { k: 'Falls ill', v: () => sickWord(R().sickness ?? 1), tip: 'How readily its rulers fall into a lasting illness.' },
     // the race's leanings and drift speed (the people's own temperament: the Temperament section)
     { k: 'Its race leans', txt: true, v: () => leanings(R().temper, 3).join(', ') || 'no way in particular', hide: () => !R().temper },
     { k: 'Its temper drifts', txt: true, v: () => { const d = driftWords(R().adapt); return d ? `${d.speed} · ${d.detail}` : '—'; }, hide: () => !driftWords(R().adapt) },

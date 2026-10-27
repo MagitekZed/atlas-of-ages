@@ -34,6 +34,7 @@ export const EXT_POINTS = {
   people: { combine: 'first', sig: '(w, {genesis, k?, i?, parentCivId?}) → {race, traits?, languageStyle?}|null' },
   demography: { combine: 'mulEach', keys: ['birth', 'mortality'], clamp: [0.3, 3], sig: '(w, s, civ) → {birth?, mortality?}' },
   lifespan: { combine: 'mul', clamp: [0.2, 8], sig: '(w, civ, person) → age divisor' },
+  sickness: { combine: 'mul', clamp: [0.1, 4], sig: '(w, civ, person) → × a ruler’s chance of falling into a lasting illness (civ/rulers.js)' },
   cohortRule: { combine: 'first', sig: '(w, key, civ) → 34 weights (levy, movers, frail, violent, all, fertility, mortality, work) | number (pairK) | null' },
   strife: { combine: 'first', sig: "(w, people, civ) → { k: extra deaths a year at a whole town of that people, who: 'youngMen' | 'adults' | 'all' | 34 weights } | null (in-fighting, core/cohorts.js)" },
   peopleRates: { combine: 'first', sig: '(w, people, s|null) → { birth, mortality, life } | null (each people’s age bands in town s, core/cohorts.js)' },

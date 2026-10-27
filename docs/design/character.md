@@ -38,6 +38,7 @@ After this change:
 | --- | --- | --- |
 | **How people are raised** (`temperRule`, first) | A realm's own traits lean its people's temperaments (an aggressive people breeds bolder rulers) | A faith that prizes mercy; Mythic peoples' natures (elves patient, orcs bold) |
 | **What a ruler may want** (`ambitionRule`, first) | The list under "Ambitions", weighted by temperament | Laws of succession that tempt heirs (chunk 9); faiths that demand crusades |
+| **How sickly a people is** (`sickness`, mul) | × 1; in Mythic worlds by race: elves × 0.4, lizardfolk × 0.6, dwarves × 0.7, halflings × 0.9, humans × 1, orcs × 1.4 | A land's healers and physic (chunk 7); a faith of healers |
 
 ## Gates
 
@@ -148,8 +149,9 @@ are counted once.
   - Lame costs boldness in the field.
   - Scars are only a story.
   - A wounded ruler's epithet may come from the wound ("the One-Eyed").
-- **Lasting illness.** 0.6 % a year after 40, half as much again before the Classical age. It raises
-  the yearly hazard × 1.7, takes
+- **Lasting illness.** 0.6 % a year after 40 (by the years of the ruler's people), half as much again
+  before the Classical age, × how sickly the people is (`sickness`). It raises the yearly hazard
+  × 1.7, takes
   a skill's growth away, and its name is told when the person dies.
 - **Madness.** From age 50, 0.2 % a year, more with the falling sickness. A mad ruler takes the
   `mad` trait (as today) and decides erratically: temperament is rerolled each year.

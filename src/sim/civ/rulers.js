@@ -327,11 +327,13 @@ const ILL_KEYS = Object.keys(ILLNESSES);
  * A ruler's year in the body (core/character.js): a lasting illness (0.6 % a year after 40, half as
  * much again before the Classical age); madness from 50 (0.2 % a year, three times as likely with
  * the falling sickness), which takes the 'mad' trait and throws the temperament about each year.
- * Both by the years of the ruler's people (an elf falls ill a third as often in a calendar year).
+ * Both by the years of the ruler's people (an elf falls ill a fifth as often in a calendar year), and
+ * the illness × how sickly the people is (ext 'sickness': in Mythic worlds, by race).
  */
 function bodyYear(world, civ, r, a, era, life = 1) {
   const bd = r.bd || null;
-  if (a > 40 && !(bd && bd.ill) && world.rng.chance(0.006 * (era < 3 ? 1.5 : 1) / life)) {
+  const sick = hasProviders('sickness') ? mulOf('sickness', world, civ, r) : 1;   // how sickly the people (ext; elves seldom, orcs often)
+  if (a > 40 && !(bd && bd.ill) && world.rng.chance(0.006 * (era < 3 ? 1.5 : 1) / life * sick)) {
     const b = bodyOf(r);
     b.ill = ILL_KEYS[Math.floor(world.rng.next() * ILL_KEYS.length)];
     b.illDay = world.time.day;
