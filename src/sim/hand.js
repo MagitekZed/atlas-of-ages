@@ -19,7 +19,8 @@
 // year for the sky (one harvest), 2 for catastrophes, 5 for the rest) and 25 years after the act.
 //
 // Hooks: toolApplying (before: measure), toolApplied (after: the act, or a refusal counted, or a
-// stroke's next point). Exports: system, MEASURES, actOf, reportText, focusOf
+// stroke's next point). Exports: system, MEASURES, actOf, reportText, reportRows, whenWords, shareWords,
+// levelWords, focusOf, changeOf
 
 import { on } from '../core/hooks.js';
 import { getTool } from '../core/tools.js';
@@ -300,67 +301,131 @@ const TOOL_FOCUS = {
 /** The measures an act's power is for (its report leads with them; the lessons gather them). */
 export const focusOf = (act) => TOOL_FOCUS[act.tool] || FOCUS[act.grp] || [];
 
-/** The measures that moved most against the world, the act's own first: [[score, words]], at most n. */
+const DOWN = [[0.1, 'down a tenth'], [0.2, 'down a fifth'], [0.25, 'down a quarter'], [1 / 3, 'down a third'], [0.5, 'halved'], [2 / 3, 'down two thirds'], [0.75, 'down three quarters'], [0.83, 'down four fifths']];
+const UP = [[0.1, 'up a tenth'], [0.2, 'up a fifth'], [0.25, 'up a quarter'], [1 / 3, 'up a third'], [0.5, 'up by half'], [2 / 3, 'up two thirds'], [0.75, 'up three quarters']];
+const FOLD = ['', '', 'doubled', 'tripled', 'grew fourfold', 'grew fivefold', 'grew sixfold', 'grew sevenfold', 'grew eightfold', 'grew ninefold', 'grew tenfold'];
+const nearest = (v, list) => list.reduce((p, q) => (Math.abs(q[0] - v) < Math.abs(p[0] - v) ? q : p))[1];
+
+/** A quantity's change rel (after / before − 1) in plain words: 'down a quarter', 'halved', 'grew sixfold', 'all gone'. */
+export function shareWords(rel) {
+  if (Math.abs(rel) < 0.03) return 'steady';
+  if (rel < 0) return rel <= -0.995 ? 'all gone' : rel <= -0.88 ? 'nearly all gone' : rel > -0.07 ? 'down a little' : nearest(-rel, DOWN);
+  const r = 1 + rel;
+  return rel < 0.07 ? 'up a little' : r >= 10.5 ? 'grew more than tenfold' : r >= 2.75 ? FOLD[Math.round(r)] : r >= 2.25 ? 'more than doubled' : r >= 1.85 ? 'doubled' : nearest(rel, UP);
+}
+
+const BANDS = [[0.15, 'very low'], [0.35, 'low'], [0.6, 'moderate'], [0.8, 'high'], [Infinity, 'very high']];
+const bandOf = (v) => BANDS.find((q) => v < q[0])[1];
+
+/** A level's move from v0 to v1 (0..1) in plain words: 'up from low to moderate', 'down a little, still high'. */
+export function levelWords(v0, v1) {
+  const d = v1 - v0;
+  if (Math.abs(d) < 0.02) return `steady, ${bandOf(v1)}`;
+  const b0 = bandOf(v0), b1 = bandOf(v1), dir = d > 0 ? 'up' : 'down';
+  return b0 !== b1 ? `${dir} from ${b0} to ${b1}` : `${dir}${Math.abs(d) < 0.06 ? ' a little' : ''}, still ${b1}`;
+}
+
+/** Measures whose rise is a bane (the rest are boons when they rise). */
+const BAD_UP = new Set(['unrest', 'wars']);
+
+/**
+ * The measures that moved most, the act's own first, at most n: [{ id, label, here, num, world,
+ * wnum, dir (−1 | 0 | 1), tone (−1 bane, 0, 1 boon), text, score }]. b → a is the place; wb → wa
+ * the world over the same days (null: no comparison, as at once).
+ */
 function moves(kind, b, a, wb, wa, n = 3, focus = null) {
   const defs = MEASURES[kind] || [];
+  const cmp = Boolean(wb && wa);
   const out = [];
   for (let k = 0; k < defs.length; k++) {
     const [id, words, how] = defs[k];
-    const v0 = fin(b[k]), v1 = fin(a[k]), w0 = fin(wb[k]), w1 = fin(wa[k]);
+    const v0 = fin(b[k]), v1 = fin(a[k]), w0 = cmp ? fin(wb[k]) : 0, w1 = cmp ? fin(wa[k]) : 0;
+    const row = { id, label: words.replace(/^./, (x) => x.toUpperCase()), here: '', num: '', world: null, wnum: '', dir: 0, tone: 0, text: '', score: 0 };
     if (how === 'id') {
-      if (v0 >= 0 && v1 !== v0) out.push([2, v1 < 0 ? 'the realm is gone' : 'the ruler is no longer on the throne']);
-      else if (v0 >= 0 && focus && focus.includes('ruler')) out.push([0.5, 'the ruler still reigns']);
+      if (v0 >= 0 && v1 !== v0) Object.assign(row, v1 < 0 ? { here: 'the realm is gone', text: 'the realm is gone', tone: -1 } : { here: 'no longer on the throne', text: 'the ruler is no longer on the throne' }, { score: 2 });
+      else if (v0 >= 0 && focus && focus.includes('ruler')) Object.assign(row, { here: 'still reigns', text: 'the ruler still reigns', score: 0.5 });
       else continue;
-      if (focus && focus.includes(id)) out[out.length - 1][0] += 10;
-      continue;
-    }
-    if (how === 'q') {
+    } else if (how === 'q') {
       if (v0 <= 0 && v1 <= 0) continue;
-      if (v0 <= 0) { out.push([1, `${words} came where there were none`]); continue; }
-      const rel = (v1 - v0) / v0, wrel = w0 > 0 ? (w1 - w0) / w0 : 0;
-      const score = Math.abs(rel - wrel);
-      if (score < 0.03 || Math.abs(rel) < 0.02) continue;   // (the place itself must have moved)
-      out.push([score, `${words} ${pct(rel)} (the world: ${pct(wrel)})`]);
+      if (v0 <= 0) Object.assign(row, { here: 'came where there were none', num: `0 → ${Math.round(v1)}`, dir: 1, score: 1 });
+      else {
+        const rel = (v1 - v0) / v0, wrel = cmp && w0 > 0 ? (w1 - w0) / w0 : 0;
+        row.score = Math.abs(rel - wrel);
+        if (row.score < 0.03 || Math.abs(rel) < 0.02) continue;   // (the place itself must have moved)
+        Object.assign(row, { here: shareWords(rel), num: pct(rel), dir: Math.sign(rel) });
+        if (cmp) Object.assign(row, { world: shareWords(wrel), wnum: pct(wrel) });
+      }
     } else if (how === 'l') {
       const d = v1 - v0, wd = w1 - w0;
-      const score = Math.abs(d - wd);
-      if (score < 0.03 || Math.abs(d) < 0.02) continue;
-      out.push([score, `${words} ${lvl(v1)}, ${d >= 0 ? 'up' : 'down'} from ${lvl(v0)}`]);
+      row.score = Math.abs(d - wd);
+      if (row.score < 0.03 || Math.abs(d) < 0.02) continue;
+      Object.assign(row, { here: levelWords(v0, v1), num: `${lvl(v0)} → ${lvl(v1)}`, dir: Math.sign(d) });
+      if (cmp) Object.assign(row, { world: levelWords(w0, w1), wnum: `${lvl(w0)} → ${lvl(w1)}` });
     } else {
       const d = Math.round(v1 - v0);
       if (!d) continue;
-      out.push([Math.abs(d) / Math.max(1, v0), `${words} ${Math.round(v1)}, ${d > 0 ? 'up' : 'down'} from ${Math.round(v0)}`]);
+      Object.assign(row, { here: `${d > 0 ? 'up' : 'down'} from ${Math.round(v0)} to ${Math.round(v1)}`, num: `${d > 0 ? '+' : '−'}${Math.abs(d)}`, dir: Math.sign(d), score: Math.abs(d) / Math.max(1, v0) });
+      if (cmp && w0 > 0) Object.assign(row, { world: shareWords((w1 - w0) / w0), wnum: pct((w1 - w0) / w0) });
     }
-    if (focus && focus.includes(id)) out[out.length - 1][0] += 10;   // what the power is for leads
+    if (how !== 'id') row.tone = BAD_UP.has(id) ? -row.dir : row.dir;
+    if (!row.text) row.text = `${words} ${row.here}${row.world ? ` (across the world: ${row.world})` : ''}`;
+    if (focus && focus.includes(id)) row.score += 10;   // what the power is for leads
+    out.push(row);
   }
-  return out.sort((p, q) => q[0] - p[0]).slice(0, n);
+  return out.sort((p, q) => q.score - p.score).slice(0, n);
 }
 
-/** The report of an act at its end or a generation on ('end' | 'gen'). */
+/**
+ * What came of an act, as the rows a report tells (at most n; see moves): at once ('now': right
+ * after against right before, no world beside it), when its work was done ('end') or a generation
+ * on ('gen'), each against the world over the same years. [] before the report is in.
+ */
+export function reportRows(world, act, which, n = 4) {
+  if (act.c || !act.m0) return [];
+  if (which === 'now') return act.m1 && act.kind !== 'pair' ? moves(act.kind, act.m0.m, act.m1.m, null, null, n, focusOf(act).filter((id) => id !== 'ruler')) : [];
+  const rep = act[which];
+  if (!rep || typeof rep !== 'object') return [];
+  if (act.kind !== 'pair') return moves(act.kind, act.m0.m, rep.m, act.m0.w, rep.w, n, focusOf(act));
+  const ka = refKind(act.a), kb = refKind(act.b);
+  const na = (MEASURES[ka] || []).length, nb = (MEASURES[kb] || []).length;
+  const b0 = act.m0.m, b1 = rep.m;
+  const nameOf = (t) => (t && t.kind === 'civ' ? world.civs[t.id]?.name : t && t.kind === 'settlement' ? world.settlements[t.id]?.name : null) || 'one of them';
+  const op0 = fin(b0[na + nb]), op1 = fin(b1[na + nb]), war0 = b0[na + nb + 1], war1 = b1[na + nb + 1];
+  // each side's own largest move (beyond the war itself, told once below)
+  const side = (kind, off, len, t) => moves(kind, b0.slice(off, off + len), b1.slice(off, off + len), act.m0.w.slice(off, off + len), rep.w.slice(off, off + len), 2)
+    .filter((r) => war0 === war1 || r.id !== 'wars').slice(0, 1)
+    .map((r) => ({ ...r, label: `${r.label}, ${nameOf(t)}`, text: `in ${nameOf(t)}, ${r.text}` }));
+  const out = [...side(ka, 0, na, act.a), ...side(kb, na, nb, act.b)];
+  const up = op1 >= op0, sn = (v) => (Math.round(v) < 0 ? `−${Math.abs(Math.round(v))}` : String(Math.round(v)));
+  if (Math.abs(op1 - op0) >= 5) out.unshift({ id: 'opinion', label: 'Their opinion of each other', here: `${up ? 'up' : 'down'} from ${sn(op0)} to ${sn(op1)}`, num: `${up ? '+' : '−'}${Math.abs(Math.round(op1 - op0))}`, world: null, wnum: '', dir: up ? 1 : -1, tone: up ? 1 : -1, text: `their opinion of each other ${up ? 'rose' : 'fell'} from ${sn(op0)} to ${sn(op1)}`, score: 20 });
+  if (war0 !== war1) out.unshift({ id: 'war', label: 'Between them', here: war1 ? 'at war' : 'at peace again', num: '', world: null, wnum: '', dir: 0, tone: war1 ? -1 : 1, text: war1 ? 'they were at war' : 'their war was over', score: 30 });
+  return out;
+}
+
+/** When a report is made, in words: 'At once', 'Two years on', 'When it had run its course', 'A generation on'. */
+export function whenWords(act, which) {
+  if (which === 'now') return 'At once';
+  if (which === 'end' && act.eff) return 'When it had run its course';
+  const rep = act[which];
+  const d = rep && typeof rep === 'object' ? rep.day - act.day : which === 'gen' ? GEN * DPY : fin(act.endDay) - act.day;
+  return `${span(d)} on`.replace(/^./, (x) => x.toUpperCase());
+}
+
+/** The report of an act at its end or a generation on ('end' | 'gen'), in short sentences. */
 export function reportText(world, act, which) {
   const rep = act[which];
   if (!rep) return '';
   const t = getTool(act.tool);
   const label = t ? t.label : act.tool;
-  const when = which === 'end' && act.eff ? 'when it had run its course' : `${span(rep.day - act.day)} on`;
-  let parts;
-  if (act.kind === 'pair') {
-    const ka = refKind(act.a), kb = refKind(act.b);
-    const na = (MEASURES[ka] || []).length, nb = (MEASURES[kb] || []).length;
-    const b0 = act.m0.m, b1 = rep.m;
-    parts = [...moves(ka, b0.slice(0, na), b1.slice(0, na), act.m0.w.slice(0, na), rep.w.slice(0, na), 1), ...moves(kb, b0.slice(na, na + nb), b1.slice(na, na + nb), act.m0.w.slice(na, na + nb), rep.w.slice(na, na + nb), 1)].map((x) => x[1]);
-    const op0 = fin(b0[na + nb]), op1 = fin(b1[na + nb]), war0 = b0[na + nb + 1], war1 = b1[na + nb + 1];
-    if (Math.abs(op1 - op0) >= 5) parts.unshift(`their opinion of each other ${Math.round(op1)}, ${op1 >= op0 ? 'up' : 'down'} from ${Math.round(op0)}`);
-    if (war0 !== war1) parts.unshift(war1 ? 'they were at war' : 'their war was over');
-  } else parts = moves(act.kind, act.m0.m, rep.m, act.m0.w, rep.w, 3, TOOL_FOCUS[act.tool] || FOCUS[act.grp] || null).map((x) => x[1]);
-  const body = parts.length ? parts.join('; ') : 'little had changed there beyond the way of the world';
+  const told = reportRows(world, act, which, 3).map((r) => r.text);
+  const body = told.length ? told.join('; ') : 'little had changed there beyond the way of the world';
   // the first report also tells what the act did at once (right after against right before)
   let now = '';
-  if (which === 'end' && act.kind !== 'pair' && act.m1) {
-    const at = moves(act.kind, act.m0.m, act.m1.m, act.m0.w, act.m0.w, 2, focusOf(act).filter((id) => id !== 'ruler')).filter((x) => x[0] >= 10).map((x) => x[1].replace(/ \(the world: [^)]*\)/, ''));
-    if (at.length) now = `at once, ${at.join('; ')}; `;
+  if (which === 'end') {
+    const at = reportRows(world, act, 'now', 2).filter((r) => r.score >= 10).map((r) => r.text);
+    if (at.length) now = ` At once: ${at.join('; ')}.`;
   }
-  return `${label} ${act.name || ''}, Year ${Math.floor(act.day / DPY)}: ${now}${when}, ${body}.`.replace(/\s+,/g, ',');
+  return `${label} ${act.name || ''}, Year ${Math.floor(act.day / DPY)}.${now} ${whenWords(act, which)}: ${body}.`.replace(/\s+,/g, ',');
 }
 
 function report(world, act, which) {

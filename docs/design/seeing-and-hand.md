@@ -246,3 +246,23 @@ fish thriving a generation on.
 A world at Year 300 with five acts: the Hand map mode (rings with "Herds · 5 yr left"), the reports
 arriving in the Chronicle 30 years on, the Hand tab (acts newest first; Lessons with a card per
 power), and a war's dossier ("Each side") with its front drawn on the map. No console errors.
+
+## Follow-up: reports in plain words (2026-10-27)
+
+The first reports ran three moments into one sentence and told every change as a percentage beside
+the world's ("food in store −86 %; … a generation on, food in store +540 % (the world: …)"), which
+was hard to read. Now:
+
+- A change is told in words first, the number after: a quantity as a share ("down a quarter",
+  "halved", "nearly all gone", "doubled", "grew sixfold"), a level by its band ("up from low to
+  moderate", "down a little, still high"), a count from and to ("up from 2 to 3").
+- The Chronicle line is short sentences, one per moment: "Volcano near Chix, Year 100. At once:
+  food in store down four fifths; people down two thirds. Two years on: people down two thirds
+  (across the world: down a little); …"
+- The act's record shows each moment (at once, its end, a generation on) as a small table: the
+  measure, what happened here (an arrow in green or red for good or bad, the words, the number) and
+  what happened across the world over the same years. "The numbers" is a table of every measure
+  before, right after, at its end and a generation on.
+- A war between two realms is told once ("they were at war"), not again as each side's wars.
+
+Only the wording and the record's layout changed: what is measured, and when, is as before.
