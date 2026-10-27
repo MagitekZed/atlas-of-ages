@@ -292,6 +292,15 @@ function unpaid(world, st, civ, f) {
   }
 }
 
+/** A living great general of the realm whose ambition is power, or null. */
+function powerSeeker(world, civ) {
+  for (const id of (civ.flags && civ.flags.figs) || []) {
+    const f = world.figures.find((o) => o.id === id);
+    if (f && f.died == null && f.kind === 'general' && f.am && f.am.k === 'power' && world.time.day - f.am.since >= 3 * DAYS_PER_YEAR) return f;
+  }
+  return null;
+}
+
 /**
  * A standing army three months unpaid (0.6 % a month), or serving a realm in crisis (0.3 %), may
  * take power, more readily under a cruel or craven ruler, and never twice in twenty years.
@@ -304,9 +313,14 @@ function coupCheck(world, st, civ, f, rng) {
   let coup = unpaid ? 0.006 : 0.003;
   if (rulerHas(civ, 'cruel')) coup *= 1.6;
   if (rulerHas(civ, 'craven')) coup *= 1.3;
-  if (!rng.chance(coup)) return;
+  // a great general who wants power (civ/ambitions.js) leads the soldiers' discontent (× 1.6;
+  // one draw either way, and the realm's generals are looked over only when it might matter)
+  const x = rng.next();
+  if (x >= coup * 1.6) return;
+  const gen = powerSeeker(world, civ);
+  if (!gen && x >= coup) return;
   st.coups = (st.coups || 0) + 1;
   f.arrears = 0;
   f.coupDay = world.time.day;
-  emit(world, 'armyCoup', civ);
+  emit(world, 'armyCoup', civ, gen);
 }

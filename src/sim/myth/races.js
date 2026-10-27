@@ -44,7 +44,8 @@ export const isMythic = (w) => w != null && w.params != null && w.params.mythLev
 
 /**
  * life: age divisor (an elf of 250 lives like a human of 50); birth / mortality: demography
- * multipliers; temper: trait offsets from 0.5 (core TRAIT_KEYS); jitter: width of the seeded
+ * multipliers; sickness: × the chance a ruler or great person falls into a lasting illness
+ * (civ/rulers.js; the ext 'sickness'); temper: trait offsets from 0.5 (core TRAIT_KEYS); jitter: width of the seeded
  * spread around them (× the shared ±0.28); adapt: how fast the people's temperament drifts with
  * its history (the civ module's multiplier: 2 twice as fast, 0.5 half as fast); mods: racial
  * modifiers (applyFx deltas on the civ mods); school: the arcane school the race founded;
@@ -60,7 +61,7 @@ export const isMythic = (w) => w != null && w.params != null && w.params.mythLev
  */
 export const RACES = {
   human: {
-    key: 'human', life: 1, birth: 1, mortality: 1, elder: false, school: 'wizardry', adapt: 2, jitter: 1.4,
+    key: 'human', life: 1, birth: 1, mortality: 1, sickness: 1, elder: false, school: 'wizardry', adapt: 2, jitter: 1.4,
     strife: { k: 0.003, who: 'youngMen' },   // brawls and blood feuds among the young men
     memory: { grudge: 40, thanks: 25, claim: 60, founded: 120 },   // remembers within two generations
     temper: { innovation: 0.12, expansion: 0.08, commerce: 0.05 },
@@ -73,7 +74,7 @@ export const RACES = {
     ],
   },
   elf: {
-    key: 'elf', life: 5, birth: 0.58, mortality: 0.42, elder: true, school: 'sylvan', adapt: 0.5, jitter: 1,
+    key: 'elf', life: 5, birth: 0.58, mortality: 0.42, sickness: 0.4, elder: true, school: 'sylvan', adapt: 0.5, jitter: 1,
     strife: { k: 0.001, who: 'adults' },     // rare, cold quarrels of the old houses
     memory: { grudge: 200, thanks: 200, claim: 250, founded: 400 },   // remembers slights and kindnesses alike, for lifetimes of men
     war: [0.2, 0.15, 0.45, 0.15, 0.05, 0, 0],   // archers above all, and swift riders
@@ -83,7 +84,7 @@ export const RACES = {
     identity: ['Wardens of the deep woods, at home under old trees', 'Long-lived and slow to breed; their temper hardly changes in a thousand years'],
   },
   dwarf: {
-    key: 'dwarf', life: 3, birth: 0.8, mortality: 0.5, elder: true, school: 'runecraft', adapt: 0.6, jitter: 1,
+    key: 'dwarf', life: 3, birth: 0.8, mortality: 0.5, sickness: 0.7, elder: true, school: 'runecraft', adapt: 0.6, jitter: 1,
     strife: { k: 0.002, who: 'youngMen' },   // clan grudges, settled in the halls
     memory: { grudge: 250, thanks: 60, claim: 300, founded: 500 },   // remembers a grudge for centuries; a lost hall forever
     war: [0.35, 0.35, 0.2, 0, 0, 0.1, 0],   // armoured blades and spears, and sappers; no horse
@@ -93,7 +94,7 @@ export const RACES = {
     identity: ['Miners and smiths of the high hills, behind walls no army takes lightly', 'Stubborn: grudges and customs alike outlive the generations'],
   },
   orc: {
-    key: 'orc', life: 0.7, birth: 1.4, mortality: 1.25, elder: false, school: 'shamanism', adapt: 1, jitter: 1,
+    key: 'orc', life: 0.7, birth: 1.4, mortality: 1.25, sickness: 1.4, elder: false, school: 'shamanism', adapt: 1, jitter: 1,
     strife: { k: 0.012, who: 'adults' },     // clan wars and challenges; the women fight too
     memory: { grudge: 25, thanks: 12, claim: 35, founded: 70 },   // remembers the last war, not the one before
     war: [0.15, 0.35, 0.1, 0.3, 0, 0, 0.1],   // blades and wolf-riders, and beasts
@@ -103,7 +104,7 @@ export const RACES = {
     identity: ['Warriors of the open steppe, swift and many', 'They live hard and die young, and their temper turns with the fortunes of war'],
   },
   halfling: {
-    key: 'halfling', life: 1.3, birth: 1.15, mortality: 0.9, elder: true, school: 'hearth', adapt: 0.8, jitter: 1,
+    key: 'halfling', life: 1.3, birth: 1.15, mortality: 0.9, sickness: 0.9, elder: true, school: 'hearth', adapt: 0.8, jitter: 1,
     strife: { k: 0.006, who: 'all' },        // feuds between families over land and inheritance, young and old alike
     memory: { grudge: 25, thanks: 50, claim: 50, founded: 100 },   // remembers kindness longer than slights
     war: [0.4, 0.05, 0.45, 0.1, 0, 0, 0],   // slingers and spears on ponies
@@ -113,7 +114,7 @@ export const RACES = {
     identity: ['Farmers of the green river lands, with the fullest larders in the world', 'Peaceable and set in their comfortable ways'],
   },
   lizardfolk: {
-    key: 'lizardfolk', life: 0.9, birth: 1.2, mortality: 1.08, elder: true, school: 'serpent', adapt: 0.7, jitter: 1,
+    key: 'lizardfolk', life: 0.9, birth: 1.2, mortality: 1.08, sickness: 0.6, elder: true, school: 'serpent', adapt: 0.7, jitter: 1,
     strife: { k: 0.007, who: 'all' },        // brood wars take the young and the old
     memory: { grudge: 60, thanks: 15, claim: 80, founded: 150 },   // remembers a wrong long after a favour
     war: [0.45, 0.2, 0.2, 0, 0, 0, 0.15],   // spears and swamp beasts
@@ -614,6 +615,12 @@ function lifespan(world, civ, person) {
   const race = (person && person.race) || (civ && civ.race);
   return race && RACES[race] ? RACES[race].life : 1;
 }
+/** sickness: how readily a people's notables fall into a lasting illness (elves seldom, orcs often). */
+function sickness(world, civ, person) {
+  if (!isMythic(world)) return 1;
+  const race = (person && person.race) || (civ && civ.race);
+  return race && RACES[race] ? fin(RACES[race].sickness, 1) : 1;
+}
 
 // ---------------------------------------------------------------------------
 // The human gifts: ingenious (learning from others) and cosmopolitan
@@ -727,6 +734,7 @@ export function registerRaceProviders() {
   registerProvider('habitat', 'myth', habitat);
   registerProvider('demography', 'myth', demography);
   registerProvider('lifespan', 'myth', lifespan);
+  registerProvider('sickness', 'myth', sickness);
   registerProvider('peopleRates', 'myth', peopleRates);
   registerProvider('strife', 'myth', strife);
   registerProvider('claimRule', 'myth', claimRule);

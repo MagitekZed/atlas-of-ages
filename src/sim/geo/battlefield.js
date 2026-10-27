@@ -89,14 +89,19 @@ function canUse(civ, k, sh) {
 
 /**
  * The plan a side fights by (an index into PLANS): the one that suits it best of those it knows.
- * sh, eh: its and the enemy's shares by role; skill: its general's; ratio: its strength over the enemy's.
+ * sh, eh: its and the enemy's shares by role; skill: its general's; ratio: its strength over the enemy's;
+ * bold: its commander's boldness (0..1).
  */
-export function choosePlan(civ, sh, eh, g, wx, skill, ratio, home, tier) {
+export function choosePlan(civ, sh, eh, g, wx, skill, ratio, home, tier, bold = 0.5) {
   const G = GROUNDS[g];
   const open = G === 'field' || G === 'sands' || G === 'shore';
   const horse = sh[ROLE.LHORSE] + sh[ROLE.HHORSE];
-  let best = P.line, bs = 0.05;
-  const fit = (k, v) => { if (v > bs && canUse(civ, k, sh)) { bs = v; best = P[k]; } };
+  // the commander's nature (core/character.js): a bold one reaches for the charge, the feint and
+  // the night attack; a cautious one holds the line or locks shields
+  const daring = 0.7 + 0.6 * bold, careful = 1.3 - 0.6 * bold;
+  const DARING = { flank: 1, feint: 1, hammer: 1, night: 1 };
+  let best = P.line, bs = 0.05 * careful;
+  const fit = (k, v) => { v *= DARING[k] ? daring : k === 'shieldwall' ? careful : 1; if (v > bs && canUse(civ, k, sh)) { bs = v; best = P[k]; } };
   if (sh[ROLE.SPEAR] + sh[ROLE.BLADE] >= 0.6 && home && tier <= 2) fit('shieldwall', 0.10);
   if (tier >= 4 && sh[ROLE.SPEAR] >= 0.15 && eh[ROLE.LHORSE] + eh[ROLE.HHORSE] >= 0.15) fit('pikes', 0.15);
   if (sh[ROLE.BOW] >= 0.35 && G !== 'wood' && wx !== 1 && wx !== 2 && wx !== 4) fit('arrows', tier >= 4 ? 0.06 : 0.12);

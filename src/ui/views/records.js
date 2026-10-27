@@ -16,6 +16,7 @@
 // records and trade roads, and the developer-records toggle.
 
 import { DAYS_PER_YEAR } from '../../core/constants.js';
+import { natureWords, WOUND_WORDS, ILLNESSES, AMBITION_WORDS } from '../../core/character.js';
 import { SITE_KINDS, getSite } from '../../core/sites.js';
 import { h, Binder } from '../dom.js';
 import * as F from '../format.js';
@@ -176,6 +177,8 @@ const figureView = {
         { k: 'Born', v: () => (f.born != null ? F.year(f.born) : 'Unknown') },
         { k: 'Died', v: () => (f.died != null ? F.year(f.died) : 'Living') },
         { k: 'Epithet', v: () => f.epithet || '—', hide: () => !f.epithet },
+        { k: f.died != null ? 'Died wanting' : 'Wants', v: () => ambWords(w, f.am, c), txt: true, hide: () => !f.am },
+        { k: 'Ambitions', v: () => ambDone(w, f.done, c), txt: true, hide: () => !(f.done && f.done.length) },
       ])),
       section('Deeds', deeds),
       armySec, faithSec,
@@ -201,6 +204,32 @@ export function findRuler(w, id) {
   }
   return null;
 }
+
+const TP_ROWS = [[0, 'Ambition', 'How much they want: land, glory, a name.'], [1, 'Mercy', 'Low is cruelty: who is spared, who is razed.'], [2, 'Piety', ''], [3, 'Greed', 'High taxes, a hunger for land and gold.'], [4, 'Honour', 'Pacts kept, envoys respected.'], [5, 'Boldness', 'Low is caution.']];
+const SK_ROWS = [[0, 'War'], [1, 'Diplomacy'], [2, 'Stewardship'], [3, 'Intrigue'], [4, 'Learning']];
+/** "Lost an eye; the wasting sickness; mad from Y812" (core/character.js), or ''. */
+function bodyLine(r) {
+  const bd = r && r.bd;
+  if (!bd) return '';
+  const w = bd.w || [], scars = w.filter((c) => c === 'scar').length;
+  const out = w.filter((c) => c !== 'scar').map((c) => (WOUND_WORDS[c] || c).replace(/^./, (x) => x.toUpperCase()));
+  if (scars) out.push(scars > 1 ? `Took ${['', '', 'two', 'three', 'four'][scars] || scars} wounds to the face` : 'Took a wound to the face');
+  if (bd.ill && ILLNESSES[bd.ill]) out.push(`Suffered ${ILLNESSES[bd.ill]}`);
+  if (bd.mad) out.push(`Mad from ${F.year(bd.mad)}`);
+  return out.join('; ');
+}
+/** An ambition in words, from its kind and target (core/character.js AMBITION_WORDS). */
+function ambWords(w, am, civ) {
+  if (!am || !AMBITION_WORDS[am.k]) return '';
+  const s = am.k === 'town' ? w.settlements[am.t] : null, c = am.t != null && am.k !== 'town' ? w.civs[am.t] : null;
+  const f = am.k === 'convert' && civ && civ.stateReligion != null ? w.religions[civ.stateReligion] : null;
+  const t = AMBITION_WORDS[am.k].replace('{t}', s ? s.name : 'a town').replace('{c}', c ? F.theCiv(c) : 'a neighbour').replace('{f}', f ? f.name : 'the faith').replace('{p}', civ && civ.adjective ? `the ${civ.adjective} people` : 'the people');
+  return t.replace(/^./, (x) => x.toUpperCase());
+}
+const AMB_OUT = { met: 'done', failed: 'given up', gone: 'lost' };
+/** "To take Varn (done, Y812); Glory in battle (given up, Y840)", or ''. */
+const ambDone = (w, done, civ) => (done || []).map(([k, out, day, t]) => `${ambWords(w, { k, t }, civ)} (${AMB_OUT[out] || out}${ok(day) ? ', ' + F.year(day) : ''})`).join('; ');
+const skillWord = (v) => (!Number.isFinite(v) ? '—' : v >= 0.8 ? 'Masterly' : v >= 0.6 ? 'Able' : v >= 0.4 ? 'Fair' : v >= 0.2 ? 'Poor' : 'Hopeless');
 
 const rulerView = {
   label: 'Ruler', icon: 'crown',
@@ -235,12 +264,20 @@ const rulerView = {
         { k: 'Title', v: () => r.title || '—' },
         { k: 'By-name', v: () => (r.gloss ? `${r.epithet} · “${r.gloss}” in ${civ.adjective ? `the ${civ.adjective}` : 'their own'} tongue` : r.epithet || '—'), txt: true, hide: () => !r.epithet },
         { k: 'Temperament', v: () => (r.traits?.length ? r.traits.map(F.humanize).join(', ') : '—'), txt: true },
+        { k: 'Nature', v: () => natureWords(r, civ, 3).join(', ') || 'Even-tempered', txt: true, hide: () => !Array.isArray(r.tp) },
+        { k: 'Body', v: () => bodyLine(r), txt: true, hide: () => !bodyLine(r) },
+        { k: reigning ? 'Wants' : 'Died wanting', v: () => ambWords(w, r.am, civ), txt: true, hide: () => !r.am },
+        { k: 'Ambitions', v: () => ambDone(w, r.done, civ), txt: true, hide: () => !(r.done && r.done.length) },
+        { k: 'The heir', v: () => `${r.heir.name}, who covets the throne`, txt: true, hide: () => !(reigning && r.heir && r.heir.am && r.heir.am.k === 'throne') },
         { k: 'Deeds', v: () => deedWords(r.deeds) || 'None remembered', txt: true },
         { k: 'Dynasty', ref: () => { const d = dynastyName(r.dynasty); return d ? { key: 'd' + d, make: () => linkBtn(app, { kind: 'dynasty', id: `${civ.id}:${d}` }, d) } : { key: 'none', make: () => textNode('—') }; } },
         { k: 'Came as', v: () => (r.relation ? F.headName(r.relation) : '—'), hide: () => !r.relation },
         { k: 'Before', ref: () => link(prev) },
         { k: 'After', ref: () => link(next), hide: () => reigning },
       ])),
+      // temperament and skills (core/character.js), kept while the ruler lives
+      (() => { const sec = section('Character', kv(b, TP_ROWS.map(([k, label, tip]) => ({ k: label, v: () => F.pct(r.tp?.[k] ?? 0), m: () => r.tp?.[k] ?? 0, tip })).concat(
+        SK_ROWS.map(([k, label]) => ({ k: label, v: () => skillWord(r.sk?.[k]), m: () => r.sk?.[k] ?? 0, mc: 'is-teal', hide: () => !Array.isArray(r.sk) }))))); b.hide(sec, () => !Array.isArray(r.tp)); return sec; })(),
       section('In the Chronicle', chronicleList(app, b, (e) => (e.ref && e.ref.k === 'ruler' && String(e.ref.id) === String(sel.id)) || (e.civId === civ.id && e.day >= fin(r.reignStart) && e.day <= end() && e.imp >= 2 && (e.cat === 'civ' || e.cat === 'war')), 14)),
     ];
   }),

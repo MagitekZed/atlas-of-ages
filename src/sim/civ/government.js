@@ -6,6 +6,7 @@
 // tables are the fallback. A theocracy is no trap: crises of legitimacy, merchant wealth,
 // learning and unrest all open ways out of it.
 
+import { temperOf, TP } from '../../core/character.js';
 import { firstOf, hasProviders } from '../../core/ext.js';
 import { GOVERNMENTS, isDynastic } from './data.js';
 import { hasTech, refreshMods, getMods } from './tech.js';
@@ -65,11 +66,8 @@ export function govCapacity(civ, mods) {
 /** Tax rate the state drifts toward (government, ruler, war, debt). */
 export function targetTax(world, civ, atWar) {
   let t = govDef(civ).tax;
-  for (const tr of civ.ruler?.traits || []) {
-    if (tr === 'greedy') t += 0.04;
-    else if (tr === 'cruel') t += 0.02;
-    else if (tr === 'generous') t -= 0.02;
-  }
+  // a greedy or hard ruler taxes more (core/character.js)
+  if (civ.ruler) { const tp = temperOf(civ.ruler, civ); t += 0.08 * (tp[TP.GRE] - 0.5) + 0.04 * Math.max(0, 0.45 - tp[TP.MER]); }
   if (atWar) t += 0.04;
   if (civ.treasury < 0) t += 0.05;
   else if (civ.treasury > 200 + civ.population * 0.05) t -= 0.03;

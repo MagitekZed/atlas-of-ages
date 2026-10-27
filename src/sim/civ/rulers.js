@@ -25,7 +25,8 @@ import { makePerson, makeWord, isEnglishWord } from '../../core/names.js';
 import { civSettlements, enemiesOf } from '../../core/entities.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
 import { emit, on } from '../../core/hooks.js';
-import { mulOf, hasProviders } from '../../core/ext.js';
+import { skillsOf, growSkills, useSkill, bodyOf, wound, madTemper, settleAmbition, SK, WOUND_WORDS, WOUND_EPITHETS, ILLNESSES } from '../../core/character.js';
+import { mulOf, hasProviders, registerProvider } from '../../core/ext.js';
 import { RULER_TRAITS, GOVERNMENTS, isDynastic } from './data.js';
 import { rulerTitle, govDef, adoptGovernment, revolutionTarget } from './government.js';
 import { refreshMods, getMods } from './tech.js';
@@ -34,6 +35,8 @@ import { fin, record, rateOk, rulerRef, DYNASTY_CAP } from './state.js';
 import { theName, TheName, PeopleOf, peopleOf, rulerName, rulerShort, pick, roman } from './prose.js';
 import { heirOnInstall, takeHeir, unionSuccession, onRulerGone, startRegency, unionPartner } from './dynasty.js';
 import { epithetFor, EPITHET_THEMES } from './epithets.js';
+import { rulerAmbitionYear, heirPlotYear } from './ambitions.js';
+import { figureDies } from './culture.js';
 
 const HISTORY_CAP = 60;
 const TRAIT_KEYS = Object.keys(RULER_TRAITS);
@@ -249,6 +252,10 @@ export function archiveRuler(world, civ, r, cause) {
     born: r.born, reignStart: r.reignStart, reignEnd: world.time.day, cause, traits: (r.traits || []).slice(),
     deeds: liveDeeds(r.deeds), relation: r.relation || null, predecessorId: r.predecessorId ?? null,
     ...(r.spouse ? { spouse: { ...r.spouse } } : {}), ...(r.flags?.blessed ? { blessed: true } : {}), ...(r.flags?.cursed ? { cursed: true } : {}),
+    // the body is remembered (wounds, illness, madness); temperament and skills only while living
+    ...(r.bd && (r.bd.w.length || r.bd.ill || r.bd.mad) ? { bd: { w: r.bd.w.slice(), ill: r.bd.ill, mad: r.bd.mad } } : {}),
+    // and what they wanted (ambitions.js): the ambition they died with, those met or given up
+    ...(r.am ? { am: { ...r.am } } : {}), ...(r.done && r.done.length ? { done: r.done.map((d) => d.slice()) } : {}),
   });
   if (civ.rulerHistory.length > HISTORY_CAP) civ.rulerHistory.splice(0, civ.rulerHistory.length - HISTORY_CAP);
 }
@@ -286,20 +293,99 @@ export function rulersMonthly(world, civ, agg) {
   let haz = 0.011 + 0.0006 * Math.exp((a - 30) / 8) + 0.014 * Math.max(0, 1 - era / 6) * (1.2 - Math.min(1, mods.health * 0.8));
   if (r.flags?.blessed) haz *= 0.6;
   if (r.flags?.cursed) haz *= 2.5;
+  if (r.bd && r.bd.ill) haz *= 1.7;   // a lasting illness (core/character.js)
   let cause = null;
-  if (world.rng.chance(haz / 12)) cause = a > 62 ? 'old age' : 'illness';
-  if (!cause && agg.atWar && r.traits.includes('warlike') && world.rng.chance(0.008 / 12)) cause = 'battle';
+  if (world.rng.chance(haz / 12)) cause = a > 62 && !(r.bd && r.bd.ill) ? 'old age' : 'illness';
+  // (death in battle comes from the battles a ruler leads in person: war.js, rulerFell)
   if (!cause) {
     const coup = r.traits.reduce((m, t) => m * (RULER_TRAITS[t]?.coup || 1), 1);
     const sf = Math.max(0.3, fin(world.params.stabilityFactor, 1));
-    const pA = 0.0035 * (1 + 4 * Math.max(0, 0.5 - civ.stability)) * coup * (govDef(civ).succession === 'strongman' ? 2.5 : 1) / sf * (r.flags?.cursed ? 1.5 : 1);
+    // a ruler versed in intrigue sees the knives coming (core/character.js)
+    const wary = 1.4 - 0.8 * skillsOf(r, world.time.day, lifeOf(world, civ, r))[SK.INT];
+    const pA = 0.0035 * (1 + 4 * Math.max(0, 0.5 - civ.stability)) * coup * wary * (govDef(civ).succession === 'strongman' ? 2.5 : 1) / sf * (r.flags?.cursed ? 1.5 : 1);
     if (world.rng.chance(pA / 12)) cause = 'assassinated';
   }
   if (cause) { succession(world, civ, cause, agg); return; }
   if (r.termEnd != null && world.time.day >= r.termEnd) { election(world, civ); return; }
-  // yearly: legitimacy drift and epithets
-  if (world.time.day % DAYS_PER_YEAR < 30) considerEpithet(world, civ, r);
+  // yearly: skills grow with age and years on the throne (core/character.js); a lasting illness
+  // or madness may come; epithets
+  if (world.time.day % DAYS_PER_YEAR < 30) {
+    const life = lifeOf(world, civ, r);
+    if (!(r.bd && r.bd.ill)) growSkills(r, world.time.day, life);
+    useSkill(r, SK.STE, 0.01);
+    bodyYear(world, civ, r, a, era, life);
+    considerEpithet(world, civ, r);
+    // what the ruler wants, and an heir who will not wait (ambitions.js)
+    rulerAmbitionYear(world, civ, r);
+    heirPlotYear(world, civ, r, succession);
+  }
 }
+
+const ILL_KEYS = Object.keys(ILLNESSES);
+
+/**
+ * A ruler's year in the body (core/character.js): a lasting illness (0.6 % a year after 40, half as
+ * much again before the Classical age); madness from 50 (0.2 % a year, three times as likely with
+ * the falling sickness), which takes the 'mad' trait and throws the temperament about each year.
+ * Both by the years of the ruler's people (an elf falls ill a fifth as often in a calendar year), and
+ * the illness × how sickly the people is (ext 'sickness': in Mythic worlds, by race) and × the health
+ * of the seat (× 1 at the usual 0.75, × 0.75 at the healthiest, × 1.4 in a sick, crowded one).
+ */
+function bodyYear(world, civ, r, a, era, life = 1) {
+  const bd = r.bd || null;
+  // how sickly the people (ext; elves seldom, orcs often), and how healthy the seat the court lives in
+  // (crowding against aqueducts and sewers, hunger, plague, foul air: civ/settlement.js; × 1 at 0.75)
+  const seat = civ.capitalId != null ? world.settlements[civ.capitalId] : null;
+  const sick = (hasProviders('sickness') ? mulOf('sickness', world, civ, r) : 1) * (seat && Number.isFinite(seat.health) ? (1.65 - seat.health) / 0.9 : 1);
+  if (a > 40 && !(bd && bd.ill) && world.rng.chance(0.006 * (era < 3 ? 1.5 : 1) / life * sick)) {
+    const b = bodyOf(r);
+    b.ill = ILL_KEYS[Math.floor(world.rng.next() * ILL_KEYS.length)];
+    b.illDay = world.time.day;
+  }
+  if (a >= 50 && !(bd && bd.mad) && world.rng.chance(0.002 * (bd && bd.ill === 'falling' ? 3 : 1) / life)) {
+    const b = bodyOf(r);
+    b.mad = world.time.day;
+    if (!r.traits.includes('mad')) { r.traits = r.traits.filter((t) => t !== 'wise').concat('mad'); }
+    if (rateOk(world, `mad:${civ.id}`, 30 * DAYS_PER_YEAR)) {
+      record(world, { cat: 'civ', imp: 2, key: 'person.mad', civ, ref: rulerRef(civ, r), tags: ['ruler', 'madness'], text: pick(world, [
+        `${rulerName(r)} of ${theName(civ)} fell into madness; the court trembled at every new decree.`,
+        `In ${rulerShort(r)}'s old age a madness came over ${r.gender === 'f' ? 'her' : 'him'}, and ${theName(civ)} was ruled by fancies and terrors.`,
+      ]) });
+    }
+  }
+  if (r.bd && r.bd.mad) madTemper(r, Math.floor(world.time.day / DAYS_PER_YEAR));
+}
+
+// a ruler leading in person (geo/war.js): falls, is wounded or is taken
+on('rulerFell', (world, civ) => { if (civ && civ.alive && civ.ruler) succession(world, civ, 'battle'); });
+on('rulerWounded', (world, civ, code, where) => {
+  const r = civ && civ.ruler;
+  if (!r || !wound(r, code)) return;
+  let named = false;
+  if (!r.epithet && WOUND_EPITHETS[code] && code !== 'scar') { r.epithet = WOUND_EPITHETS[code]; syncRulerDisplay(r); named = true; }
+  if (!rateOk(world, `wound:${civ.id}`, 10 * DAYS_PER_YEAR)) return;
+  record(world, { cat: 'war', imp: named ? 2 : 1, key: 'person.wounded', civ, ref: rulerRef(civ, r), tags: ['ruler', 'wound'], text: `${rulerName(r, false) || rulerShort(r)} of ${theName(civ)} ${WOUND_WORDS[code]} at ${where}${named ? `, and was known ever after as ${r.epithet}` : ''}.` });
+});
+on('rulerCaptured', (world, civ, captor, war, where) => {
+  const r = civ && civ.ruler;
+  if (!r || !captor) return;
+  civ.flags.captive = { by: captor.id, war: war ? war.id : null, since: world.time.day };
+  civ.legitimacy = Math.max(0, fin(civ.legitimacy, 0.6) - 0.1);
+  civ.stability = Math.max(0, fin(civ.stability, 0.6) - 0.05);
+  record(world, { cat: 'war', imp: 3, key: 'person.captured', civ, ref: rulerRef(civ, r), tags: ['ruler', 'captive'], text: pick(world, [
+    `${rulerName(r)} of ${theName(civ)} was taken captive at ${where} and carried off by ${theName(captor)}.`,
+    `At ${where} the host of ${theName(civ)} broke, and ${rulerShort(r)} was led away a prisoner of ${theName(captor)}.`,
+  ]) });
+});
+// a captive ruler comes home when that war ends (war.js may have ransomed them at the peace)
+on('warEnded', (world, war) => {
+  for (const id of [...(war.attackers || []), ...(war.defenders || [])]) {
+    const c = world.civs[id];
+    if (c && c.flags && c.flags.captive && c.flags.captive.war === war.id) c.flags.captive = null;
+  }
+});
+// a new ruler is no captive
+on('succession', (world, civ) => { if (civ && civ.flags && civ.flags.captive) civ.flags.captive = null; });
 
 /** Legitimacy drifts toward a target set by reign length, dynasty age and government. */
 export function updateLegitimacy(world, civ) {
@@ -322,6 +408,14 @@ export function updateLegitimacy(world, civ) {
   civ.legitimacy = Math.max(0, Math.min(1, fin(civ.legitimacy, 0.6) + (t - fin(civ.legitimacy, 0.6)) * 0.03));
 }
 
+/** "of the wasting sickness that had plagued her for nine years" (core/character.js), or null. */
+function illPhrase(world, r, cause) {
+  const bd = r && r.bd;
+  if (cause !== 'illness' || !bd || !bd.ill || !ILLNESSES[bd.ill]) return null;
+  const yrs = Math.round((world.time.day - fin(bd.illDay, world.time.day)) / DAYS_PER_YEAR);
+  return yrs >= 2 ? `of ${ILLNESSES[bd.ill]} that had plagued ${r.gender === 'f' ? 'her' : 'him'} for ${yrs} years` : `of ${ILLNESSES[bd.ill]}`;
+}
+
 function causePhrase(world, cause, a) {
   switch (cause) {
     case 'old age': return pick(world, [`in old age at ${Math.round(a)}`, `full of years at ${Math.round(a)}`, `peacefully at the age of ${Math.round(a)}`]);
@@ -329,6 +423,7 @@ function causePhrase(world, cause, a) {
     case 'battle': return pick(world, ['in battle', 'at the head of the army', 'of wounds taken in battle']);
     case 'assassinated': return pick(world, ['at the hands of assassins', 'by poison', 'in a palace conspiracy', "by an assassin's blade"]);
     case 'murdered': return pick(world, ['in the night, smothered in the royal bedchamber', 'by poison in the cup of a regent', 'in a locked tower, and no one was ever punished']);
+    case 'usurped': return 'in a plot of the heir';
     case 'smitten': return pick(world, ['by a bolt from a clear sky', 'by an unseen hand in the middle of a feast', 'between one word and the next, as if the gods had snuffed a candle', 'by the wrath of heaven before the whole court']);
     default: return '';
   }
@@ -362,11 +457,11 @@ export function succession(world, civ, cause, agg = {}, opts = {}) {
   const n = civ.settlementIds.length;
   const bigImp = fin(civ.population) >= 20000 || prev.epithet ? 2 : 1;
   const assassinImp = fin(civ.population) >= 30000 ? 3 : 2;
-  const verb = cause === 'assassinated' || cause === 'murdered' ? 'was killed' : cause === 'smitten' ? 'was struck down' : 'died';
+  const verb = cause === 'assassinated' || cause === 'murdered' ? 'was killed' : cause === 'smitten' ? 'was struck down' : cause === 'usurped' ? 'was overthrown' : 'died';
   const reignWords = reign >= 2 ? (cause === 'smitten' ? ` in the ${ordinal(Math.ceil(reign))} year of ${pron(prev)} reign` : ` after a reign of ${Math.round(reign)} years`) : '';
   const died = cause === 'smitten'
-    ? `${rulerName(prev)} of ${theName(civ)} ${verb}${reignWords} ${causePhrase(world, cause, a)}`
-    : `${rulerName(prev)} of ${theName(civ)} ${verb} ${causePhrase(world, cause, a)}${reignWords}`;
+    ? `${rulerName(prev)} of ${theName(civ)} ${verb}${reignWords} ${illPhrase(world, prev, cause) || causePhrase(world, cause, a)}`
+    : `${rulerName(prev)} of ${theName(civ)} ${verb} ${illPhrase(world, prev, cause) || causePhrase(world, cause, a)}${reignWords}`;
   const divine = cause === 'smitten';
   const base = {
     cat: opts.cat || 'civ', civ, ref: opts.ref || rulerRef(civ, prev), cause: opts.cause ?? null,
@@ -554,10 +649,10 @@ function successionCrisis(world, civ, prev, cause, died, n, heirP, base, tagsOf,
  * A coup or revolution that removes the ruler outright (stability collapse, divine unrest).
  * newGov: the government that follows (null keeps it). Returns { prev, ruler }.
  */
-export function overthrow(world, civ, newGov, how = 'revolution') {
+export function overthrow(world, civ, newGov, how = 'revolution', person = null) {
   const prev = civ.ruler;
   if (newGov && newGov !== civ.government) adoptGovernment(world, civ, newGov, { silent: true, keepTitle: true });
-  const nr = makeRuler(world, civ, { age: [32, 58], elected: govDef(civ).succession === 'elective' });
+  const nr = makeRuler(world, civ, { age: [32, 58], elected: govDef(civ).succession === 'elective', person });
   if (isDynastic(civ.government)) {
     const dn = newDynastyName(world, civ, nr.name);
     startDynasty(world, civ, dn, how === 'divine' ? 'deposed by heaven' : 'overthrown', nr);
@@ -570,15 +665,33 @@ export function overthrow(world, civ, newGov, how = 'revolution') {
   return { prev, ruler: nr };
 }
 
+// a learned ruler speeds the realm's research (core/character.js): × 0.95 to 1.05
+registerProvider('researchMul', 'civ.character', (world, civ) => (civ && civ.ruler && Array.isArray(civ.ruler.sk) ? 0.95 + 0.1 * civ.ruler.sk[SK.LEA] : 1));
+
 /**
  * A standing army seizes power (geo/raising.js emits armyCoup: three months unpaid, or a realm in
  * crisis). A republic falls to a dictatorship; a crown passes to the soldiers' man.
  */
-on('armyCoup', (world, civ) => {
+on('armyCoup', (world, civ, gen = null) => {
   if (!civ || !civ.alive || !civ.ruler) return;
   const prev = civ.ruler;
   const toDictator = GOVERNMENTS.dictatorship && ['republic', 'democracy', 'constitutional', 'merchant'].includes(civ.government) ? 'dictatorship' : null;
-  const { ruler } = overthrow(world, civ, toDictator, 'coup');
+  // a great general who wanted power takes the throne (ambitions.js); else the soldiers' man
+  const lead = gen && gen.died == null && gen.civId === civ.id ? gen : null;
+  const { ruler } = overthrow(world, civ, toDictator, 'coup', lead ? { name: lead.name, born: lead.born, gender: lead.gender } : null);
+  if (lead) {
+    settleAmbition(lead, 'met', world.time.day);
+    lead.deeds = (lead.deeds || []).concat(`seized the throne of ${theName(civ)}`).slice(-12);
+    figureDies(world, lead, 'took the throne', civ);
+    record(world, {
+      cat: 'civ', imp: 3, key: 'plot.coup', civ, tags: ['coup', 'army', 'ambition'], ref: rulerRef(civ, ruler),
+      text: pick(world, [
+        `The general ${lead.name}, who had long wanted power, turned the army of ${theName(civ)} on ${rulerShort(prev)} and took the throne as ${rulerName(ruler)}.`,
+        `${lead.name}, the greatest captain of ${theName(civ)}, marched on the palace at the head of unpaid soldiers; ${rulerShort(prev)} was deposed, and the general ruled${toDictator ? ' as dictator' : ''}.`,
+      ]),
+    });
+    return;
+  }
   record(world, {
     cat: 'civ', imp: 3, key: 'army.coup', civ, tags: ['coup', 'army'], ref: rulerRef(civ, ruler),
     text: pick(world, [

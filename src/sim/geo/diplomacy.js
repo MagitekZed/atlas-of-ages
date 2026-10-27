@@ -40,6 +40,7 @@ import { sharesSea } from './pathfinding.js';
 import { seedContactPlague } from './disease.js';
 import { faithOf } from './religion.js';
 import { claimSums, claimsMonthly } from './claims.js';
+import { temperOf, skillsOf, TP, SK } from '../../core/character.js';
 import { debtsMonthly, housesMonthly } from './debt.js';
 import { hostagesMonthly } from './terms.js';
 import {
@@ -309,11 +310,18 @@ function monthlyContext(world) {
     const has = (t) => rulerHas(c, t);
     ctx.rul[c.id] = {
       self: (has('warlike') ? -8 : 0) + (has('cruel') ? -6 : 0) + (has('greedy') ? -3 : 0) + (has('just') ? 4 : 0) + (has('wise') ? 4 : 0),
-      seen: (has('charismatic') ? 6 : 0) + (has('cruel') ? -4 : 0),
+      // how others see the realm: the ruler's charm, honour, mercy and skill at diplomacy (core/character.js)
+      seen: (has('charismatic') ? 6 : 0) + (c.ruler ? seenBy(world, c) : 0),
       mad: has('mad'), pious: has('pious'), craven: has('craven'),
     };
   }
   return ctx;
+}
+
+/** How a ruler's honour, mercy and diplomacy colour others' view of the realm (about −8 to +12). */
+function seenBy(world, c) {
+  const tp = temperOf(c.ruler, c), sk = skillsOf(c.ruler, world.time.day);
+  return 8 * (tp[TP.HON] - 0.5) + 8 * Math.min(0, tp[TP.MER] - 0.3) + 14 * (sk[SK.DIP] - 0.35);
 }
 
 function targetOpinion(world, a, b, r, ctx) {
