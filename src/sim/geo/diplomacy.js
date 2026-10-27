@@ -463,7 +463,7 @@ function treaties(world, st, ctx) {
       }
       // defensive alliances
       const allied = tr.includes('alliance');
-      if (allied && Math.min(oa, ob) < 8) {
+      if (allied && Math.min(oa, ob) < 8 && day > Math.max(ra.allyUntil ?? 0, rb.allyUntil ?? 0)) {
         removeTreaty(world, a.id, bid, 'alliance');
         unally(a, b);
         note(world, a, b, 2, pickOne(world, [

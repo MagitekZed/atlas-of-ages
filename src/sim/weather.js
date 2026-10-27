@@ -19,7 +19,7 @@ import { fin, clampR, rateOk, rateprune, pick, listJoin, yearNum, forDisc, cap, 
 import { WX_CELL, REGION, coarseDims, regionDims, regionOf, regionCentre, tileRuns } from './nature/grid.js';
 import { ensureWxFields, wxStatics, refreshDyn, stepAnomaly, step, spinUp, upBands, sampleRain, annualRain, calibrateYear, CAL_YEARS } from './nature/moisture.js';
 import { soilEquilibrium, SOIL_CAP } from './nature/climateModel.js';
-import { updateStorms, spawnStorm, stormNameList, forecastTrack } from './nature/storms.js';
+import { updateStorms, spawnStorm, stormNameList, forecastTrack, stormRadius } from './nature/storms.js';
 import { rainPreview, droughtPreview, stormPreview, lightningPreview, blizzardPreview, steerPreview, steerPush, forecastTowns } from './nature/previews.js';
 import { regionName, placePhrase, biggestNear } from './nature/places.js';
 import { ignite } from './ecology.js';
@@ -424,7 +424,7 @@ registerTool({
 
 registerTool({
   id: 'storm', label: 'Storm', group: 'catastrophe', icon: 'storm', order: 70, polarity: 'bane',
-  desc: 'Raise a storm here: a cyclone over warm sea, a blizzard over frozen land, a sandstorm in the desert, a thunderstorm elsewhere.',
+  desc: 'Raise a storm here: a cyclone over warm sea, a blizzard over frozen land, a sandstorm in the desert, a tempest elsewhere.',
   target: 'tile', radius: 0,
   strength: { label: 'Fury', min: 0.2, max: 1, default: 0.75 },
   preview: stormPreview,
@@ -437,7 +437,7 @@ registerTool({
     else if (b === BIOME.HOT_DESERT || b === BIOME.COLD_DESERT) kind = 'sandstorm';
     else if (f.temp[i] < 2) kind = 'blizzard';
     else kind = 'thunderstorm';
-    return raise(world, kind, x, y, s);
+    return raise(world, kind, x, y, s, { tempest: kind === 'thunderstorm' });
   },
 });
 
@@ -524,14 +524,16 @@ registerTool({
   },
 });
 
-function raise(world, kind, x, y, s) {
+function raise(world, kind, x, y, s, opts = {}) {
   const st = spawnStorm(world, kind, x + 0.5, y + 0.5, kind === 'cyclone' ? 0.35 + 0.65 * s : 0.3 + 0.7 * s, { forced: true, divine: true });
   if (!st) return { ok: false, message: 'The sky would not answer.' };
+  st.might = Math.round((1 + 2 * s) * 100) / 100;   // the hand's storms strike harder: up to 3x at full fury
+  if (opts.tempest) { st.tempest = true; st.radius = stormRadius(st); }
   if (kind === 'cyclone') { st.vx = -2; st.vy = -0.6 * st.hemisphere; st.maxAge += 6; }
   if (kind === 'thunderstorm') st.maxAge += 2;
   emitFx(world, { type: 'swirl', x, y, r: st.radius, src: 'tool' });
   const pl = placePhrase(world, x, y, { settleDist: 8 });
-  const what = kind === 'cyclone' ? `the cyclone ${st.name}` : kind === 'blizzard' ? 'a blizzard' : kind === 'sandstorm' ? 'a sandstorm' : 'a thunderstorm';
+  const what = kind === 'cyclone' ? `the cyclone ${st.name}` : kind === 'blizzard' ? 'a blizzard' : kind === 'sandstorm' ? 'a sandstorm' : st.tempest ? 'a tempest' : 'a thunderstorm';
   if (kind === 'cyclone') emitFx(world, { type: 'label', x: x + 0.5, y: y + 0.5, text: st.name, tone: 'bane', size: 1, src: 'tool' });
   if (strokeStart(world, 'storm:' + kind)) {
     chronicle(world, { cat: 'divine', imp: kind === 'cyclone' ? 2 : 1, x, y, key: 'divine.storm', ref: { k: 'storm', id: st.id }, text: pick(world, [

@@ -50,10 +50,12 @@ export function riverThresholds(world) {
 
 /**
  * Ocean = below `sea` and 8-connected to the map edge, or an enclosed below-sea basin of
- * at least 0.15 % of the map (an inland sea). Writes ocean[i] ∈ {0,1}; returns the count.
+ * at least 0.15 % of the map (an inland sea), or (given prev, the water mask before) a basin
+ * that held sea: sea closed off by new land stays sea at sea level, a lagoon, rather than
+ * filling to its rim as a lake. Writes ocean[i] ∈ {0,1}; returns the count.
  * comp/queue/cSize: Int32Array(N) scratch, cEdge: Uint8Array(N) scratch.
  */
-export function oceanMask(W, H, e, sea, ocean, comp, queue, cSize, cEdge) {
+export function oceanMask(W, H, e, sea, ocean, comp, queue, cSize, cEdge, prev = null) {
   const N = W * H;
   comp.fill(-1);
   let nb = 0;
@@ -63,7 +65,7 @@ export function oceanMask(W, H, e, sea, ocean, comp, queue, cSize, cEdge) {
     queue[qt++] = s0; comp[s0] = nb;
     while (qh < qt) {
       const i = queue[qh++], x = i % W, y = (i / W) | 0;
-      if (x === 0 || y === 0 || x === W - 1 || y === H - 1) edge = 1;
+      if (x === 0 || y === 0 || x === W - 1 || y === H - 1 || (prev && prev[i] === WATER.OCEAN)) edge = 1;
       for (let d = 0; d < 8; d++) {
         const nx = x + DX8[d], ny = y + DY8[d];
         if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
@@ -91,7 +93,8 @@ export function oceanMask(W, H, e, sea, ocean, comp, queue, cSize, cEdge) {
  */
 const lakeEvap = (T, rain) => Math.max(0.01, clamp((300 + 55 * T) / 3000, 0.03, 0.75) - 0.6 * rain);
 
-export function recomputeWater(world) {
+/** opts.keepSea: sea cut off from the ocean stays sea (during play; world generation leaves it out). */
+export function recomputeWater(world, opts = {}) {
   const { W, H, N, f } = world;
   const e = f.elevation, water = f.water, dir = f.flowDir, flow = f.flow, river = f.river;
   let sea = Number(world.climate?.seaLevel);
@@ -102,7 +105,7 @@ export function recomputeWater(world) {
   const areaScale = REF_N / N;
 
   // ---- 1. ocean mask
-  const oceanTiles = oceanMask(W, H, e, sea, ocean, comp, queue, cSize, cEdge);
+  const oceanTiles = oceanMask(W, H, e, sea, ocean, comp, queue, cSize, cEdge, opts.keepSea ? water : null);
 
   // ---- 2. priority flood + routing on the filled surface
   const n = priorityFlood(W, H, e, ocean, sea, F, parent, order, visited, heap);

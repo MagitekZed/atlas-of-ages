@@ -1,7 +1,7 @@
 // Earthquakes and tsunamis. Quakes strike along plate boundaries with Gutenberg–Richter
 // magnitudes (b ≈ 1: ten M5 for every M6), damage settlements within a magnitude-scaled
 // radius, scar the land, nudge the crust up or down along the fault and wake nearby
-// volcanoes. Undersea quakes of M7.5+ near coasts — and ocean meteor impacts — raise
+// volcanoes. Undersea quakes of M7.5+ — and ocean meteor impacts — raise
 // tsunamis that race across connected ocean and break on the shores they reach. Natural
 // quakes are scaled by the ext 'rates' key 'quake'.
 //
@@ -74,7 +74,7 @@ export function quakeStrike(world, s, x, y, M) {
   let I = Math.pow(Math.max(0, 1 - d), 1.3) * quakeSeverity(M);
   const civ = world.civs[s.civId];
   if (civ && fin(civ.tech?.era) >= 6) I *= 0.6;
-  return { I, pop: 0.2 * Math.pow(I, 1.5) };
+  return { I, pop: 0.4 * Math.pow(I, 1.5) };
 }
 
 /** An earthquake of magnitude M centred on (x, y). Returns { deaths, hit } */
@@ -102,7 +102,7 @@ export function quake(world, sys, x, y, M, opts = {}) {
   if (M >= 7) {
     const ang = world.rng.next() * Math.PI;
     const nx = Math.cos(ang), ny = Math.sin(ang);
-    const amp = 0.004 * (M - 6.5);
+    const amp = 0.0007 * (M - 6.5);   // about 30 m at M9.5
     forDisc(world, x, y, R * 0.6, (i, tx, ty, d) => {
       const side = (tx - x) * nx + (ty - y) * ny >= 0 ? 1 : -1;
       f.elevation[i] = clampR(f.elevation[i] + side * amp * (1 - d), 0, 1);
@@ -130,10 +130,10 @@ export function quake(world, sys, x, y, M, opts = {}) {
   const rec = { day: world.time.day, M, x, y, deaths: Math.round(deaths) };
   (sys.recent ||= []).push({ kind: 'quake', ...rec });
   if (sys.recent.length > 40) sys.recent.shift();
-  // Tsunami from an undersea rupture near land.
+  // Tsunami from an undersea rupture: its reach decides which coasts it meets.
   let wave = null;
   const undersea = f.water[i0] === WATER.OCEAN;
-  if (undersea && M >= 7.5 && landWithin(world, x, y, 8)) wave = tsunami(world, sys, x, y, { range: 25 * (M - 7), height: cl01((M - 7) / 2.2 + 0.3), source: `the M${M.toFixed(1)} quake`, quiet: true });
+  if (undersea && M >= 7.5) wave = tsunami(world, sys, x, y, { range: 25 * (M - 7), height: cl01((M - 7) / 2.2 + 0.3), source: `the M${M.toFixed(1)} quake`, quiet: true });
   const entry = quakeChronicle(world, sys, x, y, M, deaths, hit, wave, opts);
   emitHook(world, 'quake', { x, y, mag: M, deaths: Math.round(deaths + (wave ? wave.deaths : 0)), towns: hit.slice().sort((a, b) => b.killed - a.killed || b.I - a.I).slice(0, 8).map((h) => h.sid), undersea, divine: Boolean(opts.divine), seq: entry ? entry.seq : null });
   return { deaths, hit, wave };
@@ -261,7 +261,7 @@ export function tsunamiStrikes(world, coastHit) {
 }
 
 /** The share of a struck town's people a wave of strength g would drown. */
-export const tsunamiToll = (s, g) => Math.min(0.6, 0.25 * g + (s.harbor ? 0.04 : 0));
+export const tsunamiToll = (s, g) => Math.min(0.6, 0.5 * g + (s.harbor ? 0.04 : 0));
 
 /**
  * A tsunami from (x0, y0). opts: { range (tiles), height 0..1, source, divine, quiet }

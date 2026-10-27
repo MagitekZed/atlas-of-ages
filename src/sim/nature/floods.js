@@ -64,7 +64,7 @@ export function floodMonth(world, sys, month) {
     const sev = clampR(0.25 + 0.2 * (rc - 2) + 0.4 * wetF + 0.2 * rng.next(), 0.2, 1);
     const low = 1 + 2 * (1 - ss(0.5, 0.56, f.elevation[s.i] - world.climate.seaLevel + 0.5));
     const name = s.name, tier = s.tier;
-    const killed = damageSettlement(world, s, { pop: Math.min(0.08, (0.004 + 0.016 * sev) * low), food: 0.2 + 0.35 * sev, buildings: 0.12 * sev, wealth: 0.1 * sev, cause: 'flood' });
+    const killed = damageSettlement(world, s, { pop: Math.min(0.24, (0.012 + 0.048 * sev) * low), food: 0.2 + 0.35 * sev, buildings: 0.12 * sev, wealth: 0.1 * sev, cause: 'flood' });
     forDisc(world, s.x, s.y, 2 + 2 * sev, (i, tx, ty, d) => {
       if (f.water[i] !== WATER.LAND) return;
       if (f.river[i] < 1 && f.elevation[i] > f.elevation[s.i] + 0.01) return;

@@ -190,7 +190,7 @@ registerTool({
       st.hit.push(sett.id);
       const d = Math.hypot(sett.x - x, sett.y - y) / R;
       const g = s * (1 - d * d);
-      st.deaths += damageSettlement(world, sett, { pop: 0.02 * g, food: 0.45 * g, buildings: 0.15 * g, wealth: 0.1 * g, cause: 'flood' });
+      st.deaths += damageSettlement(world, sett, { pop: 0.06 * g, food: 0.45 * g, buildings: 0.15 * g, wealth: 0.1 * g, cause: 'flood' });
       emitFx(world, { type: 'flood', x: sett.x + 0.5, y: sett.y + 0.5, r: 2, src: 'tool' });
     }
     if (!st.chron) {

@@ -227,3 +227,15 @@ table.data.compare-table th[scope="row"] { position: static; background: transpa
 .hand-lessons .lesson { margin: 0 0 14px; padding: 8px 10px 4px; border: 1px solid var(--hair-2); border-radius: 0; background: var(--slate-2); }
 .hand-lessons .lesson .rule-head { margin-top: 0; }
 .hand-lessons .lesson .ins-prose { margin: 4px 0 6px; }
+.hand-phase { margin: 0 0 12px; }
+.hand-when { margin: 0 0 4px; font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .05em; color: var(--ink-2); }
+table.data.hand-report th, table.data.hand-report td, table.data.hand-numbers th, table.data.hand-numbers td { position: static; background: transparent; white-space: normal; vertical-align: top; padding: 4px 6px; }
+table.data.hand-report th, table.data.hand-report td { text-align: left; }
+table.data.hand-report td { font-family: var(--font-ui); font-size: var(--t-small); }
+table.data.hand-report td.world { color: var(--ink-2); }
+table.data.hand-report th[scope="row"], table.data.hand-numbers th[scope="row"] { font-family: var(--font-ui); letter-spacing: 0; color: var(--ink-2); text-align: left; }
+.hand-num { display: block; margin-top: 1px; font-family: var(--font-mono); font-size: var(--t-micro); font-variant-numeric: tabular-nums; color: var(--ink-3); }
+.hand-arrow { margin-right: 4px; font-size: .75em; }
+.hand-arrow.boon { color: var(--good); }
+.hand-arrow.bane { color: var(--danger); }
+.hand-arrow.even { color: var(--ink-3); }

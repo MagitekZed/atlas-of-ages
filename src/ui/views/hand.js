@@ -10,7 +10,7 @@ import * as F from '../format.js';
 import { registerView, registerTab } from '../registry.js';
 import { section, kv, cells, rows } from '../inspector.js';
 import { setPref, getPref } from '../prefs.js';
-import { MEASURES, actOf, reportText, focusOf, changeOf } from '../../sim/hand.js';
+import { MEASURES, actOf, reportRows, whenWords, shareWords, focusOf, changeOf } from '../../sim/hand.js';
 
 const fin = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const note = (text) => h('p.empty-note', { text });
@@ -50,7 +50,7 @@ function measureRows(act) {
   } else add(act.kind, 0);
   return out;
 }
-const fmt = (how, v) => (v == null ? '—' : how === 'l' ? (Math.round(v * 100) / 100).toFixed(2) : how === 'n' ? F.int(v) : Math.abs(v) >= 1000 ? F.int(v) : (Math.round(v * 100) / 100).toString());
+const fmt = (how, v) => (v == null ? '—' : how === 'l' ? (Math.round(v * 100) / 100).toFixed(2) : how === 'n' || Math.abs(v) >= 10 ? F.int(Math.round(v)) : (Math.round(v * 100) / 100).toString());
 
 export function showOnHandMap(app) {
   app.r('setMapMode', 'hand');
@@ -74,24 +74,40 @@ export const actView = {
     if (!act) return note('This act has passed out of the hand’s record (it keeps the last 150).');
     const btn = h('button.btn', { type: 'button', text: 'See the hand at work on the map' });
     btn.addEventListener('click', () => showOnHandMap(app));
-    const repLine = (which) => {
-      const p = h('p.ins-prose');
-      b.text(p, () => (act.c ? (which === 'end' ? 'This older act has been folded into the Lessons of the hand: its main measures are kept there, and its two reports are in the Chronicle.' : '') : act[which] ? reportText(w, act, which) : `Not yet: ${which === 'end' ? 'when its work is done' : 'a generation on'}, in Year ${yearOf(which === 'end' ? act.endDay : act.genDay)}.`));
-      return p;
+    // What came of it: a small table for each moment, the place beside the world over the same years
+    const phase = (which) => {
+      const rep = which === 'now' ? act.m1 : act[which];
+      const day = which === 'now' ? act.day : rep && typeof rep === 'object' ? rep.day : which === 'end' ? act.endDay : act.genDay;
+      const head = h('p.hand-when', { text: `${whenWords(act, which)} · Year ${yearOf(day)}` });
+      if (!rep) return h('div.hand-phase', null, head, note(`Not yet: this report comes in Year ${yearOf(day)}.`));
+      const list = reportRows(w, act, which, 4);
+      if (!list.length) return h('div.hand-phase', null, head, note(which === 'now' ? 'Nothing it measures moved at once.' : 'Little changed there beyond the way of the world.'));
+      const cmp = which !== 'now';
+      const cell = (words, num, r, cls = '') => h(`td${cls}`, null, r && r.dir ? h(`span.hand-arrow.${r.tone > 0 ? 'boon' : r.tone < 0 ? 'bane' : 'even'}`, { text: r.dir > 0 ? '▲' : '▼' }) : null, words || '—', num ? h('span.hand-num', { text: num }) : null);
+      const table = h('table.data.hand-report', null,
+        h('thead', null, h('tr', null, h('th'), h('th', { text: 'Here' }), cmp ? h('th', { text: 'Across the world' }) : null)),
+        h('tbody', null, ...list.map((r) => h('tr', null, h('th', { scope: 'row', text: r.label }), cell(r.here, r.num, r), cmp ? cell(r.world, r.wnum, null, '.world') : null))));
+      return h('div.hand-phase', null, head, table);
     };
-    const table = rows(b, () => (act.c ? [] : measureRows(act)).map(([label, how, b0, b1, e, g], k) => ({
-      key: `m${k}:${e != null}:${g != null}`, label, n: `${fmt(how, b0)} → ${fmt(how, b1)}`, s: `at its end ${fmt(how, e)} · a generation on ${fmt(how, g)}`,
-    })), 'Nothing was measured.', app);
+    const reports = h('div.hand-reports');
+    b.list(reports, () => (act.c ? [{ key: 'folded' }] : [...(act.m1 && act.kind !== 'pair' ? [{ key: 'now', which: 'now' }] : []), ...['end', 'gen'].map((which) => ({ key: `${which}:${Boolean(act[which])}`, which }))]),
+      (it) => it.key, (it) => (it.which ? phase(it.which) : h('p.ins-prose', { text: 'This older act has been folded into the Lessons of the hand: its main measures are kept there, and its two reports are in the Chronicle.' })));
+    // every measure at the four moments
+    const tbody = h('tbody');
+    b.list(tbody, () => (act.c ? [] : measureRows(act)).map(([label, how, b0, b1, e, g], k) => ({ key: `m${k}:${e != null}:${g != null}`, label, how, vals: [b0, b1, e, g] })),
+      (r) => r.key, (r) => h('tr', null, h('th', { scope: 'row', text: r.label }), ...r.vals.map((v) => h('td', { text: fmt(r.how, v) }))));
+    const numbers = act.c ? note('Its numbers were folded into the Lessons of the hand.') : h('table.data.hand-numbers', null,
+      h('thead', null, h('tr', null, h('th'), h('th', { text: 'Before' }), h('th', { text: 'Right after' }), h('th', { text: whenWords(act, 'end') }), h('th', { text: 'A generation on' }))), tbody);
     return [
-      (() => { const p = h('p.ins-lead'); b.text(p, () => `${labelOf(act)} ${act.name || ''}, in Year ${yearOf(act.day)}${act.str != null ? `, at strength ${F.num(act.str, 1)}` : ''}${act.kind === 'area' ? `, over ${F.int(Math.round(act.r))} tiles around ${act.pts && act.pts.length > 1 ? `${act.pts.length} points` : 'one point'}` : ''}${act.land ? `, on ${act.land}` : ''}.`); return p; })(),
+      (() => { const p = h('p.ins-lead'); b.text(p, () => `${labelOf(act)} ${act.name || ''}, in Year ${yearOf(act.day)}${act.str != null ? `, at strength ${F.num(act.str, 1)}` : ''}${act.kind === 'area' ? `, over ${F.int(Math.round(act.r))} ${Math.round(act.r) === 1 ? 'tile' : 'tiles'} around ${act.pts && act.pts.length > 1 ? `${act.pts.length} points` : 'one point'}` : ''}${act.land ? `, on ${act.land}` : ''}.`); return p; })(),
       cells(b, [
         { k: 'Its work', v: () => (w.time.day < act.endDay ? `until Year ${yearOf(act.endDay)}` : 'done') },
         { k: 'Reports', v: () => `${(act.end ? 1 : 0) + (act.gen ? 1 : 0)} of 2` },
         { k: 'Power', v: () => GROUP[act.grp] || 'The hand' },
       ]),
       h('div.ins-actions', null, btn),
-      section('What came of it', repLine('end'), repLine('gen')),
-      section('Before → right after', table),
+      section('What came of it', reports),
+      section('The numbers', numbers),
     ];
   }),
 };
@@ -143,8 +159,9 @@ function lessonCard(w, tool, acts, refused) {
         return ks.length > 1 ? ks.sort((p, q) => g[q].length - g[p].length).slice(0, 4).map((k) => `${k} ${say(how, median(g[k]))} (${g[k].length})`).join('; ') : '';
       };
       const land = by((a) => a.land), str = by(band);
-      if (which === 'now' && Math.abs(m) < 0.005) continue;
-      lines.push(`${which === 'now' ? 'At once' : which === 'end' ? 'When its work was done' : 'A generation on'}, ${words(done[0], id)} ${say(how, m)}${which === 'now' ? '' : ' against the world'}${all.length > 1 ? ` (the middle of ${all.length} acts)` : ''}${land ? `. By land: ${land}` : ''}${str ? `. By strength: ${str}` : ''}.`);
+      if (how === 'n' ? Math.round(m * 10) === 0 : Math.abs(m) < 0.005) continue;   // (nothing to tell)
+      const told = which === 'now' && how === 'q' ? `${shareWords(m)} (${say(how, m)})` : `${say(how, m)}${which === 'now' ? '' : ' against the world'}`;
+      lines.push(`${which === 'now' ? 'At once' : which === 'end' ? 'When its work was done' : 'A generation on'}: ${words(done[0], id)} ${told}${all.length > 1 ? ` (the middle of ${all.length} acts)` : ''}${land ? `. By land: ${land}` : ''}${str ? `. By strength: ${str}` : ''}.`);
     }
   }
   if (!lines.length) lines.push('No report has come in yet: the first will come when its work is done.');
