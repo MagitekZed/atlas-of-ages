@@ -71,7 +71,7 @@ export const actView = {
   point(w, id) { const act = actOf(w, id); return act && Number.isFinite(act.x) ? { x: act.x, y: act.y } : null; },
   mount: mounted((app, sel, b) => {
     const w = app.world, act = actOf(w, sel.id);
-    if (!act) return note('This act has passed out of the hand’s record (it keeps the last 300).');
+    if (!act) return note('This act has passed out of the hand’s record (it keeps the last 150).');
     const btn = h('button.btn', { type: 'button', text: 'See the hand at work on the map' });
     btn.addEventListener('click', () => showOnHandMap(app));
     const repLine = (which) => {

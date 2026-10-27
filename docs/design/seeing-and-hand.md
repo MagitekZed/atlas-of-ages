@@ -67,18 +67,17 @@ record left out.
   annals), and every field that points into the Chronicle by entry number (an effect's or a heat's
   source, a war's declaration, a band's last raid, the tallies: fields named …seq, src, hsrc,
   tally), since each report line shifts those numbers.
-- Speed: at most +0.5 % per sim-year (the observer works only around acts). Save: at most +50 KB for
-  a world with a few hundred acts.
+- Speed: at most +0.5 % per sim-year (the observer works only around acts). Save: at most about
+  55 KB (the record keeps 150 acts, the oldest folded).
 
 ## Data
 
 ### The acts of the hand: `world.sys.hand`
 
 ```
-acts: [{ seq, tool, day, at: { x, y, r } | null, target: { kind, id } | null,
-         strength, land: biome group of the spot, before: M, after: M,
-         end: { day, m: M, w: W } | null, gen: { day, m: M, w: W } | null,
-         endDay, genDay }]                                  (the last 300 acts)
+acts: [{ id, seq, tool, grp, kind, day, x, y, r, pts, tgt | a, b, str, land, name,
+         m0: { m: M, w: W } (before), m1: { m: M } (right after),
+         end, gen: { day, m: M, w: W } once reported, endDay, genDay, eff }]   (the last 150)
 refused: { toolId: { reason: n } }                          (why acts were refused)
 ```
 
@@ -95,7 +94,12 @@ refused: { toolId: { reason: n } }                          (why acts were refus
 ### When an act reports
 
 - **When its work is done:** when the timed effect it set expires; else a span by power family:
-  the sky 2 years, catastrophe 2 years, life 5 years, peoples and fate 5 years, the uncanny 5 years.
+  the sky 1 year (a harvest: rain's soil water is back to the world's within two), catastrophe 2
+  years, life 5 years, peoples and fate 5 years, the uncanny 5 years. The first report also tells
+  what the act did at once (right after against right before).
+- **Folding:** the newest 40 acts keep every measure; an older act with both reports in keeps only
+  its changes in the measures its power is for (at once, at its end, a generation on), which is all
+  the Lessons read.
 - **A generation later:** 25 years after the act.
 - A continuous stroke of a power is one act (the log already merges strokes).
 
@@ -195,3 +199,50 @@ The user's choices, recorded when made (2026-10-27):
 2. **Reports: when an act's work is done and a generation later** (25 years).
 3. **Notices: a Chronicle line and a toast**, and on the act's deed card; never a pause.
 4. **The front: while a war is watched or selected.**
+
+## Results (2026-10-27)
+
+Built in one go on `ui/seeing-and-hand`: a commit per phase, then wording and record-size fixes
+from the checks.
+
+### The same history
+
+- **With acts:** `headless --hand-check`, a world run twice with the same scripted powers (rain,
+  meteor, herds, a blessing; then drought, an incited war and a refused act), once without the
+  observer, gives the same history on small and medium worlds, 60 and 120 years, at myth levels 0
+  and 2. The first runs differed only in numbers that point into the Chronicle (each report line
+  shifts them: an effect's or a heat's source, a war's declaration, a band's last raid, the
+  tallies), which the check now leaves out.
+- **Without acts:** a world with no act of the hand is identical to main's (the atlas world to Year
+  500, every sampled number the same), so the twelve-world comparison is unchanged and was not rerun.
+
+### Gates
+
+All pass: `npm test` (determinism with and without the myth module, rewind, save and load),
+`--trial` at myth level 2 (random acts of every kind, saved, reloaded and replayed), the 300-year
+Mythic trials (seeds deep, trial, amber), the keyframe check, the cohort check and the new
+`--hand-check`.
+
+### Speed
+
+`timeab` from Year-900 saves made on main, 100 years, 3 rounds: Historical −0.6 %, Mythic 0.0 %
+(noise): the observer works only around acts, and the front and the hand's rings only while shown.
+
+### Save
+
+Without acts, nothing. With them, about 640 bytes for each of the newest 40 acts and about 270 for
+each folded older one: about 55 KB at the most (150 acts), 15 to 20 KB for a few dozen.
+
+### What the reports teach
+
+From a test of seventy acts and a few dozen more: rain lifts the soil's water at once (0.25 to 0.30
+in one test) and much of it is gone within two years, so the sky now reports after one harvest;
+herds jump at once (+15 %) and five years later can stand below the world's change (−14 % against
+−7 %); a blessed ruler may still be off the throne within five years; a meteor's town is gone, its
+fish thriving a generation on.
+
+### Checked in the browser
+
+A world at Year 300 with five acts: the Hand map mode (rings with "Herds · 5 yr left"), the reports
+arriving in the Chronicle 30 years on, the Hand tab (acts newest first; Lessons with a card per
+power), and a war's dossier ("Each side") with its front drawn on the map. No console errors.
