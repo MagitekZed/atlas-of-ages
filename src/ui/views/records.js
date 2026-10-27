@@ -16,6 +16,7 @@
 // records and trade roads, and the developer-records toggle.
 
 import { DAYS_PER_YEAR } from '../../core/constants.js';
+import { natureWords, WOUND_WORDS, ILLNESSES } from '../../core/character.js';
 import { SITE_KINDS, getSite } from '../../core/sites.js';
 import { h, Binder } from '../dom.js';
 import * as F from '../format.js';
