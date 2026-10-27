@@ -120,9 +120,9 @@ Age longer. Never a hard block: a world with no tin still reaches the Iron Age, 
 | Irrigation, The Water Mill | a river or lake in the realm |
 | Sailing, The War Galley, Shipbuilding, The Compass | a coast |
 | Navigation | a coast on open sea |
-| Paper | a town with a library |
+| Paper | fibre plants in the realm: forest, rainforest or wetland (bark, hemp, bamboo, papyrus) |
 | Banking | a market town of city size |
-| Gunpowder | a university or observatory town (the alchemists), else learned by war |
+| Gunpowder | saltpetre: desert, dry shrubland or mountains in the realm; else learned, mostly by war |
 | Steam Power, The Factory System | coal within reach |
 | Railways | coal and iron within reach |
 | Combustion | oil within reach |
@@ -133,19 +133,19 @@ the ages keeps its pace. A realm that meets an art's recipe has a small chance e
 
 | Rare art | Recipe | What it does |
 | --- | --- | --- |
-| Greek fire | the war galley, a coastal capital, a naval battle or a siege from the sea | its fleets win at sea; its harbour town holds against sea sieges |
+| Greek fire | the war galley, oil seeps (oil) within reach, a war at sea | its fleets win at sea; its harbour town holds against sea sieges |
 | Crucible steel | iron, iron ore, a trade route from a far realm | its gear is finer (quality +0.1) |
-| Silk | weaving, warm forest, a long reign or a golden age | trade from its towns worth more; prestige |
-| Porcelain | pottery, masonry, 40 years without war | trade worth more; culture |
+| Silk | weaving, husbandry (the silkworm), warm forest (the mulberry) | trade from its towns worth more; prestige |
+| Porcelain | pottery, engineering (kilns hot enough), hills (the white clay) | trade worth more; culture |
 | Concrete | engineering, a volcano within reach of its capital | building and walls cheaper and lasting; harbours on open coast |
-| Purple dye | currency, a coast, fishing | trade worth more; the crown's colour, legitimacy |
-| Wayfinding | rafts and canoes, many islands, no navigation yet | open-sea settlement in early ages |
-| The composite bow | the bow, horseback riding, grassland | horse archers: its light horse fights as heavy |
-| Clockwork of the heavens | astronomy, a great scholar, a golden age | research; astronomy; a wonder of the age |
-| Fine glass | guilds, a coastal trade town | trade worth more; the telescope sooner |
+| Purple dye | fishing, weaving, a warm coast (the sea snail) | trade worth more; the crown's colour, legitimacy |
+| Wayfinding | rafts and canoes, the calendar (star lore), many islands, no navigation yet | open-sea settlement in early ages |
+| The composite bow | the bow, husbandry (horn and sinew), horseback riding, steppe or savanna | horse archers: its light horse fights as heavy |
+| Clockwork of the heavens | astronomy, bronze, a great scholar | research; astronomy; a wonder of the age |
+| Fine glass | pottery (kilns), guilds, a coastal trade town (sand and fuel by sea) | trade worth more; the telescope sooner |
 | *Mythic:* Starmetal forging | iron, starmetal within reach | gear a tier above its age |
 | *Mythic:* Dragonbone craft | bronze, dragonbone within reach | armour: losses in battle down |
-| *Mythic:* Wyrmfire | the war galley, a slain dragon in its lands | as Greek fire, and against towns |
+| *Mythic:* Wyrmfire | the war galley, the lair of a slain dragon in its lands | as Greek fire, and against towns |
 
 ### Hoarding
 
@@ -216,13 +216,13 @@ with effects in several systems.
 | Iron | **The Alphabet** | writing | common | research; its knowledge spreads faster to and from it; scholars; reach of rule |
 | Iron | **Roads** | masonry, the wheel | common | armies and trade move faster; the reach of rule; risings put down sooner |
 | Iron | The War Galley | sailing, bronze | uncommon (coast) | sea battles and raids from the sea; needed for Greek fire |
-| Classical | **Paper** | the alphabet | uncommon (a library) | research; archives keep more; needed for printing; spreads by capture |
+| Classical | **Paper** | writing, weaving | uncommon (fibre plants) | research; archives keep more; needed for printing; spreads by capture |
 | Classical | The Water Mill | engineering, the wheel | uncommon (river) | production; fewer labourers needed |
 | Classical | Siege Engines | engineering, mathematics | common | sieges; engineers in its armies |
-| Classical | Maps | mathematics, sailing | common | reach of settlement and trade; explorers; wars further afield |
+| Classical | Maps | mathematics | common | reach of settlement and trade; explorers; wars further afield |
 | Medieval | **The Stirrup** | horseback, iron | common | heavy horse (knights); the feudal host; the charge |
-| Medieval | **The Compass** | iron, astronomy | uncommon (coast) | safer seas and longer voyages; needed for navigation |
-| Medieval | The Windmill | engineering, crop rotation | common | production; grain in dry lands without rivers |
+| Medieval | **The Compass** | iron, sailing | uncommon (coast) | safer seas and longer voyages; needed for navigation |
+| Medieval | The Windmill | engineering, weaving (its sails) | common | production; grain in dry lands without rivers |
 | Medieval | The Mechanical Clock | guilds, astronomy | common | production, research, a town's pride |
 | Medieval | Double-Entry Bookkeeping | mathematics, guilds | common | taxes collected; needed for banking; banking houses thrive |
 | Renaissance | **The Cannon** | gunpowder | common | sieges: old walls fall; walls rebuilt as star forts; guns at sea |
@@ -233,8 +233,31 @@ with effects in several systems.
 | Industrial | The Rifle | chemistry, gunpowder | common | gear; defenders bleed attackers |
 | Industrial | The Steamship | steam, navigation | common (coast) | sea range and trade; navies |
 
-Three prerequisites change to fit: sailing needs rafts and canoes, printing needs paper, navigation
-needs the compass, banking needs bookkeeping.
+### Requirements, reviewed
+
+The user asked (2026-10-26) that every requirement make sense: the first draft had paper needing a
+library, when libraries of clay and scroll came long before paper. Reviewed so that each invention
+needs what it was really built from, and each condition is a thing of the land:
+- **New inventions:** paper needs writing and weaving (pulp from fibre), not the alphabet (paper's
+  inventors had none); maps need only mathematics; the compass needs iron and sailing (a lodestone
+  needle for steering), not astronomy; the windmill needs engineering and weaving (cloth sails),
+  not crop rotation.
+- **Uncommon conditions:** paper needs fibre plants (forest, rainforest or wetland), not a library;
+  gunpowder needs saltpetre (desert, dry shrubland or mountains), not a university.
+- **Rare recipes:** each is materials and know-how, not a mood of the realm: Greek fire needs oil
+  seeps (it was naphtha), silk the silkworm and the mulberry, porcelain hot kilns and white clay,
+  purple dye the sea snail, glass kilns and a trading coast; golden ages and long peaces are gone
+  from the recipes.
+- **The existing tree, where it was odd:**
+  - Horseback riding needs husbandry (and horses), not the wheel.
+  - Crop rotation needs the plough and iron, not irrigation.
+  - Gunpowder needs medicine (the alchemists' learning) and guilds, not feudalism.
+  - Drama needs writing and mysticism (festival rites), not laws.
+  - Astronomy also needs the calendar.
+  - The Great Library (a library's second level) needs paper, not printing: Alexandria and the
+    House of Wisdom came long before the press.
+- **New links:** sailing needs rafts and canoes, printing needs paper, navigation needs the compass,
+  banking needs bookkeeping, steam needs the cannon (bored cylinders) rather than gunpowder alone.
 
 ### The printing press, in full
 
@@ -317,6 +340,14 @@ One go on `sim/inventions`, a commit per phase, stopping only for the user's dec
 ## Decisions
 
 The user's choices, recorded when made (talks of 2026-10-26):
+1. **New inventions: the two dozen**, with every requirement reviewed to make sense (above).
+2. **The march of the ages: the same cost to enter an age.** Two inventions of an age, priced as
+   today; with more to choose from, realms differ more within an age.
+3. **Uncommon inventions without the right land: three times the cost.** Never a hard block.
+4. **Turning points: world-shaping.** Printing splits faiths and spreads revolutions, the telegraph
+   holds empires together, the cannon brings down old walls, factories crowd towns.
+
+From the talks before:
 - Three tiers: common knowledge anyone may invent (iron, boats); uncommon knowledge that needs the
   right land or situation; rare arts with recipes that realms hoard.
 - Losing knowledge: common and uncommon only in a collapse; rare arts far more easily.
