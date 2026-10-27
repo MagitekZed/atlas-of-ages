@@ -204,6 +204,10 @@ function tell(world, civ, a, how, from, first, s) {
   } else if (how === 'gift') {
     key = 'art.gift';
     text = `${from ? TheName(from) : 'An ally'} shared the secret of ${nameOf(a)} with ${theName(civ)}, an ally of long standing.`;
+  } else if (how === 'dug') {
+    key = 'art.found';
+    imp = 3;
+    text = `Digging in old ruins, the scholars of ${place || theName(civ)} found the lost secret of ${nameOf(a)}, and ${theName(civ)} practised it again.`;
   } else if (how === 'learned') {
     key = 'art.learned';
     const pp = art.people && RACE_META[art.people] ? RACE_META[art.people].plural.toLowerCase() : 'its makers';
@@ -328,6 +332,22 @@ export function artsYearly(world) {
       }
     }
   }
+}
+
+/**
+ * A dig in the ruin of town sid (events/ruins.js): a rare art lost there, with no holder now, is
+ * found again by the diggers' realm (30 %), if it may practise it. Returns true when found.
+ */
+export function rediscoverArt(world, civ, s, sid) {
+  if (!world.sys.civ || !world.sys.civ.arts || !civ || !civ.alive) return false;
+  for (const a of ART_IDS) {
+    const r = world.sys.civ.arts[a];
+    if (!r || r.held.length || !r.lost.some((l) => l[1] === sid) || !inWorld(world, a)) continue;
+    if (!canPractise(civ, a, s) || !world.rng.chance(0.3)) continue;
+    if (!gain(world, civ, a, s, 'dug')) continue;
+    return true;
+  }
+  return false;
 }
 
 /** Words for the dossiers: what each art gives. */

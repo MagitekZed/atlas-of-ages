@@ -17,6 +17,17 @@
 //                age, giving it 40 % toward two inventions of the homeland
 //     refugees   when a realm falls, its learned flee to its friendliest neighbour: 30 % toward two
 //                inventions it did not know
+//   Loss (phase 4): in a collapse (a dark age after defeat or collapse, a realm fallen to a fifth
+//   of its towns within a dozen years, its capital lost with its library) each invention of its
+//   newest age may be lost (20 %; the age before 10 %), × 0.2 for a realm that prints, never one
+//   an archive in its lands still holds or another invention it knows rests on; at most three.
+//   A lost invention is remembered (civ.tech.lost): relearnt at half the cost (tech.js).
+//   Archives: a town with a library keeps its realm's newest 12 inventions (24 with paper), a
+//   Great Library all of them: s.archive = [TECHS indices], yearly. A library burns when its
+//   town is razed, and one time in seven when it is taken by force (the Chronicle tells of a Great
+//   Library's or a capital's); a lost capital with a library costs knowledge only when the realm
+//   is down to a third of its towns as well. A ruin keeps the archive of
+//   a town that fell any other way (sites.js), for the digs (events/ruins.js).
 //   Crossings: the Chronicle tells when an invention first reaches a land mass, and in a Mythic
 //   world a people, it had not reached (sys.civ.reach[techId] = [landmass ids, 'r:race' …],
 //   filled lazily from the realms that know it in an older save).
@@ -25,7 +36,7 @@
 
 import { on } from '../../core/hooks.js';
 import { DAYS_PER_YEAR as DPY, RACE_META } from '../../core/constants.js';
-import { TECH_BY_ID, techDef, hasTech, headStart, isArcane, allTechs, refreshMods } from './tech.js';
+import { TECH_BY_ID, TECH_INDEX, TECHS, techDef, hasTech, headStart, isArcane, allTechs, refreshMods, forgetTechs } from './tech.js';
 import { fin, record, rateOk, KNOW_VERSION } from './state.js';
 import { theName, TheName, pick } from './prose.js';
 
@@ -41,11 +52,98 @@ export function fromOf(civ, id) {
 
 const TEACH = new Set(['conquest', 'reconquest', 'treaty', 'annexation', 'defection']);
 
-// a town taken by force or treaty teaches its new masters what its old ones knew
+// a town taken by force or treaty teaches its new masters what its old ones knew; a library taken
+// by force may burn; a realm that loses a capital with a library may lose knowledge with it
 on('settlementTransferred', (world, s, oldId, newId, cause) => {
-  if (!s || !s.flags || !TEACH.has(cause) || oldId == null || !world.civs[oldId]) return;
-  s.flags.tb = [oldId, world.time.day];
+  if (!s || !s.flags || oldId == null || !world.civs[oldId]) return;
+  const old = world.civs[oldId];
+  if (TEACH.has(cause)) s.flags.tb = [oldId, world.time.day];
+  const lib = fin(s.buildings?.library);
+  if (lib > 0 && (cause === 'conquest' || cause === 'reconquest') && world.rng.chance(1 / 7)) burn(world, s, old, world.civs[newId]);
+  // a capital and its library lost by a realm already down to a third of its towns: a collapse
+  const th = old.flags && old.flags.townHist;
+  if (lib > 0 && old.flags && old.flags.capitalSid === s.id && Array.isArray(th) && th.length && old.settlementIds.length * 3 <= Math.max(...th)) loseKnowledge(world, old, 'capital');
 });
+
+// a razed town's library burns with it
+on('settlementDestroyed', (world, s, cause) => {
+  if (s && cause === 'razed' && fin(s.buildings?.library) > 0) burn(world, s, world.civs[s.civId], null);
+});
+
+on('darkAge', (world, civ, why) => {
+  if (why === 'defeat' || why === 'collapse') loseKnowledge(world, civ, 'dark');
+});
+
+/** A library burns: its archive is gone, and the Chronicle says so. */
+function burn(world, s, owner, by) {
+  const great = fin(s.buildings?.library) >= 2;
+  const n = Array.isArray(s.archive) ? s.archive.length : 0;
+  s.archive = [];
+  // the Chronicle tells of a Great Library, or a capital's; lesser libraries burn unremarked
+  const capital = owner && owner.flags && owner.flags.capitalSid === s.id;
+  if (!(great || capital) || n < 6) return;
+  if (!rateOk(world, `burn:${s.id}`, 50)) return;
+  const name = great ? `the Great Library of ${s.name}` : `the library of ${s.name}`;
+  record(world, { cat: 'culture', imp: great ? 3 : 2, key: 'library.burned', s, tags: ['library'], text: pick(world, [
+    `${name.replace(/^./, (x) => x.toUpperCase())} burned${by ? ` when ${theName(by)} took the town` : ''}, and with it the learning of ${owner ? theName(owner) : 'its makers'}.`,
+    `${by ? `The soldiers of ${theName(by)} set fire to ${name}` : `Fire took ${name}`}; ${n} works of learning were lost.`,
+  ]) });
+}
+
+/**
+ * A collapse costs knowledge: each invention of the realm's newest age may be lost (20 %; the age
+ * before, 10 %), a fifth as likely for a realm that prints, never one an archive in its lands
+ * holds or another known invention rests on; at most three. Once in 50 years.
+ */
+export function loseKnowledge(world, civ, why) {
+  if (!civ || !civ.alive || !civ.tech) return;
+  const fl = (civ.flags ||= {});
+  if (world.time.day - fin(fl.lostDay, -1e9) < 50 * DPY) return;
+  fl.lostDay = world.time.day;
+  const era = fin(civ.tech.era, 0);
+  if (era < 1) return;
+  const kept = new Set();
+  for (const sid of civ.settlementIds) { const s = world.settlements[sid]; if (s && s.alive && Array.isArray(s.archive)) for (const k of s.archive) if (TECHS[k]) kept.add(TECHS[k].id); }
+  const needed = new Set();
+  for (const id in civ.tech.known) { const t = TECH_BY_ID[id]; if (t) for (const p of t.prereqs) needed.add(p); }
+  const press = hasTech(civ, 'printing') ? 0.2 : 1;
+  const out = [];
+  for (const t of TECHS) {
+    if (out.length >= 3) break;
+    if (!hasTech(civ, t.id) || kept.has(t.id) || needed.has(t.id) || (t.era !== era && t.era !== era - 1)) continue;
+    if (world.rng.chance((t.era === era ? 0.2 : 0.1) * press)) out.push(t.id);
+  }
+  if (!out.length) return;
+  forgetTechs(world, civ, out);
+  if (rateOk(world, `techLost:${civ.id}`, 30)) {
+    const names = out.map((id) => techDef(id).name.replace(/^The /, 'the '));
+    const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+    const when = why === 'capital' ? 'With the fall of its capital and its library' : 'In the dark years';
+    record(world, { cat: 'tech', imp: 2, key: 'tech.lost', civ, tags: ['lost'], text: `${when}, ${theName(civ)} forgot the arts of ${list}.` });
+  }
+}
+
+/** Yearly: every library keeps its realm's newest inventions (a Great Library all of them). */
+function archivesYearly(world) {
+  for (const civ of world.civs) {
+    if (!civ || !civ.alive || !civ.tech) continue;
+    let ids = null;
+    for (const sid of civ.settlementIds) {
+      const s = world.settlements[sid];
+      const lib = s && s.alive ? fin(s.buildings?.library) : 0;
+      if (lib <= 0) { if (s && s.archive) delete s.archive; continue; }
+      ids ||= Object.keys(civ.tech.known).filter((id) => TECH_INDEX[id] != null).sort((a, b) => civ.tech.known[b] - civ.tech.known[a] || TECH_INDEX[a] - TECH_INDEX[b]);
+      const n = lib >= 2 ? ids.length : hasTech(civ, 'paper') ? 24 : 12;
+      s.archive = ids.slice(0, n).map((id) => TECH_INDEX[id]).sort((a, b) => a - b);
+    }
+    // a realm fallen to a fifth of its towns within a dozen years has collapsed
+    const th = civ.flags && civ.flags.townHist;
+    if (Array.isArray(th) && th.length) {
+      const top = Math.max(...th);
+      if (top >= 5 && civ.settlementIds.length * 5 <= top) loseKnowledge(world, civ, 'collapse');
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // The arms race
@@ -236,4 +334,5 @@ export function upgradeKnowledge(world) {
 export function knowledgeYearly(world) {
   if (!world.sys.civ) return;
   scholarsAbroad(world);
+  archivesYearly(world);
 }

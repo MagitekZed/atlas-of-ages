@@ -6,7 +6,8 @@
 //              from: { techId: 'h' | 'h:civId' } how each was learned (knowledge.js HOW; missing
 //              in an old save: its own research), head: { techId: [points, 'h:civId'] } head
 //              starts from conquest, arms, scholars and refugees, cue: [techId, 'h:civId'] the
-//              source of the research under way }
+//              source of the research under way, lost: { techId: day } knowledge lost in a
+//              collapse (relearnt at half the cost; knowledge.js), arts: { artId: sid } (arts.js) }
 //
 // Tiers (docs/design/inventions.md): every tech is common or uncommon (t.tier); a tech with
 // t.needs(world, civ) costs ALONE times as much to invent without that land or situation and
@@ -292,6 +293,8 @@ for (const t of TECHS) {
 }
 
 export const TECH_BY_ID = Object.fromEntries(TECHS.map((t) => [t.id, t]));
+/** A historical tech's place in TECHS (archives store these, knowledge.js). */
+export const TECH_INDEX = Object.fromEntries(TECHS.map((t, k) => [t.id, k]));
 export const TECHS_BY_ERA = ERAS.map((e) => TECHS.filter((t) => t.era === e.id));
 const BUILTIN_TECH = new Set(TECHS.map((t) => t.id));
 
@@ -553,6 +556,23 @@ export function noteFrom(civ, id, from) {
   if (civ.tech.head && civ.tech.head[id]) delete civ.tech.head[id];
 }
 
+/**
+ * Forget techs (knowledge.js, in a collapse): a fresh known object without them (the mods cache
+ * is keyed by the object, which only ever grows otherwise), remembered in civ.tech.lost.
+ */
+export function forgetTechs(world, civ, ids) {
+  if (!civ?.tech || !ids.length) return;
+  const drop = new Set(ids);
+  const known = {};
+  for (const id in civ.tech.known) if (!drop.has(id)) known[id] = civ.tech.known[id];
+  civ.tech.known = known;
+  const lost = (civ.tech.lost ||= {});
+  for (const id of ids) { lost[id] = world.time.day; if (civ.tech.from) delete civ.tech.from[id]; }
+  if (civ.tech.research && drop.has(civ.tech.research)) { civ.tech.research = null; civ.tech.progress = 0; }
+  civ.tech.era = computeEra(civ);
+  refreshMods(world, civ);
+}
+
 /** Can civ invent t alone (its land or situation; the ext 'inventRule' may answer)? */
 export function canInventAlone(world, civ, t) {
   if (hasProviders('inventRule')) { const v = firstOf('inventRule', world, civ, t.id); if (v === true || v === false) return v; }
@@ -678,6 +698,7 @@ export function effectiveCost(tech, peers, world = null, civ = null) {
   if (civ && world && disc > 0) disc *= learnMul(world, civ);
   let base = tech.cost * COST_SCALE * (1 - Math.min(0.6, disc));
   if (!taught && civ && tech.needs && !canInventAlone(world, civ, tech)) base *= ALONE;
+  if (civ && civ.tech && civ.tech.lost && civ.tech.lost[tech.id] != null) base *= 0.5;   // remembered: relearnt at half the cost
   return tech.costMul ? base * defCostMul(world, civ, tech) : base;
 }
 
@@ -865,6 +886,8 @@ export function discover(world, civ, id, how = 'research', teacher = null, opts 
   civ.tech.known[id] = world.time.day;
   if (civ.tech.research === id) civ.tech.research = null;
   if (civ.tech.cue && civ.tech.cue[0] === id) civ.tech.cue = null;
+  const regained = Boolean(civ.tech.lost && civ.tech.lost[id] != null);
+  if (regained) { delete civ.tech.lost[id]; if (!Object.keys(civ.tech.lost).length) delete civ.tech.lost; }
   // how it came (knowledge.js HOW): the caller's via, else by the kind of discovery
   const via = opts.via || HOW_OF[how] || 'r';
   noteFrom(civ, id, teacher && !NO_TEACHER.has(via) ? `${via}:${teacher.id}` : via);
@@ -885,6 +908,8 @@ export function discover(world, civ, id, how = 'research', teacher = null, opts 
         ? pick(world, [`${PeopleOf(civ)} of ${city} were the first ${tech.first}.`, `At ${city}, ${peopleOf(civ)} became the first ${tech.first}.`])
         : `${PeopleOf(civ)} were the first ${tech.first}.`;
       entry = record(world, { cat, imp: 2, key, text, civ, tags: [id] });   // (integration: arcane firsts are notable like any other first)
+    } else if (regained) {
+      entry = record(world, { cat, imp: 2, key: 'tech.found', text: `${TheName(civ)} recovered the lost art of ${midName(tech)}${teacher ? `, learning it anew from ${theName(teacher)}` : ''}.`, civ, tags: [id] });
     } else if (how === 'diffusion' && teacher) {
       const lead = (VIA_TEXT[via] || VIA_TEXT.b)(theName(teacher));
       entry = record(world, { cat, imp: 1, key, text: `${lead}, ${theName(civ)} ${pick(world, arcane ? LEARN_ARCANE : LEARN).replace('{tech}', midName(tech))}.`, civ, tags: [id] });

@@ -222,8 +222,9 @@ invention's cost, so they quicken the spread without handing out knowledge):
 ### Losing knowledge
 
 Common and uncommon knowledge is lost only in a **collapse**: a realm that falls to a fifth of its
-towns within a generation, enters a dark age after a great defeat, or loses its capital with a
-library. Each invention of its newest age, and of the one before at half the rate, may be lost
+towns within a dozen years, enters a dark age after a great defeat, or loses its capital with a
+library while already down to a third of its towns. Once in 50 years at most, three inventions at
+most. Each invention of its newest age, and of the one before at half the rate, may be lost
 (20 %), unless an archive in its lands still holds it. Printing makes loss rare (× 0.2). A lost
 invention is remembered: relearning it costs half.
 
@@ -231,8 +232,9 @@ Rare arts are lost as under "Hoarding".
 
 ### Archives and the burning of libraries
 
-Libraries now keep an archive (see Data). A sacked or razed library town loses it, and the Chronicle
-says so ("the Great Library of Varn burned, and with it ..."). A collapsing realm keeps whatever
+Libraries now keep an archive (see Data). A razed library town loses it, and so does one in seven
+taken by force; the Chronicle tells of a Great Library or a capital's library burning ("the Great
+Library of Varn burned, and with it ..."), and lesser ones burn unremarked. A collapsing realm keeps whatever
 its surviving archives hold. Digs in ruins (today's excavation) read the ruin's archive instead of
 the fallen realm's whole knowledge, so a ruin with a library is worth digging.
 

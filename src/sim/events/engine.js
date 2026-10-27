@@ -33,6 +33,8 @@ import { govFactor, govNote } from './governor.js';
 let peoples = null, tech = null, disease = null, religion = null, trade = null, dynasty = null;
 try { peoples = await import('../civ/peoples.js'); } catch (e) { /* splits unavailable */ }
 try { tech = await import('../civ/tech.js'); } catch (e) { /* tech grants unavailable */ }
+let arts = null;
+try { arts = await import('../civ/arts.js'); } catch (e) { /* rare arts unavailable */ }
 try { disease = await import('../geo/disease.js'); } catch (e) { /* plagues unavailable */ }
 try { religion = await import('../geo/religion.js'); } catch (e) { /* faiths unavailable */ }
 try { trade = await import('../geo/trade.js'); } catch (e) { /* route breaks unavailable */ }
@@ -42,6 +44,11 @@ export const hasTech = (civ, id) => Boolean(civ && civ.tech && civ.tech.known &&
 /** Tech defs by id (empty when the civ module is missing). */
 export const techDef = (id) => (tech && tech.TECH_BY_ID ? tech.TECH_BY_ID[id] : null) || (tech && Array.isArray(tech.TECHS) ? tech.TECHS.find((t) => t.id === id) : null) || null;
 /** Can civ learn tech id now (unknown, prerequisites known)? */
+/** The historical tech at archive index k (civ/knowledge.js archives), or null. */
+export const techAt = (k) => (tech && Array.isArray(tech.TECHS) && tech.TECHS[k] ? tech.TECHS[k].id : null);
+/** Find a lost rare art again in a ruin (civ/arts.js), or false. */
+export const rediscoverArt = (world, civ, s, sid) => Boolean(arts && arts.rediscoverArt && arts.rediscoverArt(world, civ, s, sid));
+
 export function canLearn(civ, id) {
   const t = techDef(id);
   if (!t || hasTech(civ, id)) return false;

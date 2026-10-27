@@ -97,6 +97,8 @@ export const HANDLERS = {
       peak: Math.round(peak), maxTier, buildings: { ...(s.buildings || {}) }, civId: s.civId,
       originCivId: s.originCivId, wonderIds, cause: cause || s.destroyCause || 'abandoned',
       fellDay: fin(s.destroyedDay, world.time.day), sid: s.id,
+      // what its library kept (civ/knowledge.js), unless it burned with the town
+      ...(Array.isArray(s.archive) && s.archive.length && (cause || s.destroyCause) !== 'razed' ? { archive: s.archive.slice() } : {}),
     };
     const site = addSite(world, {
       kind: 'ruin', x: s.x, y: s.y, i: s.i, name: s.name,
