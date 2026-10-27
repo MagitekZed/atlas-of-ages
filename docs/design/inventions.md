@@ -143,9 +143,45 @@ the ages keeps its pace. A realm that meets an art's recipe has a small chance e
 | The composite bow | the bow, husbandry (horn and sinew), horseback riding, steppe or savanna | horse archers: its light horse fights as heavy |
 | Clockwork of the heavens | astronomy, bronze, a great scholar | research; astronomy; a wonder of the age |
 | Fine glass | pottery (kilns), guilds, a coastal trade town (sand and fuel by sea) | trade worth more; the telescope sooner |
-| *Mythic:* Starmetal forging | iron, starmetal within reach | gear a tier above its age |
-| *Mythic:* Dragonbone craft | bronze, dragonbone within reach | armour: losses in battle down |
-| *Mythic:* Wyrmfire | the war galley, the lair of a slain dragon in its lands | as Greek fire, and against towns |
+
+These ten are open to every people in both kinds of world.
+
+### Mythic rare arts
+
+The user's model (2026-10-26): one art for each people but humans, two open to any people, and
+humans able, rarely, to take any of them. Humans are the "normal" people: their gifts are learning
+from others and the mix of peoples in their towns, so their way to the arts is gathering everyone
+else's.
+
+**A people's art** is practised only by its own people. A realm holds it through a town where that
+people is at least a quarter of the souls (the peoples' mix, chunk 1). A conqueror of that town
+holds the art while the people stays; if they leave or dwindle below the share, it is gone for that
+realm. Other peoples never learn it any other way (decision 6).
+
+| People | Rare art | Recipe | What it does |
+| --- | --- | --- | --- |
+| Elves | Ship-singing | Wood-Singing, shipbuilding, old forest on a coast | living ships: fleets faster, never lost to storms |
+| Dwarves | Stone-binding | Rune-Carving, masonry, mountains | walls and halls that mend themselves; sieges against them fail more often |
+| Orcs | War-beast breeding | Beast-Calling, husbandry, steppe | its war beasts (an army role since chunk 2) fight far harder |
+| Halflings | Everkeeping | Bountiful Hearth, pottery, a river | sealed larders: famine hardly touches its towns |
+| Lizardfolk | Swamp-physic | Venom Lore, medicine, wetland | fever cures: plague deaths in its towns cut sharply |
+
+**Open arts**, for any people in a Mythic world, hoarded like the Historical ones:
+
+| Rare art | Recipe | What it does |
+| --- | --- | --- |
+| Dragonbone craft | bronze, dragonbone within reach | armour: losses in battle down |
+| Ley-glass | pottery (kilns), a ley node in its lands | lenses that hold mana: arcane research faster |
+
+Starmetal forging is left out (the dwarves' Star-Forging art already is it), and so are wyrmfire and
+beast-hide armour.
+
+**Humans** have no art of their own. They find the ten Historical arts at the same odds as anyone,
+and steal the open arts as anyone may. Beyond that:
+- **A people's art, rarely.** About 0.2 % a year per art when the realm trades with or borders that
+  people, five times as much when that people lives in its own towns (its cosmopolitan gift).
+- **Practised anywhere.** Once a human realm has learned a people's art it practises it in any of
+  its towns, without that people: the one thing no other people can do.
 
 ### Hoarding
 
@@ -332,7 +368,8 @@ One go on `sim/inventions`, a commit per phase, stopping only for the user's dec
 1. **Stories and tiers.** `from`, first finds, the uncommon conditions, the new channels of spread,
    the Chronicle's notable crossings.
 2. **New inventions.** The two dozen, their prerequisites and effects; the printing press in full.
-3. **Rare arts.** Recipes, hoarding, theft, defection, loss.
+3. **Rare arts.** Recipes, hoarding, theft, defection, loss; the Mythic peoples' arts and the human
+   gift.
 4. **Loss and archives.** Collapse, archives, burned libraries, digs.
 5. **The interface.** Map mode, dossiers, the invention view.
 6. **Calibration, speed and gates**, then the Ledger and the Deep Dive.
@@ -346,6 +383,12 @@ The user's choices, recorded when made (talks of 2026-10-26):
 3. **Uncommon inventions without the right land: three times the cost.** Never a hard block.
 4. **Turning points: world-shaping.** Printing splits faiths and spreads revolutions, the telegraph
    holds empires together, the cannon brings down old walls, factories crowd towns.
+
+5. **Mythic rare arts: one per people, two open, humans may take any.** Elves ship-singing, dwarves
+   stone-binding, orcs war-beast breeding, halflings everkeeping, lizardfolk swamp-physic; open to
+   all: dragonbone craft and ley-glass. A people's art lives with its people (a conqueror holds it
+   while they stay); humans alone may learn one outright, rarely, and practise it anywhere.
+6. **Other peoples never learn a foreign people's art directly**, so the human gift stays theirs.
 
 From the talks before:
 - Three tiers: common knowledge anyone may invent (iron, boats); uncommon knowledge that needs the
