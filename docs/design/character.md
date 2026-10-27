@@ -256,3 +256,79 @@ The user's choices, recorded when made:
 3. **Who has ambitions: everyone notable.** Rulers, heirs, commanders and great people.
 4. **Plots for the throne: yes, rarely.** An heir or commander set on the throne may plot after a
    few years; success is a usurpation or a coup, failure prison, exile or death.
+
+## Results (2026-10-26)
+
+Built in one go on `sim/character`: a commit per phase (phase 2 with a fix for the dossier's
+imports), then three calibration commits in phase 4 and one for the dossier.
+
+### Calibration
+
+Twelve worlds against main (183ec01; the chunk 1 matrix), totals summed per group:
+
+| | Population | Realms | Towns | Wars | Time at war | Average war |
+| --- | --- | --- | --- | --- | --- | --- |
+| Historical, Year 500 | −26 % | +20 % | −6 % | +6 % | 17.9 → 18.5 % | 2.6 → 2.6 years |
+| Mythic, Year 500 | +1 % | +16 % | +9 % | +35 % | 13.6 → 16.7 % | 2.5 → 2.5 years |
+| Historical, Year 1000 | −6 % | +55 % | +5 % | +32 % | 24.5 → 28.0 % | 2.1 → 2.1 years |
+| Mythic, Year 1000 | +6 % | −12 % | +4 % | +5 % | 23.9 → 23.0 % | 2.1 → 2.0 years |
+
+No world came near failing. The fewest realms was 2, in the small Meadow world at Year 1000: a
+near-empire of 163 towns and 2.3 million people (main: 13 realms, 2.5 million), not a collapse.
+
+**Historical worlds are more broken up and fight more.** Most of it comes from phase 1: replacing
+the trait switches with temperament makes rulers on average about 6 % hungrier for war (1.15
+against 1.09 over 132 rulers of the atlas world), and the shift compounds differently in each
+world (Atlas: 13 realms and 247 wars by Year 1000 on main, 21 and 706 here; Vane: 14 and 535, 16
+and 588). Taking an ambition's pull back out of the odds of war made no consistent difference.
+The user accepted the shift (2026-10-26): "i think more realms and wars is fine."
+
+**Reigns** (Year 500; main → here):
+
+| World | Reigns | Average reign | In battle | Succession crises |
+| --- | --- | --- | --- | --- |
+| atlas, Historical | 132 → 200 | 25.0 → 21.4 years | 0 → 18 | 7 → 10 |
+| vane, Historical | 177 → 209 | 22.9 → 19.9 years | 1 → 19 | 7 → 19 |
+| atlas, Mythic | 133 → 150 | 31.8 → 25.9 years | 0 → 11 | 7 → 15 |
+| vane, Mythic | 146 → 216 | 23.8 → 20.8 years | 1 → 14 | 6 → 9 |
+
+Two phase 4 corrections came from these measures:
+- Rulers in the field first fell in battle in a third of early reigns (91 of 319 in the atlas
+  world). Now well guarded, they fall an eighth as often as a captain (1.2 % a lost battle, 0.4 %
+  a won one) and are taken in a rout 4 % of the time.
+- A lasting illness and late madness came by the calendar year, so long-lived peoples sickened
+  several times as often. They now come by the years of the ruler's people.
+
+The user then asked for each Mythic people to fall ill at its own rate (ext `sickness`, in the
+race table) and the town side to follow later: chunk 11, "Health and sickness", in the Deep Dive.
+
+**Ambitions**, as Chronicle lines (rate-limited) in the four 500-year worlds above: 15 to 49 sworn,
+2 to 16 met (a great general's glory among them), 14 to 25 given up. Plots stayed rare: one or two
+foiled in each world, and in Vane two heirs took the throne by a plot.
+
+### Gates
+
+All pass: `npm test` (determinism, a world with and without the myth module byte-identical at myth
+level 0, rewind, save and load), `--trial` at myth level 2, the 300-year Mythic trials (seeds deep,
+trial, amber), the keyframe check and the cohort check.
+
+### Speed
+
+`timeab` from Year-900 saves made on main, 100 years, 3 rounds:
+- **Mythic:** +0.7 %, within the 1 % budget.
+- **Historical:** +5.9 % (war +12 %, civ +8 %). Over 20 years from the same save it is +3.4 %, and a
+  profile of 30 years spreads the difference across pathfinding, trade, climate and the war pairs,
+  with no character function among the hot spots: the cost follows the more warlike world (more
+  wars and realms soon after the load), not the new code.
+
+### Save
+
+The new fields (temperament, skills, body, ambitions) take 81 KB at Year 1000, within the 100 KB
+budget. The whole save grows 3.1 MB (+15 %), from the different world: 118 realms over its
+history against 50, and nearly three times the war records.
+
+### Checked in the browser
+
+A Mythic world at Year 300: the ruler dossier's "Wants" and the Chronicle's sworn line, a past
+ruler's "Died wanting" and ambitions given up, a general's and a scholar's ambitions met, and the
+race card's "Falls ill". Repeated face wounds are now told once, with a count.

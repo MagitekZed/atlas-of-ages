@@ -211,7 +211,9 @@ const SK_ROWS = [[0, 'War'], [1, 'Diplomacy'], [2, 'Stewardship'], [3, 'Intrigue
 function bodyLine(r) {
   const bd = r && r.bd;
   if (!bd) return '';
-  const out = (bd.w || []).map((c) => (WOUND_WORDS[c] || c).replace(/^./, (x) => x.toUpperCase()));
+  const w = bd.w || [], scars = w.filter((c) => c === 'scar').length;
+  const out = w.filter((c) => c !== 'scar').map((c) => (WOUND_WORDS[c] || c).replace(/^./, (x) => x.toUpperCase()));
+  if (scars) out.push(scars > 1 ? `Took ${['', '', 'two', 'three', 'four'][scars] || scars} wounds to the face` : 'Took a wound to the face');
   if (bd.ill && ILLNESSES[bd.ill]) out.push(`Suffered ${ILLNESSES[bd.ill]}`);
   if (bd.mad) out.push(`Mad from ${F.year(bd.mad)}`);
   return out.join('; ');
