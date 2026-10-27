@@ -17,7 +17,7 @@
 // years for the sky and catastrophes, 5 for the rest) and 25 years after the act.
 //
 // Hooks: toolApplying (before: measure), toolApplied (after: the act, or a refusal counted, or a
-// stroke's next point). Exports: system, MEASURES, actOf, reportText
+// stroke's next point). Exports: system, MEASURES, actOf, reportText, focusOf
 
 import { on } from '../core/hooks.js';
 import { getTool } from '../core/tools.js';
@@ -289,6 +289,9 @@ const TOOL_FOCUS = {
   prosper: ['wealth', 'food', 'harvest', 'treasury'], ruin: ['wealth', 'food', 'treasury'], harmony: ['unrest', 'stability'], discord: ['unrest', 'stability'],
   fish: ['fish', 'food'], forest: ['veg', 'harvest'], predators: ['herds'], wildfire: ['veg', 'people', 'towns'], locusts: ['harvest', 'food', 'people'],
 };
+
+/** The measures an act's power is for (its report leads with them; the lessons gather them). */
+export const focusOf = (act) => TOOL_FOCUS[act.tool] || FOCUS[act.grp] || [];
 
 /** The measures that moved most against the world, the act's own first: [[score, words]], at most n. */
 function moves(kind, b, a, wb, wa, n = 3, focus = null) {

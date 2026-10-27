@@ -7,10 +7,10 @@ import { DAYS_PER_YEAR } from '../../core/constants.js';
 import { TOOL_GROUPS, getTool } from '../../core/tools.js';
 import { h, Binder } from '../dom.js';
 import * as F from '../format.js';
-import { registerView } from '../registry.js';
+import { registerView, registerTab } from '../registry.js';
 import { section, kv, cells, rows } from '../inspector.js';
-import { setPref } from '../prefs.js';
-import { MEASURES, actOf, reportText } from '../../sim/hand.js';
+import { setPref, getPref } from '../prefs.js';
+import { MEASURES, actOf, reportText, focusOf } from '../../sim/hand.js';
 
 const fin = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const note = (text) => h('p.empty-note', { text });
@@ -96,6 +96,145 @@ export const actView = {
   }),
 };
 
+// ---------------------------------------------------------------------------
+// Lessons of the hand: what each power has done, from your own acts
+
+const median = (xs) => { if (!xs.length) return null; const s = xs.slice().sort((a, b) => a - b); const k = s.length >> 1; return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2; };
+
+/** An act's change in measure id at a report against the world's: { v, how } or null. */
+function changeOf(act, which, id) {
+  const rep = act[which];
+  if (!rep || act.kind === 'pair') return null;
+  const defs = MEASURES[act.kind] || [];
+  const k = defs.findIndex((d) => d[0] === id);
+  if (k < 0) return null;
+  const how = defs[k][2];
+  const v0 = fin(act.m0.m[k]), v1 = fin(rep.m[k]), w0 = fin(act.m0.w[k]), w1 = fin(rep.w[k]);
+  if (how === 'q') return v0 > 0 ? { v: (v1 - v0) / v0 - (w0 > 0 ? (w1 - w0) / w0 : 0), how } : null;
+  if (how === 'l') return { v: (v1 - v0) - (w1 - w0), how };
+  if (how === 'n') return { v: v1 - v0, how };
+  return null;
+}
+const say = (how, v) => (how === 'q' ? `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100))} %` : how === 'l' ? `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100)) / 100}` : `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 10) / 10)}`);
+const words = (act, id) => { const d = (MEASURES[act.kind] || []).find((q) => q[0] === id); return d ? d[1] : id; };
+
+/** The strength band of an act: 'light' | 'middling' | 'strong' | null. */
+function band(act) {
+  const t = getTool(act.tool);
+  if (!t || !t.strength || act.str == null) return null;
+  const lo = fin(t.strength.min, 0), hi = fin(t.strength.max, 1);
+  const q = hi > lo ? (act.str - lo) / (hi - lo) : 0.5;
+  return q < 0.34 ? 'light' : q < 0.67 ? 'middling' : 'strong';
+}
+
+/** A Lessons card for one power: its uses and what typically came of it. */
+function lessonCard(w, tool, acts, refused) {
+  const t = getTool(tool);
+  const card = h('article.lesson');
+  card.append(h('h4.rule-head', { text: t ? t.label : tool }));
+  const last = acts[acts.length - 1];
+  const bands = {};
+  for (const a of acts) { const k = band(a); if (k) bands[k] = (bands[k] || 0) + 1; }
+  const bandWords = Object.entries(bands).map(([k, n]) => `${k} ${n}`).join(', ');
+  card.append(h('p.ins-prose', { text: `Used ${acts.length} ${acts.length === 1 ? 'time' : 'times'}, last in Year ${yearOf(last.day)}${bandWords ? `; at strength ${bandWords}` : ''}. ${GROUP[last.grp] || ''}.` }));
+  const lines = [];
+  for (const which of ['end', 'gen']) {
+    const done = acts.filter((a) => a[which]);
+    if (!done.length) continue;
+    const focus = focusOf(done[0]).filter((id) => (MEASURES[done[0].kind] || []).some((d) => d[0] === id)).slice(0, 2);
+    for (const id of focus) {
+      const all = done.map((a) => changeOf(a, which, id)).filter(Boolean);
+      if (!all.length) continue;
+      const how = all[0].how;
+      const m = median(all.map((x) => x.v));
+      // by the kind of land, and by strength, where the acts differ
+      const by = (keyFn) => {
+        const g = {};
+        for (const a of done) { const k = keyFn(a); const c = changeOf(a, which, id); if (k && c) (g[k] ||= []).push(c.v); }
+        const ks = Object.keys(g);
+        return ks.length > 1 ? ks.sort((p, q) => g[q].length - g[p].length).slice(0, 4).map((k) => `${k} ${say(how, median(g[k]))} (${g[k].length})`).join('; ') : '';
+      };
+      const land = by((a) => a.land), str = by(band);
+      lines.push(`${which === 'end' ? 'When its work was done' : 'A generation on'}, ${words(done[0], id)} ${say(how, m)} against the world (the middle of ${all.length})${land ? `. By land: ${land}` : ''}${str ? `. By strength: ${str}` : ''}.`);
+    }
+  }
+  if (!lines.length) lines.push('No report has come in yet: the first will come when its work is done.');
+  for (const l of lines) card.append(h('p.ins-prose', { text: l }));
+  if (refused && Object.keys(refused).length) {
+    const n = Object.values(refused).reduce((a, v) => a + v, 0);
+    card.append(h('p.ins-prose', { text: `Refused ${n} ${n === 1 ? 'time' : 'times'}: ${Object.entries(refused).sort((p, q) => q[1] - p[1]).slice(0, 3).map(([why, k]) => `“${why.replace(/[.\s]+$/, '')}”${k > 1 ? ` (${k})` : ''}`).join('; ')}.` }));
+  }
+  return card;
+}
+
+// ---------------------------------------------------------------------------
+// The Hand tab
+
+function handTab(app, el) {
+  const b = new Binder();
+  el.classList.add('hand-tab');
+  const leaves = [['acts', 'Your acts'], ['lessons', 'Lessons of the hand']];
+  let leaf = getPref('hand.leaf', 'acts');
+  const seg = h('div.seg', { role: 'tablist', 'aria-label': 'The hand' });
+  const lead = h('p.ins-lead');
+  const mapBtn = h('button.btn', { type: 'button', text: 'See the hand at work on the map' });
+  mapBtn.addEventListener('click', () => showOnHandMap(app));
+  const actsBox = h('div.hand-acts'), lessonsBox = h('div.hand-lessons');
+  const btns = leaves.map(([id, label]) => {
+    const x = h('button', { type: 'button', role: 'tab', text: label });
+    x.addEventListener('click', () => { leaf = id; setPref('hand.leaf', id); paint(true); });
+    return [id, x];
+  });
+  for (const [, x] of btns) seg.appendChild(x);
+  const st = () => (app.world && app.world.sys && app.world.sys.hand) || { acts: [], refused: {} };
+  const actRows = rows(b, () => st().acts.slice(-80).reverse().map((a) => {
+    const w = app.world, day = w.time.day;
+    const status = day < a.endDay ? `at work until Year ${yearOf(a.endDay)}` : a.gen ? 'both reports in' : a.end ? `reported; a generation on in Year ${yearOf(a.genDay)}` : 'reporting soon';
+    return { key: `a${a.id}:${Boolean(a.end)}:${Boolean(a.gen)}:${day < a.endDay}`, icon: 'divine', label: `${labelOf(a)} ${a.name || ''}`.trim(), n: `Year ${yearOf(a.day)}`, s: status, sel: { kind: 'act', id: a.id } };
+  }), 'You have not yet reached into this world. Every act of the hand will be listed here, and will report back what came of it.', app);
+  actsBox.append(actRows);
+  el.append(lead, seg, h('div.ins-actions', null, mapBtn), actsBox, lessonsBox);
+  b.text(lead, () => {
+    const s = st(), n = s.acts.length;
+    const reps = s.acts.reduce((k, a) => k + (a.end ? 1 : 0) + (a.gen ? 1 : 0), 0);
+    return n ? `${F.int(n)} ${n === 1 ? 'act' : 'acts'} of your hand remembered, ${F.int(reps)} ${reps === 1 ? 'report' : 'reports'} come in. Each act reports when its work is done and again a generation later, beside the rest of the world over the same years.` : 'The hand has not yet touched this world.';
+  });
+  let lessonsKey = '';
+  const paint = (force = false) => {
+    for (const [id, x] of btns) x.setAttribute('aria-selected', String(id === leaf));
+    actsBox.hidden = leaf !== 'acts';
+    lessonsBox.hidden = leaf !== 'lessons';
+    if (leaf !== 'lessons') return;
+    const s = st();
+    const key = `${s.n}:${s.acts.reduce((k, a) => k + (a.end ? 1 : 0) + (a.gen ? 1 : 0), 0)}:${JSON.stringify(s.refused).length}`;
+    if (!force && key === lessonsKey) return;
+    lessonsKey = key;
+    lessonsBox.textContent = '';
+    const byTool = new Map();
+    for (const a of s.acts) (byTool.get(a.tool) || byTool.set(a.tool, []).get(a.tool)).push(a);
+    const tools = [...byTool.entries()].sort((p, q) => q[1].length - p[1].length);
+    for (const id of Object.keys(s.refused || {})) if (!byTool.has(id)) tools.push([id, []]);
+    if (!tools.length) { lessonsBox.append(note('Lessons come from your own acts: use a power, and what came of it will be gathered here.')); return; }
+    for (const [id, acts] of tools) {
+      if (!acts.length) { const card = h('article.lesson'); card.append(h('h4.rule-head', { text: getTool(id)?.label || id })); lessonsBox.append(card); lessonsCardRefusals(card, s.refused[id]); continue; }
+      lessonsBox.append(lessonCard(app.world, id, acts, s.refused[id]));
+    }
+  };
+  paint(true);
+  b.update();
+  return { update: () => { b.update(); paint(); }, show: () => { b.update(); paint(true); } };
+}
+
+function lessonsCardRefusals(card, refused) {
+  const n = Object.values(refused || {}).reduce((a, v) => a + v, 0);
+  card.append(h('p.ins-prose', { text: n ? `Never done; refused ${n} ${n === 1 ? 'time' : 'times'}: ${Object.entries(refused).sort((p, q) => q[1] - p[1]).slice(0, 3).map(([why, k]) => `“${why.replace(/[.\s]+$/, '')}”${k > 1 ? ` (${k})` : ''}`).join('; ')}.` : 'Never done.' }));
+}
+
 export function mount(app) {
   registerView('act', actView);
+  registerTab({
+    id: 'hand', label: 'Hand', key: 'J', icon: 'divine', order: 55,
+    desc: 'Your acts of the divine hand, what came of each, and the lessons they teach about every power.',
+    mount: handTab,
+  });
 }
