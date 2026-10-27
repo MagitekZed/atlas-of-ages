@@ -9,6 +9,7 @@
 //   act = { id, seq (its intervention, for undo and the deed card), tool, grp, kind ('area' |
 //           'town' | 'realm' | 'pair'), day, x, y, r, pts (a stroke's points, ≤ 24), tgt, a, b
 //           (pair targets), str (strength), land (the kind of land at the spot), name (the place),
+//           sids (a point power's towns, as its forecast named them),
 //           m0 (before: { m: [measures], w: [the world's] }), m1 (right after: { m }), end, gen
 //           ({ day, m, w } once reported), endDay, genDay, eff (true when the end is a timed
 //           effect's); beyond the newest 40, an act with both reports in is folded: its measures
@@ -23,7 +24,7 @@
 // levelWords, focusOf, changeOf
 
 import { on } from '../core/hooks.js';
-import { getTool } from '../core/tools.js';
+import { getTool, previewTool } from '../core/tools.js';
 import { chronicle } from '../core/chronicle.js';
 import { DAYS_PER_YEAR as DPY, WATER, BIOME } from '../core/constants.js';
 
@@ -93,10 +94,10 @@ function townsPart(towns) {
   return [pop, harvest, food, pop > 0 ? unrest / pop : 0, n];
 }
 
-function measureArea(world, pts, r) {
+function measureArea(world, pts, r, sids = null) {
   const f = world.f;
   let rain = 0, soil = 0, veg = 0, herds = 0, nl = 0, fish = 0, nw = 0;
-  const towns = new Set();
+  const towns = new Set(Array.isArray(sids) ? sids : []);
   for (const i of tilesNear(world, pts, r)) {
     if (f.water[i] === WATER.LAND) { rain += f.annRain[i]; soil += f.soilWater[i]; veg += f.veg[i]; herds += f.herb[i]; nl++; }
     else { fish += f.fish[i]; nw++; }
@@ -160,7 +161,7 @@ const worldRef = (world, t) => (refKind(t) === 'realm' ? worldRealm(world) : ref
 
 /** The act's measures now: { m, w }. */
 function measure(world, act) {
-  if (act.kind === 'area') return { m: measureArea(world, act.pts && act.pts.length ? act.pts : [[act.x, act.y]], act.r), w: worldArea(world) };
+  if (act.kind === 'area') return { m: measureArea(world, act.pts && act.pts.length ? act.pts : [[act.x, act.y]], act.r, act.sids), w: worldArea(world) };
   if (act.kind === 'pair') {
     const ca = act.a && act.a.kind === 'civ' ? act.a.id : null, cb = act.b && act.b.kind === 'civ' ? act.b.id : null;
     const ra = ca != null && world.civs[ca] && world.civs[ca].relations ? world.civs[ca].relations[cb] : null;
@@ -222,6 +223,24 @@ function effectsOf(world, t) {
   return out;
 }
 
+/**
+ * A power that strikes a point (an earthquake, eruption, falling star, wave, storm): its reach is
+ * the first ring its forecast draws (up to 12 tiles, centred where it strikes) and the towns the
+ * forecast names, so the act measures what the power reaches, not the clicked tile alone.
+ */
+function reachOf(world, act, p) {
+  let pv = null;
+  try { pv = previewTool(world, p.id, p.x, p.y, p.opts || {}); } catch (e) { pv = null; }
+  if (!pv || pv.ok === false) return;
+  const ring = (pv.rings || []).find((q) => q && Number.isFinite(q.r) && q.r > 0);
+  if (ring) {
+    act.r = Math.max(1, Math.min(12, Math.round(ring.r * 10) / 10));
+    if (Number.isFinite(ring.x) && Number.isFinite(ring.y)) act.pts = [[Math.max(0, Math.min(world.W - 1, Math.floor(ring.x))), Math.max(0, Math.min(world.H - 1, Math.floor(ring.y)))]];
+  }
+  const sids = (pv.targets || []).filter((q) => q && q.kind === 'settlement' && Number.isFinite(q.id)).map((q) => q.id);
+  if (sids.length) act.sids = [...new Set(sids)].sort((a, b) => a - b).slice(0, 40);
+}
+
 let pending = null;
 
 on('toolApplying', (world, p) => {
@@ -230,6 +249,8 @@ on('toolApplying', (world, p) => {
   const act = { tool: p.id, grp: sh.grp, kind: sh.kind, day: world.time.day, x: Number.isFinite(p.x) ? p.x : null, y: Number.isFinite(p.y) ? p.y : null, r: sh.r || 0,
     tgt: sh.tgt || null, a: sh.a || null, b: sh.b || null, str: Number.isFinite(p.opts?.strength) ? p.opts.strength : null };
   if (act.kind === 'area') act.pts = [[act.x, act.y]];
+  const t = getTool(p.id);
+  if (act.kind === 'area' && t && !(t.radius > 0) && Number.isFinite(act.x)) reachOf(world, act, p);
   act.m0 = measure(world, act);
   pending = { act, eff: act.tgt ? effectsOf(world, act.tgt) : null, id: p.id };
 });
@@ -473,7 +494,7 @@ function fold(act) {
   act.L = L;
   act.c = 1;
   act.end = 1; act.gen = 1;
-  for (const k of ['m0', 'm1', 'pts', 'r', 'seq', 'eff', 'endDay', 'genDay', 'tgt', 'a', 'b']) delete act[k];
+  for (const k of ['m0', 'm1', 'pts', 'r', 'seq', 'eff', 'endDay', 'genDay', 'tgt', 'a', 'b', 'sids']) delete act[k];
 }
 
 /** The act with id, or null. */

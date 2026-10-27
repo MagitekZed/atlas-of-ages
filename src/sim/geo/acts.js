@@ -189,7 +189,7 @@ function alliancePreview(world, x, y, opts = {}) {
 
 registerTool({
   id: 'forge_alliance', label: 'Forge Alliance', group: 'fate', icon: 'diplomacy', order: 74, polarity: 'boon',
-  desc: 'Choose two nations: they swear a defensive alliance. A realm at war gains its new ally in the field.',
+  desc: 'Choose two nations: they swear a defensive alliance that holds for twenty years unless they come to blows. A realm at war gains its new ally in the field.',
   target: 'pair', pick: ['civ', 'civ'],
   preview: alliancePreview,
   applyPair(world, a0, b0) {
@@ -201,6 +201,7 @@ registerTool({
       r.opinion = Math.max(-100, Math.min(100, Math.max(r.opinion || 0, 25) + 15));
       r.trust = Math.max(r.trust ?? 0.5, 0.65);
       r.grievance = (r.grievance || 0) * 0.4;
+      r.allyUntil = world.time.day + 20 * DAYS_PER_YEAR;   // a sworn alliance does not lapse for twenty years (war still ends it)
     }
     addTreaty(world, a.id, b.id, 'alliance');
     ally(a, b);
