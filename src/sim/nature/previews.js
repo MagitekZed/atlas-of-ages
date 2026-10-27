@@ -19,7 +19,7 @@ import { settlementsNear } from '../../core/entities.js';
 import { mulOf, hasProviders } from '../../core/ext.js';
 import { latitude } from '../../core/world.js';
 import { fin, clampR, cl01, forDisc, listJoin, fmtRough, numberWord } from './common.js';
-import { quakeRadius, quakeStrike, landWithin, tsunamiReach, tsunamiStrikes, tsunamiToll } from './quakes.js';
+import { quakeRadius, quakeStrike, tsunamiReach, tsunamiStrikes, tsunamiToll } from './quakes.js';
 import { nearestVolcano, pyroclasticRadius, forAsh } from './volcanoes.js';
 import { impactStrike, blastRadius } from './meteors.js';
 import { forecastTrack, stormRadius } from './storms.js';
@@ -78,7 +78,7 @@ export function quakePreview(world, x, y, opts = {}) {
   list.sort((a, b) => b.d - a.d);
   const i = y * world.W + x;
   const undersea = world.f.water[i] === WATER.OCEAN;
-  const wave = undersea && M >= 7.5 && landWithin(world, x, y, 8) ? waveForecast(world, x, y, 25 * (M - 7), cl01((M - 7) / 2.2 + 0.3)) : null;
+  const wave = undersea && M >= 7.5 ? waveForecast(world, x, y, 25 * (M - 7), cl01((M - 7) / 2.2 + 0.3)) : null;
   const towns = list.length + (wave ? wave.list.length : 0);
   const bits = [`M${M.toFixed(1)}`];
   if (list.length) bits.push(`would shake ${townList(world, list)}`);
@@ -196,7 +196,7 @@ export function floodPreview(world, x, y, opts = {}) {
   for (const s of settlementsNear(world, x, y, R)) {
     const d = Math.hypot(s.x - x, s.y - y) / R;
     const g = s0 * (1 - d * d);
-    const k = s.population * 0.02 * g * dmgMul(world, s, 'flood');
+    const k = s.population * 0.06 * g * dmgMul(world, s, 'flood');
     dead += k; list.push({ sid: s.id, d: k });
   }
   list.sort((a, b) => b.d - a.d);
