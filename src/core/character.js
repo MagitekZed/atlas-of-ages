@@ -19,9 +19,13 @@
 //                madness, the war module the wounds)
 //
 // Exports: TP, SK, temperOf, skillsOf, growSkills, useSkill, warTemper, natureWords, whyWords,
-//          bodyOf, wound, WOUND_WORDS, WOUND_EPITHETS, ILLNESSES, madTemper
+//          bodyOf, wound, WOUND_WORDS, WOUND_EPITHETS, ILLNESSES, madTemper, ambitionPull
+//
+//   person.am = { k, t, since, by }   an ambition (civ/ambitions.js draws, meets and fails them);
+//   person.done = [[k, outcome, day, t]]   the last four resolved
 
 import { DAYS_PER_YEAR } from './constants.js';
+import { firstOf, hasProviders } from './ext.js';
 
 export const TP = { AMB: 0, MER: 1, PIE: 2, GRE: 3, HON: 4, BOL: 5 };
 export const SK = { WAR: 0, DIP: 1, STE: 2, INT: 3, LEA: 4 };
@@ -58,6 +62,9 @@ export function temperOf(person, civ = null) {
   if (Array.isArray(person.tp) && person.tp.length === 6) return person.tp;
   const t = civ && civ.traits ? civ.traits : {};
   const lean = [0, 0.3 * (fin(t.tolerance, 0.5) - 0.5), 0.3 * (fin(t.religiosity, 0.5) - 0.5), 0.3 * (fin(t.commerce, 0.5) - 0.5), 0, 0.3 * (fin(t.aggression, 0.5) - 0.5)];
+  // how a society raises its people (ext 'temperRule'; by default its traits alone)
+  const rule = hasProviders('temperRule') ? firstOf('temperRule', null, civ, person) : null;
+  if (Array.isArray(rule)) for (let k = 0; k < 6; k++) lean[k] += Math.max(-0.4, Math.min(0.4, fin(rule[k], 0)));
   const tp = [0, 1, 2, 3, 4, 5].map((k) => 0.5 + lean[k] + jitter(person, 11 + k));
   for (const tr of person.traits || []) for (const [k, v] of TRAIT_TP[tr] || []) tp[k] = v + jitter(person, 31 + k) * 0.5;
   person.tp = tp.map((v) => r2(clamp01(v)));
@@ -183,4 +190,40 @@ export function madTemper(person, year) {
   const tp = temperOf(person);
   person.tp = tp.map((v, k) => r2(clamp01(v + (grain(person, 900 + year * 7 + k) - 0.5) * 0.8)));
   return person.tp;
+}
+
+// ---------------------------------------------------------------------------
+// Ambitions (civ/ambitions.js keeps them; the war system feels them here)
+
+/**
+ * × on a ruler's desire for war on realm bId from their ambition: to take a town it holds (× 2),
+ * to avenge themselves on it (× 2.5), to unite their people with it (× 2), to bring it their faith
+ * in a holy war (× 1.5). world: for the town's holder.
+ */
+export function ambitionPull(world, person, bId, cbKey) {
+  const am = person && person.am;
+  if (!am) return 1;
+  switch (am.k) {
+    case 'town': { const s = world.settlements[am.t]; return s && s.alive && s.civId === bId ? 2 : 1; }
+    case 'avenge': return am.t === bId ? 2.5 : 1;
+    case 'unite': return am.t === bId ? 2 : 1;
+    case 'convert': return am.t === bId && cbKey === 'holy' ? 1.5 : 1;
+    default: return 1;
+  }
+}
+
+/** An ambition's words: {t} a town, {c} a realm, {f} a faith, {p} a people (filled in by the reader). */
+export const AMBITION_WORDS = {
+  town: 'to take {t}', avenge: 'to be avenged on {c}', unite: 'to unite {p} under one crown', convert: 'to bring {f} to {c}',
+  wonder: 'to raise a great work', golden: 'to see a golden age', throne: 'the throne', glory: 'glory in battle', power: 'power',
+  masterpiece: 'a masterpiece', discovery: 'a great discovery', voyage: 'a great voyage', fortune: 'a fortune', beast: 'to slay a great beast',
+};
+
+/** Resolve a person's ambition: moved to person.done (the last four) as met, failed or gone. */
+export function settleAmbition(person, outcome, day) {
+  const am = person && person.am;
+  if (!am) return null;
+  person.am = null;
+  person.done = (person.done || []).concat([[am.k, outcome, day, am.t ?? null]]).slice(-4);
+  return am;
 }

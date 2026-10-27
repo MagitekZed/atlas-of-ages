@@ -86,7 +86,7 @@ import { soldierPay } from './raising.js';
 import { forcesOf, deployRegiments, regimentsHome, raisingMonthly } from './raising.js';
 import { aimFor, defenderAim, aimsFromCause, aimMet, winnerAim, peaceAllows, takeHostage, hostageHeld, killHostage } from './terms.js';
 import { addReparations, monthlyIncome, debtClaim, settleDebtClaim } from './debt.js';
-import { temperOf, skillsOf, warTemper, whyWords, wound, TP, SK } from '../../core/character.js';
+import { temperOf, skillsOf, warTemper, whyWords, wound, ambitionPull, settleAmbition, TP, SK } from '../../core/character.js';
 import { bindWar } from './acts.js';   // the geopolitical divine acts (they call back into this module at use time)
 
 const MONTH_DAY = 25;
@@ -378,6 +378,18 @@ function rulerTakesField(world, civ, men) {
   return { name: rulerName(civ) || r.name, skill: Math.round((0.8 + 0.7 * sk[SK.WAR]) * 1000) / 1000, born: r.born, wins: 0, battles: 0, honours: 0, ruler: true };
 }
 
+/** A great general who wanted glory has it, at a named victory (civ/ambitions.js). */
+function gloryWon(world, army, civ, bname) {
+  const gf = figureById(world, army.flags.genId);
+  if (!gf || gf.died != null || !gf.am || gf.am.k !== 'glory' || world.time.day - gf.am.since < DAYS_PER_YEAR) return;
+  settleAmbition(gf, 'met', world.time.day);
+  if (!rateOk(world, `glory:${civ.id}`, 10 * DAYS_PER_YEAR)) return;
+  chronicle(world, {
+    cat: 'war', imp: 1, key: 'ambition.met', x: Math.round(army.x), y: Math.round(army.y), civId: civ.id, ref: { k: 'figure', id: gf.id }, tags: ['ambition'],
+    text: hashPick([`${capFirst(gf.name)} of ${civName(civ)} had wanted glory above all things; ${bname} gave it.`, `At ${bname} the general ${gf.name} won the glory a lifetime had been spent seeking.`], gf.id, world.time.day),
+  });
+}
+
 /**
  * A commander who has earned fame (a great victory, or a third win) joins the great figures:
  * addFigure, enrolled in the realm's figures so the civ module ages them, flags.genId set.
@@ -657,7 +669,8 @@ function declarations(world, st, ctx) {
     // in a long quiet, old resentments surface: friendlier neighbours become thinkable targets
     const gov = Math.sqrt(worldF * ownF);
     const grudge = clamp(14 * (gov - 1), -8, 16);
-    let best = null, bestCb = null, bestDesire = 0;
+    let best = null, bestCb = null, bestDesire = 0, bestPull = 1;
+    const am = a.ruler && a.ruler.am ? a.ruler.am : null;
     for (const k in a.relations) {
       const b = world.civs[k];
       if (!b || !b.alive || b.id === a.id || !b.settlementIds.length) continue;
@@ -683,16 +696,21 @@ function declarations(world, st, ctx) {
       }
       const appF = appetiteExt ? mulOf('warAppetite', world, a, b) : 1;
       // a realm whose heir is held at b's court hardly thinks of war on b (terms.js)
-      const pre = Math.pow(host, 1.2) * powerF * reachF * (vassalBid ? 1.5 : 1) * appF * (hostageHeld(world, a.id, b.id) ? 0.1 : 1);
-      if (pre * 2.5 <= bestDesire) continue;                   // cannot beat the best even with the strongest claim
+      // and a ruler's ambition bends the choice of foe (core/character.js ambitionPull)
+      const pull = am ? ambitionPull(world, a.ruler, b.id, null) : 1;
+      const pre = Math.pow(host, 1.2) * powerF * reachF * (vassalBid ? 1.5 : 1) * appF * (hostageHeld(world, a.id, b.id) ? 0.1 : 1) * pull;
+      const crusade = am && am.k === 'convert' && am.t === b.id;
+      if (pre * 2.5 * (crusade ? 1.5 : 1) <= bestDesire) continue;   // cannot beat the best even with the strongest claim
       const cb = casusBelli(world, a, b, r, ctx);
       if (!cb) continue;
-      const desire = pre * cb.w;
-      if (desire > bestDesire) { bestDesire = desire; best = b; bestCb = cb; }
+      const cPull = crusade ? ambitionPull(world, a.ruler, b.id, cb.key) : 1;
+      const desire = pre * cb.w * cPull;
+      if (desire > bestDesire) { bestDesire = desire; best = b; bestCb = cb; bestPull = pull * cPull; }
     }
     if (!best || !rng.chance(clamp01(bestDesire * gov / 1.2))) continue;
     // a war a ruler's nature drove is told as theirs
-    if (rulerF >= 1.6 && a.ruler) bestCb = { ...bestCb, why: whyWords(a.ruler, a) };
+    if (bestPull >= 1.5) bestCb = { ...bestCb, am: { k: am.k, t: am.t } };
+    else if (rulerF >= 1.6 && a.ruler) bestCb = { ...bestCb, why: whyWords(a.ruler, a) };
     declare(world, st, a, best, bestCb, ctx);
   }
 }
@@ -837,7 +855,13 @@ function declare(world, st, a, b, cb, ctx, opts = {}) {
     const wn = theWar(war);
     let text = opts.textFn ? opts.textFn(world, war) : declarationText(world, a, b, cb, { place, faith, wn, y: capA ? capA.y : 0, year: Math.floor(world.time.day / DAYS_PER_YEAR) });
     // the ruler whose nature drove the war (core/character.js whyWords)
-    if (!opts.textFn && Array.isArray(cb.why) && cb.why.length && rulerName(a)) {
+    // or the ambition it serves (civ/ambitions.js)
+    if (!opts.textFn && cb.am && rulerName(a)) {
+      const R = capFirst(rulerName(a));
+      const t = cb.am.k === 'town' ? `to take ${world.settlements[cb.am.t]?.name || place}` : cb.am.k === 'avenge' ? `to be avenged on ${civName(b)}`
+        : cb.am.k === 'unite' ? `to unite ${peopleOf(a)} under one crown` : `to bring the faith to ${civName(b)}`;
+      text += ' ' + hashPick([`${R} had sworn ${t}.`, `${R} had long meant ${t}, and the time had come.`], war.id, a.id);
+    } else if (!opts.textFn && Array.isArray(cb.why) && cb.why.length && rulerName(a)) {
       const ws = cb.why.length > 1 ? `${cb.why[0]} and ${cb.why[1]}` : cb.why[0];
       text += ' ' + hashPick([
         `${capFirst(rulerName(a))}, ${ws}, had long been looking for a war.`,
@@ -1663,7 +1687,9 @@ function battle(world, st, A, B) {
     if (engaged >= 500 || bname) g0.wins = (g0.wins | 0) + 1;
     if (bname) g0.honours = (g0.honours | 0) + 1;
     const decisive = great && d > 0.3 && engaged >= 3500;
-    if (Wn.flags.genId == null && bname && (decisive || (g0.wins >= PROMOTE_WINS && g0.honours >= 2))) promoteGeneral(world, st, Wn, cw, decisive ? 'great' : 'wins', bname, entry ? entry.seq : null);
+    // (a ruler leading in person is already a person of the record, not a great general)
+    if (Wn.flags.genId == null && Wn.flags.ruler == null && bname && (decisive || (g0.wins >= PROMOTE_WINS && g0.honours >= 2))) promoteGeneral(world, st, Wn, cw, decisive ? 'great' : 'wins', bname, entry ? entry.seq : null);
+    else if (Wn.flags.genId != null && bname) gloryWon(world, Wn, cw, bname);
   }
   if (L.general && typeof L.general === 'object') L.general.battles = (L.general.battles | 0) + 1;
   // a realm beaten in a named battle by a plan it did not know takes it up (battlefield.js)
@@ -2105,6 +2131,7 @@ function refusal(world, W, L, g) {
   if (W.ruler) { const tp = temperOf(W.ruler, W); r += 0.55 * (0.5 - tp[TP.MER]) + 0.25 * (0.5 - tp[TP.HON]) + 0.2 * (tp[TP.AMB] - 0.5) + 0.15 * (tp[TP.BOL] - 0.5); }
   if (rulerHas(W, 'mad')) r += 0.15;
   if (rulerHas(W, 'wise')) r -= 0.12;
+  if (W.ruler && W.ruler.am && W.ruler.am.k === 'avenge' && W.ruler.am.t === L.id) r += 0.3;   // a vengeance not yet had
   const fa = faithOf(world, W.stateReligion);
   if (fa && g.cb === 'holy' && fa.tenets.includes('militant')) r += 0.3;
   if (fa && fa.tenets.includes('pacifist')) r -= 0.15;

@@ -63,6 +63,8 @@ export const EXT_POINTS = {
   armyMix: { combine: 'first', sig: '(w, civ) → 7 shares (spears, blades, bows, light horse, heavy horse, engineers, war beasts) | null (geo/army.js)' },
   claimRule: { combine: 'first', sig: '(w, civ) → { tau, foundedTau } years a lost town is claimed (e-folding) | null (geo/claims.js)' },
   revoltTo: { combine: 'first', sig: '(w, s, civ) → civId | null: the realm a rising town goes over to before its founders (geo/memory.js)' },
+  temperRule: { combine: 'first', sig: '(_, civ, person) → 6 leans (ambition, mercy, piety, greed, honour, boldness; about −0.3 to 0.3) to a temperament made at first read, from civ and person alone (no world: core/character.js) | null' },
+  ambitionRule: { combine: 'first', sig: '(w, civ, ruler) → { [kind | "none"]: × weight } for the ambitions a ruler draws (civ/ambitions.js) | null' },
   memoryRule: { combine: 'first', sig: '(w, s) → { grudge, thanks } years a town remembers (e-folding) | null (geo/memory.js)' },
   rates: { combine: 'mul', clamp: [0, 5], sig: '(w, key)' },
   vegCap: { combine: 'mul', clamp: [0.2, 1.5], sig: '(w, i)' },

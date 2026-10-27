@@ -183,6 +183,22 @@ years. Each year the chance is a few percent times their intrigue, against the r
 - **Success:** a usurpation (heir) or a coup (commander), through the existing paths.
 - **Failure:** prison, exile or death, and the plotter's realm is shaken. Rare by design.
 
+**As built** (`src/sim/civ/ambitions.js`, `core/character.js` ambitionPull and settleAmbition):
+- A ruler without an ambition takes stock in the first year of the reign and every eighth year
+  after. "Nothing in particular" is one of the choices (weight 1.6), so many rulers want nothing.
+  A golden age fits only a ruler whose learning and stewardship come to 0.9 or more.
+- Vengeance is met by a war won against the foe, or by holding the fallen foe's last seat. A union
+  is met when the realm becomes a vassal, joins in personal union or its seat is taken.
+- Heirs: ambition 0.58 or more and honour 0.47 or less, aged 18 or more, under a reign of 8 years
+  or more. After 3 years they plot at 6 % a year × (0.5 + intrigue); success is 0.35 + 0.4 × (the
+  heir's intrigue − the ruler's), between 0.1 and 0.8, and is told as the ruler "overthrown in a
+  plot of the heir". Failure is death or exile, the heir struck from the line, stability − 0.03.
+- Great generals want power at ambition 0.58 or more and honour 0.45 or less, else glory. Glory is
+  met at the next named victory a year or more on. Power makes a standing army's coup × 1.6 likelier
+  (after 3 years), and the general is crowned by it.
+- A ruler who leads in person is no longer promoted to a great general: they are already in the
+  record.
+
 ## Events and heat
 
 - `person.why`: no separate entry; the reason is folded into the decision's own line.
