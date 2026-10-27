@@ -135,8 +135,10 @@ function lessonCard(w, tool, acts, refused) {
   const last = acts[acts.length - 1];
   const bands = {};
   for (const a of acts) { const k = band(a); if (k) bands[k] = (bands[k] || 0) + 1; }
-  const bandWords = Object.entries(bands).map(([k, n]) => `${k} ${n}`).join(', ');
-  card.append(h('p.ins-prose', { text: `Used ${acts.length} ${acts.length === 1 ? 'time' : 'times'}, last in Year ${yearOf(last.day)}${bandWords ? `; at strength ${bandWords}` : ''}. ${GROUP[last.grp] || ''}.` }));
+  const bandWords = Object.entries(bands).map(([k, n]) => `${n} ${k}`).join(', ');
+  const used = acts.length === 1 ? `Used once, in Year ${yearOf(last.day)}` : `Used ${acts.length} times, last in Year ${yearOf(last.day)}`;
+  card.append(h('p.ins-sub', { text: GROUP[last.grp] || 'The hand' }));
+  card.append(h('p.ins-prose', { text: `${used}${bandWords ? `: ${bandWords}` : ''}.` }));
   const lines = [];
   for (const which of ['end', 'gen']) {
     const done = acts.filter((a) => a[which]);
@@ -155,7 +157,7 @@ function lessonCard(w, tool, acts, refused) {
         return ks.length > 1 ? ks.sort((p, q) => g[q].length - g[p].length).slice(0, 4).map((k) => `${k} ${say(how, median(g[k]))} (${g[k].length})`).join('; ') : '';
       };
       const land = by((a) => a.land), str = by(band);
-      lines.push(`${which === 'end' ? 'When its work was done' : 'A generation on'}, ${words(done[0], id)} ${say(how, m)} against the world (the middle of ${all.length})${land ? `. By land: ${land}` : ''}${str ? `. By strength: ${str}` : ''}.`);
+      lines.push(`${which === 'end' ? 'When its work was done' : 'A generation on'}, ${words(done[0], id)} ${say(how, m)} against the world${all.length > 1 ? ` (the middle of ${all.length} acts)` : ''}${land ? `. By land: ${land}` : ''}${str ? `. By strength: ${str}` : ''}.`);
     }
   }
   if (!lines.length) lines.push('No report has come in yet: the first will come when its work is done.');

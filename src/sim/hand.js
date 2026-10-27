@@ -273,7 +273,7 @@ on('toolApplied', (world, p) => {
 // ---------------------------------------------------------------------------
 // Reports
 
-const pct = (v) => `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v * 100))} %`;
+const pct = (v) => { const n = Math.round(v * 100); return n === 0 ? '±0 %' : `${n > 0 ? '+' : '−'}${Math.abs(n)} %`; };
 const lvl = (v) => (Math.round(v * 100) / 100).toFixed(2);
 const YEARS = ['', 'a year', 'two years', 'three years', 'four years', 'five years', 'six years', 'seven years', 'eight years', 'nine years', 'ten years'];
 const span = (d) => { const y = Math.round(d / DPY); return y >= GEN - 1 ? 'a generation' : YEARS[y] || `${y} years`; };
@@ -312,12 +312,12 @@ function moves(kind, b, a, wb, wa, n = 3, focus = null) {
       if (v0 <= 0) { out.push([1, `${words} came where there were none`]); continue; }
       const rel = (v1 - v0) / v0, wrel = w0 > 0 ? (w1 - w0) / w0 : 0;
       const score = Math.abs(rel - wrel);
-      if (score < 0.03) continue;
+      if (score < 0.03 || Math.abs(rel) < 0.02) continue;   // (the place itself must have moved)
       out.push([score, `${words} ${pct(rel)} (the world: ${pct(wrel)})`]);
     } else if (how === 'l') {
       const d = v1 - v0, wd = w1 - w0;
       const score = Math.abs(d - wd);
-      if (score < 0.03) continue;
+      if (score < 0.03 || Math.abs(d) < 0.02) continue;
       out.push([score, `${words} ${lvl(v1)}, ${d >= 0 ? 'up' : 'down'} from ${lvl(v0)}`]);
     } else {
       const d = Math.round(v1 - v0);
