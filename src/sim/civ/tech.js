@@ -731,14 +731,16 @@ function chooseResearch(world, civ, peers, ctx) {
   let minCost = Infinity, minArc = Infinity;
   // an uncommon tech with no land for it and no teacher in reach is a last resort: a realm without
   // copper or tin waits to learn bronze from a neighbour rather than grind at three times the cost
-  const lonely = avail.map((t) => Boolean(t.needs) && !isArcane(t) && effectiveCost(t, peers, world, civ) > t.cost * COST_SCALE * 1.5 * (t.costMul ? defCostMul(world, civ, t) : 1));
-  const others = lonely.some((x, k) => !x && !isArcane(avail[k]));
-  const costs = avail.map((t) => {
+  const lonely = new Array(avail.length);
+  const costs = avail.map((t, k) => {
+    const full = effectiveCost(t, peers, world, civ);
+    lonely[k] = Boolean(t.needs) && !isArcane(t) && full > t.cost * COST_SCALE * 1.5 * (t.costMul ? defCostMul(world, civ, t) : 1);
     // what is left to learn: a head start (conquest, arms, scholars, refugees) draws a realm on
-    const c = Math.max(0.2 * t.cost, effectiveCost(t, peers, world, civ) - headPts(civ, t.id));
+    const c = Math.max(0.2 * t.cost, full - headPts(civ, t.id));
     if (isArcane(t)) { if (c < minArc) minArc = c; } else if (c < minCost) minCost = c;
     return c;
   });
+  const others = lonely.some((x, k) => !x && !isArcane(avail[k]));
   if (!Number.isFinite(minCost)) minCost = minArc;
   let histW = 0, arcW = 0;
   const weights = avail.map((t, k) => {

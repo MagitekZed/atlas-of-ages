@@ -401,3 +401,71 @@ From the talks before:
 - Libraries and archives are part of the chunk.
 - Mythic arts cross between peoples slowly; humans learn fastest.
 - More inventions that change the world through every system, like the printing press.
+
+## Results (2026-10-26)
+
+Built in one go on `sim/inventions`: a commit per phase, a fix from the calibration (a razed
+workshop holding a realm's last rare art), and a small speed fix (each research candidate costed
+once).
+
+### Calibration
+
+Twelve worlds against main (52a2d0e, with chunk 4; the chunk 1 matrix):
+
+| | Population | Realms | Towns | Wars | Time at war | Average age (best realm) |
+| --- | --- | --- | --- | --- | --- | --- |
+| Historical, Year 500 | −12 % | −4 % | −4 % | −24 % | 18.5 → 14.7 % | 0.89 → 0.83 (1.00 → 1.17) |
+| Mythic, Year 500 | −13 % | −7 % | −8 % | −12 % | 16.7 → 13.9 % | 0.75 → 0.85 (1.00 → 1.00) |
+| Historical, Year 1000 | +9 % | −17 % | 0 % | −15 % | 28.0 → 24.8 % | 2.25 → 2.00 (2.67 → 2.17) |
+| Mythic, Year 1000 | +18 % | −5 % | −6 % | −3 % | 23.0 → 22.3 % | 2.23 → 2.16 (2.67 → 2.33) |
+
+No world came near failing: at least 6 realms and 98 towns in every world at both years.
+
+**The march of the ages.** The first build stalled it: three of the six Bronze Age inventions had
+become uncommon, realms ground through them at three times the cost, and they finished every
+invention of an age before the next. Three changes brought it back toward today's pace (the user:
+"a little slower is okay", 2026-10-26): an uncommon invention without its land is a last resort,
+new inventions are priced as refinements (0.6 to 0.9 of their age), and with five inventions of its
+age known a realm turns a growing share of its research to the next age. The average realm is now
+about a tenth behind main at Year 1000 in Historical worlds and level in Mythic ones; the leading
+realms are slower still (a realm in the Classical Age by Year 1000 in 3 of 12 worlds, against 8 on
+main).
+
+**Population** is higher by Year 1000 (+9 % and +18 %): the plough, the mills and the calendar feed
+more people, and fewer realms fight fewer wars.
+
+**Knowledge on the move** (1000-year worlds): of the inventions realms learned rather than
+inherited, about 45 % by their own research, 18 % from neighbours, 17 % by trade, 11 % from refugees
+of fallen realms, 8 % by the arms race and 2 % from foreign scholars. Rare arts: 6 to 10 found in a
+world by Year 1000, each kept by one to three realms, a few lost and some dug up again. Collapses
+cost knowledge 12 to 22 times in a world's millennium, nearly all of it relearnt at half the cost.
+
+### Gates
+
+All pass: `npm test` (determinism, a world with and without the myth module byte-identical at myth
+level 0, rewind, save and load), `--trial` at myth level 2, the 300-year Mythic trials (seeds deep,
+trial, amber), the keyframe check and the cohort check.
+
+### Speed
+
+`timeab` from Year-900 saves made on main, 100 years, 3 rounds: **Historical +6.7 %, Mythic
++20.3 %**, against a budget of 1 %. A main save loaded on the branch gives its realms the new
+inventions of the ages they have passed at once (canoes, roads, maps, the plough, the compass), so
+the world runs larger from the first month (population +5 to 9 % within 30 years, more trade,
+longer wars: the Mythic war system +74 %). A 30-year profile puts the new code itself at about 1.5 to
+2 % (research costing, the realm's monthly pass, the modifiers, the towns' land scan); the rest
+follows the larger world.
+
+### Save
+
+The new fields (how each invention was learned, lost and remembered, head starts, archives, rare
+arts, first finds and reach) take about 55 KB at Year 1000, within the 150 KB budget; the whole save
+is 0.6 MB smaller than main's, from a different world.
+
+### Checked in the browser
+
+A Mythic world at Year 700: a realm's Learning and secrets section (its rare arts and workshops,
+the newest inventions and whence each came), an invention's record (Bronze Working: first found,
+who knows it and how, one realm by the arms race), the Knowledge map (realms shaded by when they
+learned it, the first in gold), a rare art's record (who keeps it, where it was lost) and a town's
+archive. No console errors.
