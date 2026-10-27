@@ -1577,9 +1577,9 @@ function battle(world, st, A, B) {
   // the leaders: a fallen general is remembered; the victor's grows in fame
   const wName = leaderName(Wn), lName = leaderName(L);
   let fallen = null, fallenSide = null;
-  // a ruler leading in person is guarded: they fall a third as often as a captain
-  if (rng.chance(L.flags.ruler != null ? 0.035 : 0.1) && L.general) { fallen = lName; fallenSide = cl; }
-  else if (rng.chance(Wn.flags.ruler != null ? 0.01 : 0.03) && Wn.general) { fallen = wName; fallenSide = cw; }
+  // a ruler leading in person is well guarded: they fall an eighth as often as a captain
+  if (rng.chance(L.flags.ruler != null ? 0.012 : 0.1) && L.general) { fallen = lName; fallenSide = cl; }
+  else if (rng.chance(Wn.flags.ruler != null ? 0.004 : 0.03) && Wn.general) { fallen = wName; fallenSide = cw; }
   // war score and bookkeeping
   const sizeF = clamp(Math.sqrt(killed) / 15, 0.4, 2.2);
   let war = null;
@@ -1675,7 +1675,7 @@ function battle(world, st, A, B) {
       if (gf && gf.died == null) { wound(gf, code); gf.deeds = (gf.deeds || []).concat(`${code === 'eye' ? 'lost an eye' : code === 'hand' ? 'lost a hand' : code === 'lame' ? 'was lamed' : 'was scarred'} at ${where}`).slice(-12); }
     }
   }
-  if (rout && L.flags.ruler != null && cl.ruler && rng.chance(0.06)) {
+  if (rout && L.flags.ruler != null && cl.ruler && rng.chance(0.04)) {
     emit(world, 'rulerCaptured', cl, cw, war, where);
     L.general = null; L.flags.ruler = null; L.flags.skill = 0.9;
   }

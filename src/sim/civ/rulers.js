@@ -313,7 +313,7 @@ export function rulersMonthly(world, civ, agg) {
     const life = lifeOf(world, civ, r);
     if (!(r.bd && r.bd.ill)) growSkills(r, world.time.day, life);
     useSkill(r, SK.STE, 0.01);
-    bodyYear(world, civ, r, a, era);
+    bodyYear(world, civ, r, a, era, life);
     considerEpithet(world, civ, r);
     // what the ruler wants, and an heir who will not wait (ambitions.js)
     rulerAmbitionYear(world, civ, r);
@@ -327,15 +327,16 @@ const ILL_KEYS = Object.keys(ILLNESSES);
  * A ruler's year in the body (core/character.js): a lasting illness (0.6 % a year after 40, half as
  * much again before the Classical age); madness from 50 (0.2 % a year, three times as likely with
  * the falling sickness), which takes the 'mad' trait and throws the temperament about each year.
+ * Both by the years of the ruler's people (an elf falls ill a third as often in a calendar year).
  */
-function bodyYear(world, civ, r, a, era) {
+function bodyYear(world, civ, r, a, era, life = 1) {
   const bd = r.bd || null;
-  if (a > 40 && !(bd && bd.ill) && world.rng.chance(0.006 * (era < 3 ? 1.5 : 1))) {
+  if (a > 40 && !(bd && bd.ill) && world.rng.chance(0.006 * (era < 3 ? 1.5 : 1) / life)) {
     const b = bodyOf(r);
     b.ill = ILL_KEYS[Math.floor(world.rng.next() * ILL_KEYS.length)];
     b.illDay = world.time.day;
   }
-  if (a >= 50 && !(bd && bd.mad) && world.rng.chance(0.002 * (bd && bd.ill === 'falling' ? 3 : 1))) {
+  if (a >= 50 && !(bd && bd.mad) && world.rng.chance(0.002 * (bd && bd.ill === 'falling' ? 3 : 1) / life)) {
     const b = bodyOf(r);
     b.mad = world.time.day;
     if (!r.traits.includes('mad')) { r.traits = r.traits.filter((t) => t !== 'wise').concat('mad'); }
