@@ -10,7 +10,8 @@ without proper warning, and the act record measured only the clicked tile for ca
 ## Decisions (2026-10-27)
 
 All ten fixes, with natural quakes, waves and floods changed too; the fault's lift capped at about
-30 m; wildfire reaching into towns.
+30 m; wildfire reaching into towns. After the twelve worlds (below): only the hand's fires burn into
+the towns beside them for now; natural fires should too, but more gently, to be revisited.
 
 ## The fixes
 
@@ -46,9 +47,11 @@ All ten fixes, with natural quakes, waves and floods changed too; the fault's li
 9. **What came of it.** For a power that strikes a point (an earthquake, eruption, falling star,
    tsunami, storm, lightning, locusts), the act measures the reach its forecast draws (its ring, up
    to 12 tiles) and the towns the forecast names, not the clicked tile alone.
-10. **Wildfire.** A fire that burns next to a town (within a tile of it) now burns into it once
-    per fire: buildings, stores and a few percent of its people, scaled by how dry the land is.
-    This holds for natural fires too, which before reached a town only through its own tile.
+10. **Wildfire.** A fire the hand set (Wildfire, or Lightning's blaze) that burns next to a town
+    (within a tile of it) burns into it once per fire: buildings, stores and a few percent of its
+    people, scaled by how dry the land is. Natural fires still reach a town only through its own
+    tile: given the same rule they drained Mythic worlds (below), and a gentler natural version is
+    left for later.
 
 ## Build order
 
@@ -101,11 +104,23 @@ Natural disasters to Year 1000, summed over the twelve: fire deaths 1.07 M → 4
 130 k → 367 k, quake deaths 5.3 k → 10.9 k (wave and cyclone tolls move with chance: the main run
 had an ocean meteor).
 
-The Mythic drop is the fire rule. With only the fire-into-towns rule turned off, the six Mythic
+The Mythic drop was the fire rule, then applied to every fire. With only the fire-into-towns rule turned off, the six Mythic
 worlds come out at +2% (Y500) and +2% (Y1000) against main. Fire deaths themselves are small (300–600 a
 year in worlds of 3–5 million), but in a Mythic world at Year 300 fires struck towns 2.5 times a year
 instead of 0.5 (mostly halfling towns in burnable grass), and each strike burns buildings and stores:
-61 towns at Year 300 instead of 71.
+61 towns at Year 300 instead of 71. So the rule now holds for the hand's fires only; with it, the
+six Mythic worlds are those +2% runs, and the six historical worlds, run again, are below.
+
+The twelve worlds as merged (fire burning into towns for the hand's fires only):
+
+    Historical Y500   pop +6%   civs −4%   towns +6%  wars +15%  at war 0.163→0.179
+    Mythic     Y500   pop +2%   civs +3%   towns −1%  wars −31%  at war 0.140→0.111
+    Historical Y1000  pop +9%   civs −15%  towns +2%  wars +11%  at war 0.231→0.264
+    Mythic     Y1000  pop +2%   civs +1%   towns +2%  wars −1%   at war 0.194→0.199
+    smallest world at Y1000: 7 realms, 179 towns
+
+Fire deaths are back to main's (historical: 543 k → 545 k to Year 1000); flood deaths about four
+times main's (53 k → 207 k), quake deaths 2.8 k → 7.3 k, and one great wave (741 → 15.6 k).
 
 ### Speed and save
 
