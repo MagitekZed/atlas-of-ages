@@ -35,6 +35,8 @@ import { firstOf, hasProviders } from '../../core/ext.js';
 import { fin } from './state.js';
 import { monthOf } from '../../core/world.js';
 
+const hasTech = (civ, id) => Boolean(civ && civ.tech && civ.tech.known && civ.tech.known[id] != null);
+
 const hund5 = (v) => Math.round(fin(v) * 1e5) / 1e5;
 
 export const TRADES = ['farmers', 'herders', 'fishers', 'miners', 'craftsmen', 'merchants', 'soldiers', 'clergy', 'scholars', 'builders', 'labourers'];
@@ -83,7 +85,8 @@ export function updateJobs(world, s, civ, X, bv, bo, BV) {
   const mods = X.mods, era = X.era;
   const W = X.workers;   // the town's working hands (core/cohorts.js, counted by the reconcile)
   // the food trades
-  const fw = FARM_WORKERS / Math.pow(Math.max(0.2, mods.production), 0.7);
+  // the plough: one farmer works more land, freeing hands for the trades (civ/tech.js)
+  const fw = FARM_WORKERS / Math.pow(Math.max(0.2, mods.production), 0.7) / (civ && hasTech(civ, 'plough') ? 1.25 : 1);
   X.fw = fw;
   const farm = Math.min(0.95 * W, X.farmLoad * fw);
   const wild = X.wildPot * X.wildSeason, fish = X.fishPot;
@@ -101,8 +104,10 @@ export function updateJobs(world, s, civ, X, bv, bo, BV) {
   const relig = civ && civ.traits ? fin(civ.traits.religiosity, 0.5) : 0.5;
   const bCraft = 1 + 0.3 * bv[bo + BV.factory];
   const bMerch = 1 + 0.3 * bv[bo + BV.market] + 0.25 * bv[bo + BV.bank] + (bv[bo + BV.harbor] > 0 ? 0.2 : 0);
-  const bClergy = (1 + 0.3 * bv[bo + BV.temple]) * (0.6 + 0.8 * relig);
-  const bSchol = 1 + 0.4 * (bv[bo + BV.library] + bv[bo + BV.university] + bv[bo + BV.observatory]);
+  // the printing press makes readers: more scholars and clergy
+  const press = civ && hasTech(civ, 'printing') ? 1 : 0;
+  const bClergy = (1 + 0.3 * bv[bo + BV.temple]) * (0.6 + 0.8 * relig) * (1 + 0.1 * press);
+  const bSchol = (1 + 0.4 * (bv[bo + BV.library] + bv[bo + BV.university] + bv[bo + BV.observatory])) * (1 + 0.2 * press);
   const bBuild = s.project ? 2 : 1;
   let craft = mix[0] * bCraft, merch = mix[1] * bMerch, clergy = mix[2] * bClergy, schol = mix[3] * bSchol, build = mix[4] * bBuild;
   const named = craft + merch + clergy + schol + build;

@@ -345,9 +345,11 @@ function housesYearly(world, st) {
     if (eraOf(c) < 4 || st.houses.some((h) => h.civ === c.id && h.failed == null)) continue;
     let seat = null;
     for (const sid of c.settlementIds) { const s = world.settlements[sid]; if (s && s.alive && (s.tier || 0) >= 3 && fin0(s.tradeIncome) >= top && (!seat || s.tradeIncome > seat.tradeIncome)) seat = s; }
-    if (!seat || !world.rng.chance(0.05)) continue;
+    // double-entry books found houses, chartered companies grow them (civ/tech.js)
+    const known = (id) => Boolean(c.tech && c.tech.known && c.tech.known[id] != null);
+    if (!seat || !world.rng.chance(0.05 * (known('bookkeeping') ? 1.5 : 1))) continue;
     const name = makePerson(c.language, world.rng);
-    const h = { id: st.houses.length, name, civ: c.id, seat: seat.id, capital: round2(12 * seat.tradeIncome), founded: world.time.day, failed: null };
+    const h = { id: st.houses.length, name, civ: c.id, seat: seat.id, capital: round2(12 * seat.tradeIncome * (known('company') ? 1.5 : 1)), founded: world.time.day, failed: null };
     st.houses.push(h);
     open++;
     count(st, 'houses');

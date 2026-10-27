@@ -50,7 +50,7 @@ import { adoptGovernment, styleName } from './government.js';
 import { setupRuler, noteDeed, installRuler, syncRulerDisplay, archiveRuler, endDynasty } from './rulers.js';
 import { ensureStyle } from './style.js';
 import { figuresYearly, figureDies } from './culture.js';
-import { knowledgeYearly } from './knowledge.js';
+import { knowledgeYearly, upgradeKnowledge } from './knowledge.js';
 import { dynastyYearly, exileOnFall, onCivFall } from './dynasty.js';
 import { civReport } from './report.js';
 import { roughPower } from './peoples.js';
@@ -90,6 +90,7 @@ export const system = {
       genesisChronicle(world, tribes);
     } else {
       normaliseCivState(world.sys.civ);
+      upgradeKnowledge(world);
     }
     for (const civ of world.civs) {
       ensureCivFields(civ);

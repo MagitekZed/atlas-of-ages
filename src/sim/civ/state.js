@@ -9,6 +9,7 @@
 //   firstTech       { techId: civId } first civ in the world to learn each tech
 //   firstWhere      { techId: [sid | null, day] } where and when (its capital then; knowledge.js)
 //   reach           { techId: [landmass ids, 'r:race' …] } the lands and peoples it has reached
+//   kv              the invention tree's version the world's realms were brought up to (knowledge.js)
 //   eraReached      { era: count } how many civs have entered each era
 //   rl              { key: day } rate-limit stamps for chronicle entries (pruned yearly)
 //   wonderKinds     { kind: wonderId } wonders currently standing, one per kind
@@ -27,6 +28,8 @@ import { DAYS_PER_YEAR } from '../../core/constants.js';
 import { seedCohorts, NC } from '../../core/cohorts.js';
 
 export const STATE_VERSION = 2;
+/** The tree's version (chunk 5): a world from an older build gives its realms the new inventions of ages they have passed (knowledge.js). */
+export const KNOW_VERSION = 1;
 export const DYNASTY_CAP = 400;
 
 /** Finite-or-default. */
@@ -46,6 +49,7 @@ export function newCivState() {
     firstTech: {},
     firstWhere: {},
     reach: {},
+    kv: KNOW_VERSION,
     eraReached: {},
     rl: {},
     wonderKinds: {},
@@ -63,6 +67,7 @@ export function newCivState() {
 /** Upgrade an older / partial state object in place (saves from earlier builds). */
 export function normaliseCivState(st) {
   const d = newCivState();
+  delete d.kv;   // an older world keeps no tree version, so knowledge.js brings it up to date
   for (const k of Object.keys(d)) if (st[k] == null) st[k] = d[k];
   for (const k of Object.keys(d.counters)) if (st.counters[k] == null) st.counters[k] = 0;
   for (const k of ['dynasties', 'exiles', 'marriages']) if (!Array.isArray(st[k])) st[k] = [];

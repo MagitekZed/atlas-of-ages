@@ -25,8 +25,8 @@
 
 import { on } from '../../core/hooks.js';
 import { DAYS_PER_YEAR as DPY, RACE_META } from '../../core/constants.js';
-import { TECH_BY_ID, techDef, hasTech, headStart, isArcane, allTechs } from './tech.js';
-import { fin, record, rateOk } from './state.js';
+import { TECH_BY_ID, techDef, hasTech, headStart, isArcane, allTechs, refreshMods } from './tech.js';
+import { fin, record, rateOk, KNOW_VERSION } from './state.js';
 import { theName, TheName, pick } from './prose.js';
 
 export const HOW = { r: 'research', t: 'trade', b: 'a neighbour', c: 'conquest', a: 'the arms race', s: 'a scholar', f: 'refugees', u: 'a ruin', d: 'the gods', i: 'inheritance', g: 'its founding' };
@@ -196,6 +196,41 @@ on('techDiscovered', (world, civ, id, how, first) => {
     ]) });
   }
 });
+
+// a revolution in a realm that prints stirs its printing neighbours: pamphlets cross borders
+on('succession', (world, civ, prev, next, how) => {
+  if (how !== 'revolution' || !civ || !civ.tech || civ.tech.known.printing == null) return;
+  let told = false;
+  for (const k in civ.relations) {
+    const o = world.civs[k];
+    if (!o || !o.alive || !(fin(civ.relations[k].border) > 0) || !o.tech || o.tech.known.printing == null) continue;
+    o.stability = Math.max(0, fin(o.stability, 0.6) - 0.04);
+    if (!told && rateOk(world, `pamphlets:${civ.id}`, 20)) {
+      told = true;
+      record(world, { cat: 'civ', imp: 1, key: 'realm.ideas', civ: o, tags: ['printing'], text: `Pamphlets printed in ${theName(civ)} carried its revolution across the border, and ${theName(o)} grew restless.` });
+    }
+  }
+});
+
+/**
+ * An older world (no tree version): every realm learns the new inventions of the ages before
+ * its own, as it would have, with no story but its founding ('g').
+ */
+export function upgradeKnowledge(world) {
+  const st = world.sys.civ;
+  if (!st || st.kv === KNOW_VERSION) return;
+  for (const c of world.civs) {
+    if (!c || !c.tech || !c.tech.known) continue;
+    const era = fin(c.tech.era, 0);
+    for (const t of allTechs()) {
+      if (t.era >= era || isArcane(t) || c.tech.known[t.id] != null) continue;
+      c.tech.known[t.id] = world.time.day;
+      (c.tech.from ||= {})[t.id] = 'g';
+    }
+    if (c.alive) refreshMods(world, c);
+  }
+  st.kv = KNOW_VERSION;
+}
 
 /** Yearly (midsummer, civ/index.js): scholars who go abroad. */
 export function knowledgeYearly(world) {

@@ -86,6 +86,12 @@ export const TECHS = [
     'to tame wild herds', 'bred docile herds of goats and cattle', 1.1),
   T('pottery', 'Pottery', 0, ['agriculture'], { storage: 0.3, health: 0.02 }, 'craft',
     'to fire clay into pots and storage jars', 'built a kiln hot enough to fire clay', 1.0),
+  T('bow', 'The Bow', 0, ['toolmaking'], { gatherYield: 0.1, military: 0.1 }, 'military',
+    'to hunt and fight with the bow', 'strung the first bow of yew and sinew', 0.6),
+  T('canoes', 'Rafts and Canoes', 0, ['toolmaking'], { fishYield: 0.15, seaRange: 3, movement: 0.03 }, 'sea',
+    'to paddle canoes across the water', 'hollowed a great log into a canoe', 0.6),
+  T('weaving', 'Weaving', 0, ['husbandry'], { storage: 0.05, happiness: 0.02, trade: 0.05 }, 'craft',
+    'to weave cloth upon the loom', 'built the first upright loom', 0.6),
 
   // --- Bronze Age ---------------------------------------------------------------------
   T('bronze', 'Bronze Working', 1, ['toolmaking'], { military: 0.25, production: 0.1, mining: 0.3 }, 'military',
@@ -94,12 +100,18 @@ export const TECHS = [
     'to raise walls of dressed stone', 'devised the corbelled arch', 0.9),
   T('wheel', 'The Wheel', 1, ['husbandry'], { movement: 0.15, trade: 0.1, tradeRange: 3, adminRange: 2, expansionRange: 1 }, 'commerce',
     'to build wheeled carts', 'built a cart that rolled on spoked wheels', 0.95),
-  T('sailing', 'Sailing', 1, ['fishing'], { navigation: 1, fishYield: 0.2, trade: 0.1, seaRange: 10 }, 'sea',
+  T('sailing', 'Sailing', 1, ['fishing', 'canoes'], { navigation: 1, fishYield: 0.2, trade: 0.1, seaRange: 10 }, 'sea',
     'to raise sails upon the water', 'rigged a sail upon a reed boat and rode the wind', 1.0),
   T('writing', 'Writing', 1, ['pottery', 'mysticism'], { research: 0.2, culture: 0.1, stability: 0.02, adminRange: 2 }, 'science',
     'to set down words in writing', 'devised a script of signs pressed into clay', 1.15),
   T('irrigation', 'Irrigation', 1, ['agriculture'], { farmYield: 0.25, irrigation: 1 }, 'farm',
     'to dig irrigation canals', 'led the river into the fields through a web of ditches', 1.0),
+  T('plough', 'The Plough', 1, ['agriculture', 'husbandry'], { farmYield: 0.15 }, 'farm',
+    'to break the soil with the ox-drawn plough', 'yoked oxen to a plough that turned the heavy earth', 0.75),
+  T('calendar', 'The Calendar', 1, ['mysticism', 'agriculture'], { farmYield: 0.05, culture: 0.05, stability: 0.02 }, 'science',
+    'to reckon the year by the sun and stars', 'set stones to mark the solstices and counted the days of the year', 0.7),
+  T('chariot', 'The Chariot', 1, ['wheel', 'husbandry'], { military: 0.15, movement: 0.05 }, 'military',
+    'to drive war chariots', 'built a chariot light enough to outrun the wind', 0.85),
 
   // --- Iron Age -----------------------------------------------------------------------
   T('iron', 'Iron Working', 2, ['bronze'], { military: 0.25, production: 0.15, farmYield: 0.1, mining: 0.2 }, 'military',
@@ -108,55 +120,85 @@ export const TECHS = [
     'to master the art of number', 'set down the rules of geometry', 1.0),
   T('currency', 'Currency', 2, ['writing', 'bronze'], { trade: 0.2, taxEfficiency: 0.1 }, 'commerce',
     'to strike coins', 'struck coins of stamped silver', 0.95),
-  T('horseback', 'Horseback Riding', 2, ['wheel'], { movement: 0.2, military: 0.1, tradeRange: 3, adminRange: 3, expansionRange: 2 }, 'military',
+  T('horseback', 'Horseback Riding', 2, ['husbandry'], { movement: 0.2, military: 0.1, tradeRange: 3, adminRange: 3, expansionRange: 2 }, 'military',
     'to ride to war on horseback', 'broke wild horses to the saddle', 0.95),
   T('laws', 'Code of Laws', 2, ['writing'], { stability: 0.05, taxEfficiency: 0.1, adminRange: 3 }, 'civic',
     'to carve their laws in stone', 'carved the laws of the land upon a pillar of basalt', 1.0),
+  T('alphabet', 'The Alphabet', 2, ['writing'], { research: 0.08, culture: 0.05, adminRange: 1 }, 'science',
+    'to write with an alphabet', 'reduced a thousand signs to two dozen letters', 0.7),
+  T('roads', 'Roads', 2, ['masonry', 'wheel'], { movement: 0.12, trade: 0.05, tradeRange: 3, adminRange: 2 }, 'civic',
+    'to pave roads between their towns', 'paved a road straight across the land, town to town', 0.8),
+  T('galley', 'The War Galley', 2, ['sailing', 'bronze'], { military: 0.05, seaRange: 4 }, 'sea',
+    'to row war galleys with bronze rams', 'fitted a galley with a bronze ram at the waterline', 0.85),
 
   // --- Classical Age ------------------------------------------------------------------
   T('philosophy', 'Philosophy', 3, ['mathematics', 'laws'], { research: 0.2, culture: 0.2 }, 'science',
     'to found schools of philosophy', 'founded a school that questioned the nature of all things', 1.05),
   T('engineering', 'Engineering', 3, ['mathematics', 'masonry'], { housing: 0.25, defense: 0.2, movement: 0.1, adminRange: 3, health: 0.03 }, 'craft',
-    'to build aqueducts and paved roads', 'designed an aqueduct that carried water across a valley', 1.0),
+    'to build aqueducts and great bridges', 'designed an aqueduct that carried water across a valley', 1.0),
   T('medicine', 'Medicine', 3, ['philosophy'], { health: 0.05, medicine: 0.85, plagueResist: 0.05 }, 'health',
     'to practise the healing arts', 'wrote a great treatise on the healing arts', 0.95),
   T('shipbuilding', 'Shipbuilding', 3, ['sailing', 'iron'], { trade: 0.15, tradeRange: 5, seaRange: 8, fishYield: 0.15, military: 0.05 }, 'sea',
     'to launch oared galleys', 'laid the keel of a great oared galley', 0.95),
-  T('drama', 'Drama and Poetry', 3, ['writing', 'laws'], { culture: 0.25, happiness: 0.03 }, 'civic',
+  T('drama', 'Drama and Poetry', 3, ['writing', 'mysticism'], { culture: 0.25, happiness: 0.03 }, 'civic',
     'to stage plays before the people', 'wrote a tragedy that moved the whole city to tears', 0.9),
   T('tactics', 'Military Tactics', 3, ['iron', 'horseback'], { military: 0.25, siege: 0.2 }, 'military',
     'to drill disciplined legions', 'wrote a manual of war still studied centuries later', 1.0),
+  T('paper', 'Paper', 3, ['writing', 'weaving'], { research: 0.1, culture: 0.05, adminRange: 1 }, 'science',
+    'to make paper', 'beat bark and rags into pulp and pressed it into sheets', 0.85),
+  T('watermill', 'The Water Mill', 3, ['engineering', 'wheel'], { production: 0.15, farmYield: 0.05 }, 'craft',
+    'to grind grain with water mills', 'set a wheel in the millrace to turn the grindstones', 0.8),
+  T('siegeengines', 'Siege Engines', 3, ['engineering', 'mathematics'], { siege: 0.3, military: 0.05 }, 'military',
+    'to build engines of siege', 'wound ropes of sinew to hurl stones against the walls', 0.9),
+  T('maps', 'Maps', 3, ['mathematics'], { expansionRange: 1, tradeRange: 3, seaRange: 3 }, 'science',
+    'to draw maps of the known world', 'drew a map of the world ruled by lines of latitude', 0.75),
 
   // --- Medieval Age -------------------------------------------------------------------
   T('feudalism', 'Feudalism', 4, ['laws', 'tactics'], { defense: 0.3, stability: 0.04, military: 0.1 }, 'civic',
     'to bind lords and vassals by oath', 'codified the oaths of lord and vassal', 1.0),
   T('theology', 'Theology', 4, ['philosophy', 'mysticism'], { culture: 0.15, stability: 0.05, happiness: 0.02 }, 'faith',
     'to write learned works of theology', 'reconciled faith and reason in a great summa', 0.95),
-  T('astronomy', 'Astronomy', 4, ['mathematics', 'philosophy'], { research: 0.15, seaRange: 4 }, 'science',
+  T('astronomy', 'Astronomy', 4, ['mathematics', 'philosophy', 'calendar'], { research: 0.15, seaRange: 4 }, 'science',
     'to chart the wandering stars', 'charted the courses of the wandering stars', 1.0),
-  T('croprotation', 'Crop Rotation', 4, ['iron', 'irrigation'], { farmYield: 0.35, soilCare: 0.3 }, 'farm',
+  T('croprotation', 'Crop Rotation', 4, ['plough', 'iron'], { farmYield: 0.35, soilCare: 0.3 }, 'farm',
     'to rotate their fields through the seasons', 'proved that a field rested with clover returns richer', 0.9),
   T('guilds', 'Guilds', 4, ['currency', 'engineering'], { production: 0.2, trade: 0.1 }, 'commerce',
     'to organise their crafts into guilds', 'drew up the charters of the craft guilds', 0.95),
   T('scholasticism', 'Scholasticism', 4, ['philosophy', 'theology'], { research: 0.25, culture: 0.1 }, 'science',
     'to found universities', 'founded a university of masters and students', 1.05),
+  T('stirrup', 'The Stirrup', 4, ['horseback', 'iron'], { military: 0.1 }, 'military',
+    'to charge with lance and stirrup', 'hung iron stirrups from the saddle and couched the lance', 0.75),
+  T('compass', 'The Compass', 4, ['iron', 'sailing'], { seaRange: 10, trade: 0.05 }, 'sea',
+    'to steer by the compass', 'floated a lodestone needle that always pointed north', 0.75),
+  T('windmill', 'The Windmill', 4, ['engineering', 'weaving'], { production: 0.1, farmYield: 0.05 }, 'craft',
+    'to grind grain with windmills', 'raised a mill whose sails turned with the wind', 0.8),
+  T('clock', 'The Mechanical Clock', 4, ['guilds', 'astronomy'], { production: 0.05, research: 0.05 }, 'science',
+    'to keep the hours with clocks', 'built a clock of weights and an escapement', 0.8),
+  T('bookkeeping', 'Double-Entry Bookkeeping', 4, ['mathematics', 'guilds'], { taxEfficiency: 0.1, trade: 0.05 }, 'commerce',
+    'to keep accounts by double entry', 'invented double-entry bookkeeping', 0.75),
 
   // --- Renaissance --------------------------------------------------------------------
-  T('navigation', 'Navigation', 5, ['astronomy', 'shipbuilding'], { navigation: 2, tradeRange: 10, seaRange: 30, expansionRange: 2 }, 'sea',
-    'to sail the open ocean', 'perfected the astrolabe and the magnetic compass', 1.0),
-  T('printing', 'Printing Press', 5, ['scholasticism', 'guilds'], { research: 0.3, culture: 0.2, stability: 0.03 }, 'science',
+  T('navigation', 'Navigation', 5, ['astronomy', 'shipbuilding', 'compass'], { navigation: 2, tradeRange: 10, seaRange: 30, expansionRange: 2 }, 'sea',
+    'to sail the open ocean', 'perfected the astrolabe and charted the open ocean', 1.0),
+  T('printing', 'Printing Press', 5, ['scholasticism', 'guilds', 'paper'], { research: 0.3, culture: 0.2, stability: 0.03 }, 'science',
     'to print books with movable type', 'built a press of movable type', 1.0),
-  T('gunpowder', 'Gunpowder', 5, ['feudalism', 'guilds'], { military: 0.45, siege: 0.6 }, 'military',
+  T('gunpowder', 'Gunpowder', 5, ['medicine', 'guilds'], { military: 0.45, siege: 0.6 }, 'military',
     'to wield gunpowder in war', 'mixed saltpetre, sulphur and charcoal into black powder', 1.0),
-  T('banking', 'Banking', 5, ['currency', 'guilds'], { trade: 0.25, taxEfficiency: 0.15 }, 'commerce',
-    'to found banks and letters of credit', 'invented double-entry bookkeeping', 0.95),
+  T('banking', 'Banking', 5, ['currency', 'guilds', 'bookkeeping'], { trade: 0.25, taxEfficiency: 0.15 }, 'commerce',
+    'to found banks and letters of credit', 'founded a bank that lent on letters of credit', 0.95),
   T('anatomy', 'Anatomy', 5, ['medicine', 'printing'], { health: 0.05, medicine: 0.8, plagueResist: 0.05 }, 'health',
     'to study the anatomy of the body', 'described the circulation of the blood', 0.95),
   T('science', 'Scientific Method', 5, ['printing', 'astronomy'], { research: 0.4 }, 'science',
     'to test nature by experiment', 'set out the method of experiment and proof', 1.1),
+  T('cannon', 'The Cannon', 5, ['gunpowder'], { siege: 0.8, military: 0.1 }, 'military',
+    'to batter walls with cannon', 'cast a great bombard that broke walls of stone', 0.9),
+  T('telescope', 'The Telescope', 5, ['astronomy', 'guilds'], { research: 0.08, seaRange: 4 }, 'science',
+    'to search the heavens with telescopes', 'ground lenses that showed the moons of the wandering stars', 0.8),
+  T('company', 'The Chartered Company', 5, ['banking', 'navigation'], { trade: 0.15, seaRange: 15, expansionRange: 2 }, 'commerce',
+    'to found chartered trading companies', 'chartered a company to trade beyond the seas', 0.9),
 
   // --- Industrial Age -----------------------------------------------------------------
-  T('steam', 'Steam Power', 6, ['science', 'gunpowder'], { production: 0.5, industry: 0.5, pollution: 0.4, birth: -0.05 }, 'industry',
+  T('steam', 'Steam Power', 6, ['science', 'cannon'], { production: 0.5, industry: 0.5, pollution: 0.4, birth: -0.05 }, 'industry',
     'to harness steam', 'built an engine driven by steam', 1.0),
   T('railways', 'Railways', 6, ['steam'], { movement: 0.6, tradeRange: 15, trade: 0.3, adminRange: 8, expansionRange: 4 }, 'industry',
     'to lay iron railways', 'drove a locomotive along iron rails', 1.0),
@@ -168,6 +210,14 @@ export const TECHS = [
     'to vaccinate against disease', 'proved that cowpox could guard against the pox', 0.95),
   T('electricity', 'Electricity', 6, ['science', 'steam'], { research: 0.3, production: 0.3, industry: 0.2, pollution: 0.1, housing: 0.3 }, 'industry',
     'to light their cities with electricity', 'tamed the lightning in copper wire', 1.05),
+  T('telegraph', 'The Telegraph', 6, ['electricity', 'railways'], { adminRange: 6, stability: 0.03 }, 'industry',
+    'to send words by telegraph', 'sent a message along a wire faster than any horse', 0.9),
+  T('factory', 'The Factory System', 6, ['steam', 'guilds'], { production: 0.3, industry: 0.3, pollution: 0.2, happiness: -0.02 }, 'industry',
+    'to work in factories', 'gathered a hundred looms under one roof and one engine', 0.9),
+  T('rifle', 'The Rifle', 6, ['chemistry', 'gunpowder'], { military: 0.3, defense: 0.2 }, 'military',
+    'to arm their soldiers with rifles', 'cut spiral grooves in a musket barrel', 0.9),
+  T('steamship', 'The Steamship', 6, ['steam', 'navigation'], { seaRange: 30, tradeRange: 10, trade: 0.1 }, 'sea',
+    'to cross the oceans under steam', 'drove a ship across the ocean with paddle wheels', 0.9),
 
   // --- Modern Age ---------------------------------------------------------------------
   T('combustion', 'Combustion Engine', 7, ['railways', 'chemistry'], { movement: 0.5, production: 0.4, industry: 0.2, pollution: 0.4 }, 'industry',
@@ -216,15 +266,28 @@ const NEEDS = {
   steam: (w, c) => hasRes(c, 'coal'),
   railways: (w, c) => hasRes(c, 'coal') && hasRes(c, 'iron'),
   combustion: (w, c) => hasRes(c, 'oil'),
+  // the new inventions (phase 2)
+  canoes: (w, c) => onCoast(c) || hasLand(c, LAND.river | B('LAKE')),
+  chariot: (w, c) => hasRes(c, 'horses'),
+  galley: (w, c) => onCoast(c),
+  paper: (w, c) => hasLand(c, FOREST_WET),
+  watermill: (w, c) => hasLand(c, LAND.river),
+  compass: (w, c) => onCoast(c),
+  factory: (w, c) => hasRes(c, 'coal'),
+  steamship: (w, c) => onCoast(c),
 };
+/** Common inventions with a need any sensible people meets (boats need water). */
+const COMMON_NEED = new Set(['canoes', 'steamship']);
 /** The land each condition asks for, in words (dossiers, the invention view). */
 export const NEEDS_WORDS = {
   bronze: 'copper or tin', horseback: 'horses', irrigation: 'a river or lake', sailing: 'a coast or lake', shipbuilding: 'a coast',
   navigation: 'a coast on the open sea', banking: 'a city with a market', gunpowder: 'saltpetre (desert, dry scrub or mountains)',
   steam: 'coal', railways: 'coal and iron', combustion: 'oil',
+  canoes: 'water: a coast, river or lake', chariot: 'horses', galley: 'a coast', paper: 'fibre plants (forest, rainforest or wetland)',
+  watermill: 'a river', compass: 'a coast', factory: 'coal', steamship: 'a coast',
 };
 for (const t of TECHS) {
-  t.tier = NEEDS[t.id] ? 'uncommon' : 'common';
+  t.tier = NEEDS[t.id] && !COMMON_NEED.has(t.id) ? 'uncommon' : 'common';
   if (NEEDS[t.id]) t.needs = NEEDS[t.id];
 }
 
@@ -495,7 +558,7 @@ export function canInventAlone(world, civ, t) {
 
 /** How readily civ learns from others: × (1.15 − 0.3 × isolation), × the ext 'learnRule'. */
 export function learnMul(world, civ) {
-  let m = 1.15 - 0.3 * fin(civ?.traits?.isolation, 0.5);
+  let m = (1.15 - 0.3 * fin(civ?.traits?.isolation, 0.5)) * (hasTech(civ, 'alphabet') ? 1.15 : 1);   // the alphabet: easy letters, easy learning
   if (hasProviders('learnRule')) m *= mulOf('learnRule', world, civ);
   return m;
 }
@@ -599,13 +662,16 @@ function defCostMul(world, civ, tech) {
 export function effectiveCost(tech, peers, world = null, civ = null) {
   let disc = 0, taught = false;
   const across = isArcane(tech) && civ && civ.race && civ.race !== 'human';
+  const prints = civ && hasTech(civ, 'printing');
   for (const p of peers) {
     if (!hasTech(p.civ, tech.id)) continue;
     taught = true;
-    disc += (p.trade ? 0.22 : 0.14) * (across && p.civ.race !== civ.race ? 0.5 : 1);
+    // knowledge flies between realms that print (half again as fast)
+    disc += (p.trade ? 0.22 : 0.14) * (across && p.civ.race !== civ.race ? 0.5 : 1) * (prints && hasTech(p.civ, 'printing') ? 1.5 : 1);
   }
   const tb = civ && civ.flags && civ.flags.taught;
-  if (tb && world) for (const [oid, share] of tb) { const o = world.civs[oid]; if (o && hasTech(o, tech.id)) { taught = true; disc += Math.min(0.3, 0.6 * share); } }
+  // paper above all is carried off by conquest (the papermakers of Samarkand)
+  if (tb && world) for (const [oid, share] of tb) { const o = world.civs[oid]; if (o && hasTech(o, tech.id)) { taught = true; disc += Math.min(0.3, 0.6 * share) * (tech.id === 'paper' ? 2 : 1); } }
   if (civ && world && disc > 0) disc *= learnMul(world, civ);
   let base = tech.cost * COST_SCALE * (1 - Math.min(0.6, disc));
   if (!taught && civ && tech.needs && !canInventAlone(world, civ, tech)) base *= ALONE;
@@ -639,6 +705,10 @@ function chooseResearch(world, civ, peers, ctx) {
   const avail = availableTechs(civ, world);
   if (!avail.length) return null;
   let minCost = Infinity, minArc = Infinity;
+  // an uncommon tech with no land for it and no teacher in reach is a last resort: a realm without
+  // copper or tin waits to learn bronze from a neighbour rather than grind at three times the cost
+  const lonely = avail.map((t) => Boolean(t.needs) && !isArcane(t) && effectiveCost(t, peers, world, civ) > t.cost * COST_SCALE * 1.5 * (t.costMul ? defCostMul(world, civ, t) : 1));
+  const others = lonely.some((x, k) => !x && !isArcane(avail[k]));
   const costs = avail.map((t) => {
     // what is left to learn: a head start (conquest, arms, scholars, refugees) draws a realm on
     const c = Math.max(0.2 * t.cost, effectiveCost(t, peers, world, civ) - headPts(civ, t.id));
@@ -659,6 +729,7 @@ function chooseResearch(world, civ, peers, ctx) {
       arcW += w;
       return w;
     }
+    if (lonely[k] && others) return 0;
     let w = Math.pow(minCost / costs[k], 2.2);
     const trait = CAT_TRAIT[t.cat];
     if (trait) w *= 0.6 + fin(civ.traits?.[trait], 0.5);
@@ -671,6 +742,23 @@ function chooseResearch(world, civ, peers, ctx) {
     histW += w;
     return w;
   });
+  // the next age calls (chunk 5): with five inventions of its own age known, a realm gives a
+  // growing share of its choices to the next age (a fifth at five, two fifths at six, at most
+  // three quarters), so it moves on before it has learned everything of its own
+  const cur = fin(civ.tech.era, 0);
+  let nCur = 0;
+  for (const t of HIST_BY_ERA[cur] || []) if (hasTech(civ, t.id)) nCur++;
+  const share = Math.min(0.75, 0.2 * (nCur - 4));
+  if (share > 0) {
+    let ahead = 0;
+    for (let j = 0; j < avail.length; j++) if (!isArcane(avail[j]) && avail[j].era > cur) ahead += weights[j];
+    const rest = histW - ahead, want = (share / (1 - share)) * rest;
+    if (ahead > 0 && rest > 0 && ahead < want) {
+      const k = want / ahead;
+      for (let j = 0; j < avail.length; j++) if (!isArcane(avail[j]) && avail[j].era > cur) weights[j] *= k;
+      histW = rest + want;
+    }
+  }
   // keep the march of the ages: magic takes at most ARCANE_SHARE of the historical weight
   if (arcW > 0 && histW > 0 && arcW > ARCANE_SHARE * histW) {
     const k = (ARCANE_SHARE * histW) / arcW;

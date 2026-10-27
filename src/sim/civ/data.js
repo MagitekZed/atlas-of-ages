@@ -135,12 +135,12 @@ export const RULER_TRAITS = {
 
 export const BUILDINGS = {
   granary:  { names: ['Granary', 'Great Granary'], tech: ['pottery', 'engineering'], minTier: 1, cost: 60, upkeep: 0.05 },
-  walls:    { names: ['Palisade', 'Stone Walls', 'Castle', 'Star Fort'], tech: ['toolmaking', 'masonry', 'feudalism', 'gunpowder'], minTier: [1, 2, 3, 3], cost: 90, upkeep: 0.08 },
+  walls:    { names: ['Palisade', 'Stone Walls', 'Castle', 'Star Fort'], tech: ['toolmaking', 'masonry', 'feudalism', 'cannon'], minTier: [1, 2, 3, 3], cost: 90, upkeep: 0.08 },
   temple:   { names: ['Shrine', 'Temple', 'Cathedral'], tech: ['mysticism', 'masonry', 'theology'], minTier: [1, 2, 3], cost: 70, upkeep: 0.06 },
   harbor:   { names: ['Harbour', 'Great Harbour'], tech: ['sailing', 'navigation'], minTier: [1, 3], cost: 120, upkeep: 0.08, coastal: true },
   mine:     { names: ['Mine', 'Deep Mine'], tech: ['bronze', 'gunpowder'], minTier: [1, 2], cost: 110, upkeep: 0.06, ore: true },
   barracks: { names: ['Barracks', 'Military Academy'], tech: ['bronze', 'tactics'], minTier: [2, 3], cost: 120, upkeep: 0.1 },
-  library:  { names: ['Library', 'Great Library'], tech: ['writing', 'printing'], minTier: [2, 3], cost: 150, upkeep: 0.07 },
+  library:  { names: ['Library', 'Great Library'], tech: ['writing', 'paper'], minTier: [2, 3], cost: 150, upkeep: 0.07 },
   market:   { names: ['Market', 'Grand Bazaar'], tech: ['currency', 'guilds'], minTier: [2, 3], cost: 140, upkeep: 0.04 },
   aqueduct: { names: ['Aqueduct'], tech: ['engineering'], minTier: 3, cost: 420, upkeep: 0.12 },
   theatre:  { names: ['Amphitheatre', 'Opera House'], tech: ['drama', 'printing'], minTier: [3, 4], cost: 300, upkeep: 0.1 },
@@ -149,7 +149,7 @@ export const BUILDINGS = {
   observatory: { names: ['Observatory'], tech: ['astronomy'], minTier: 3, cost: 500, upkeep: 0.12 },
   bank:     { names: ['Bank', 'Stock Exchange'], tech: ['banking', 'electricity'], minTier: [3, 4], cost: 600, upkeep: 0.05 },
   hospital: { names: ['Hospital', 'Teaching Hospital'], tech: ['anatomy', 'antibiotics'], minTier: [3, 4], cost: 650, upkeep: 0.2 },
-  factory:  { names: ['Factory', 'Industrial Works', 'Assembly Plant'], tech: ['steam', 'electricity', 'combustion'], minTier: [2, 3, 4], cost: 1200, upkeep: 0.25 },
+  factory:  { names: ['Factory', 'Industrial Works', 'Assembly Plant'], tech: ['factory', 'electricity', 'combustion'], minTier: [2, 3, 4], cost: 1200, upkeep: 0.25 },
   railway:  { names: ['Railway Station'], tech: ['railways'], minTier: 2, cost: 1100, upkeep: 0.2 },
   sewers:   { names: ['Sewers'], tech: ['sanitation'], minTier: 3, cost: 1300, upkeep: 0.2 },
   powerplant: { names: ['Power Station', 'Clean Power Station'], tech: ['electricity', 'renewables'], minTier: [3, 3], cost: 2200, upkeep: 0.3 },
