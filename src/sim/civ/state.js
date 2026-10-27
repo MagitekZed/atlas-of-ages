@@ -54,7 +54,7 @@ export function newCivState() {
     rl: {},
     wonderKinds: {},
     milestones: {},
-    counters: { emerged: 0, rebellions: 0, suppressed: 0, civilWars: 0, collapses: 0, colonies: 0, unions: 0, revolutions: 0,
+    counters: { emerged: 0, rebellions: 0, suppressed: 0, civilWars: 0, collapses: 0, colonies: 0, unions: 0, revolutions: 0, risings: 0,
       personalUnions: 0, restorations: 0, regencies: 0, marriages: 0, divine: 0 },
     nextPersonId: 1,
     eraFirst: {},

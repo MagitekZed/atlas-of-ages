@@ -26,6 +26,7 @@ import { dynastyMonthly } from './dynasty.js';
 import { temperMonthly, temperYearly } from './temper.js';
 import { purseMonthly, purseYearly, maybeDebase, estatesYearly } from './power.js';
 import { lawsYearly, partitionMonthly } from './laws.js';
+import { courtYearly, risingsYearly } from './court.js';
 
 /** Σ army strength per civ this month (built once per month from world.armies). */
 export function armyStrength(world, civId) {
@@ -269,7 +270,12 @@ export function monthlyCiv(world, civ) {
   ageTick(world, civ);
   // temperament: tallied monthly, drifts once a year at the people's own month (temper.js)
   temperMonthly(world, civ, agg);
-  if (civ.id % 12 === month) { temperYearly(world, civ, agg); purseYearly(world, civ); lawsYearly(world, civ); estatesYearly(world, civ, agg); }
+  if (civ.id % 12 === month) {
+    temperYearly(world, civ, agg);
+    // who holds power (chunk 7): the purse, the laws, the estates, the court, the risings
+    purseYearly(world, civ); lawsYearly(world, civ); estatesYearly(world, civ, agg); courtYearly(world, civ, agg);
+    if (risingsYearly(world, civ) || !civ.alive) return;
+  }
   civ.prestige = fin(civ.prestige) * 0.9995;
 
   if (month === 4) { rebellionCheck(world, civ); if (!civ.alive) return; }

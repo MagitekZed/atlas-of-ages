@@ -57,6 +57,9 @@ export function reserveYears(world, civ) {
   return clamp(4 * k, 1, 40);
 }
 
+/** The government's base share for the court (the ruler and the court's age bend it). */
+export const courtBase = (civ) => COURT[civ.government] ?? 0.1;
+
 /** The court's share of income it is drifting toward: the government's, bent by the ruler and the court's age. */
 function courtTarget(world, civ) {
   const tp = temper(civ);
@@ -285,19 +288,26 @@ export function estatesYearly(world, civ, agg) {
   const hunger = div0(agg.ss.filter((s) => fin(s.famine) >= 2).length, agg.ss.length);
   const weary = Math.min(1, fin(civ.warWeariness));
   const purged = fin(civ.court?.purged) > world.time.day ? 0.2 : 0;
+  const why = (civ.estWhy = Array.isArray(civ.estWhy) && civ.estWhy.length === 5 ? civ.estWhy : [null, null, null, null, null]);
   for (let i = 0; i < 5; i++) {
     const [p, , r, l] = est[i];
-    if (!(p > 0)) { est[i][3] = 0.55; continue; }
-    // content by default; angry when its rights fall short of what its power claims
+    if (!(p > 0)) { est[i][3] = 0.55; why[i] = null; continue; }
+    // content by default; angry when its rights fall short of what its power claims. Each term
+    // is kept by name, so a rising can say what it rose over (estWhy: the worst of them)
     const want = 0.1 + 0.9 * pw[i];
-    let t = 0.6 + 0.4 * clamp(r - want, -0.5, 0.3);
-    if (i === 0) t += 0.8 * (court - 0.06) + (law.land === 'nobles' ? 0.08 : law.land === 'crown' ? -0.1 : 0) + 0.1 * (tp[TP.HON] - 0.5) - purged;
-    else if (i === 1) t += (law.faith === 'one' ? 0.08 : law.faith === 'free' ? -0.12 : 0) + 0.3 * (tp[TP.PIE] - 0.5) - 0.1 * fin(civ.flags.faithDis);
-    else if (i === 2) t += -1.0 * Math.max(0, tax - 0.1) - 0.4 * coin + (civ.government === 'merchant' || civ.government === 'republic' ? 0.05 : 0) - 0.08 * weary;
-    else if (i === 3) t += -1.2 * Math.max(0, tax - 0.07) - 0.4 * hunger - (tax > 0.12 ? 0.6 * Math.max(0, court - 0.08) : 0)
-      + (law.land === 'freeholds' ? 0.08 : 0) - (law.bond === 'serf' ? 0.08 : 0) + 0.1 * (tp[TP.MER] - 0.5) - 0.15 * weary;
-    else t = 0.25 + 0.2 * (tp[TP.MER] - 0.5) - (law.bond === 'slave' ? 0.1 : 0) - 0.2 * hunger;
-    est[i][3] = l + (clamp(t, 0, 1) - l) * 0.15;
+    const terms = { rights: 0.4 * clamp(r - want, -0.5, 0.3) };
+    if (i === 0) Object.assign(terms, { court: 0.8 * (court - 0.06), land: law.land === 'nobles' ? 0.08 : law.land === 'crown' ? -0.1 : 0, ruler: 0.1 * (tp[TP.HON] - 0.5), purge: -purged });
+    else if (i === 1) Object.assign(terms, { faith: (law.faith === 'one' ? 0.08 : law.faith === 'free' ? -0.15 : 0) - 0.2 * fin(civ.flags.faithDis), ruler: 0.3 * (tp[TP.PIE] - 0.5) });
+    else if (i === 2) Object.assign(terms, { tax: -1.5 * Math.max(0, tax - 0.1), coin: -0.6 * coin, rights2: civ.government === 'merchant' || civ.government === 'republic' ? 0.05 : 0, war: -0.1 * weary });
+    else if (i === 3) Object.assign(terms, { tax: -2.0 * Math.max(0, tax - 0.08), hunger: -0.8 * hunger, court: tax > 0.12 ? -0.6 * Math.max(0, court - 0.08) : 0,
+      land: law.land === 'freeholds' ? 0.08 : 0, bond: law.bond === 'serf' ? -0.12 : 0, ruler: 0.1 * (tp[TP.MER] - 0.5), war: -0.2 * weary });
+    else Object.assign(terms, { rights: 0, bond: law.bond === 'slave' ? -0.4 : -0.3, ruler: 0.2 * (tp[TP.MER] - 0.5), hunger: -0.2 * hunger });
+    let t = 0.6, worst = null, wv = -0.02;
+    for (const k in terms) { t += terms[k]; if (terms[k] < wv) { wv = terms[k]; worst = k === 'rights2' ? 'rights' : k; } }
+    why[i] = worst;
+    // anger rises faster than it fades
+    const tt = clamp(t, 0, 1);
+    est[i][3] = l + (tt - l) * (tt < l ? 0.25 : 0.12);
   }
   for (const row of est) for (let k = 0; k < 4; k++) row[k] = r3(row[k]);
 }
