@@ -73,7 +73,9 @@ export function gearTier(civ) {
 export function gearQuality(civ) {
   const m = civ && civ.mods ? civ.mods : null;
   const mining = m && finite(m.mining) ? m.mining : 1, prod = m && finite(m.production) ? m.production : 1;
-  return clamp(0.85 + 0.15 * (prod - 1) + 0.12 * (mining - 1), 0.6, 1.15);
+  // crucible steel (civ/arts.js): finer blades than any mine and workshop alone could give
+  const steel = civ && civ.tech && civ.tech.arts && civ.tech.arts.steel != null ? 0.1 : 0;
+  return clamp(0.85 + 0.15 * (prod - 1) + 0.12 * (mining - 1) + steel, 0.6, 1.25);
 }
 
 const ERA_MIX = [

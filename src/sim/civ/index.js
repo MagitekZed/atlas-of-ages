@@ -51,6 +51,7 @@ import { setupRuler, noteDeed, installRuler, syncRulerDisplay, archiveRuler, end
 import { ensureStyle } from './style.js';
 import { figuresYearly, figureDies } from './culture.js';
 import { knowledgeYearly, upgradeKnowledge } from './knowledge.js';
+import { artsYearly } from './arts.js';
 import { dynastyYearly, exileOnFall, onCivFall } from './dynasty.js';
 import { civReport } from './report.js';
 import { roughPower } from './peoples.js';
@@ -147,6 +148,7 @@ export const system = {
       figuresYearly(world);
       dynastyYearly(world);
       knowledgeYearly(world);
+      artsYearly(world);
       pruneRateLimits(world);
       settleIdleWars(world);
       pruneFallen(world);

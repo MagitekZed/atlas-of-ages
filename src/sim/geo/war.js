@@ -360,6 +360,8 @@ function recruitGeneral(world, civ) {
 const ERA_LEAD = [0.9, 0.8, 0.65, 0.5, 0.4, 0.15, 0.03, 0.03];
 /** Does civ know invention id (civ/tech.js)? */
 const knowsT = (c, id) => Boolean(c && c.tech && c.tech.known && c.tech.known[id] != null);
+/** Does civ hold rare art a (civ/arts.js)? */
+const holdsArt = (c, a) => Boolean(c && c.tech && c.tech.arts && c.tech.arts[a] != null);
 
 /**
  * The ruler takes the field at the head of this army (core/character.js), or null: likelier the
@@ -1548,7 +1550,8 @@ function battle(world, st, A, B) {
     let e = naval ? army.strength * (1 + 0.15 * (eraOf(civ) - eraOf(other))) : forcePower(mine ? coA : coB, mine ? shB : shA, mine ? gB : gA, rf) * planBonus(mine ? planA : planB, mine ? shB : shA);
     e *= m.military * (0.4 + 0.6 * clamp01(army.morale)) * (0.55 + 0.45 * clamp01(army.supply));
     e *= finite(army.flags?.skill) ? army.flags.skill : 1;
-    if (naval) e *= (1 + 0.25 * m.navigation) * (knowsT(civ, 'galley') ? 1.15 : 1) * (knowsT(civ, 'steamship') ? 1.25 : 1);   // rams, then steam
+    if (naval) e *= (1 + 0.25 * m.navigation) * (knowsT(civ, 'galley') ? 1.15 : 1) * (knowsT(civ, 'steamship') ? 1.25 : 1)   // rams, then steam
+      * (holdsArt(civ, 'greekfire') ? 1.3 : 1) * (holdsArt(civ, 'shipsinging') ? 1.2 : 1);                                   // the rare arts (civ/arts.js)
     else if (army.naval) e *= 0.6;                 // caught while landing
     if (home) e *= terrainBonus(world, army, i);
     if (ext) e *= mulOf('battle', world, { army, enemy, i, side: home ? 'defender' : 'attacker' });
@@ -1839,7 +1842,8 @@ function siegeTick(world, st, army, idx) {
   const isCap = def && def.capitalId === s.id;
   // the town's own effects (a blessing on its walls, a curse on its gates) add to its defences
   const sdef = settlementMods(world, s).defense;
-  const hold = (25 + Math.max(0, s.garrison || 0) + Math.max(0, s.population) * 0.05) * md.defense * (isCap ? 1.3 : 1) * Math.max(0.5, 1 + sdef);
+  const hold = (25 + Math.max(0, s.garrison || 0) + Math.max(0, s.population) * 0.05) * md.defense * (isCap ? 1.3 : 1) * Math.max(0.5, 1 + sdef)
+    * (holdsArt(def, 'stonebinding') ? 1.3 : 1);   // walls that mend themselves (civ/arts.js)
   // cannon bring down walls built before them: below a star fort they count for half
   const guns = s.siege && knowsT(world.civs[s.siege.civId], 'cannon') && !((s.buildings?.walls || 0) >= 4);
   const fort = (1 + 0.6 * clamp((s.defense || 0) + 4 * sdef, 0, 20) * (guns ? 0.5 : 1)) * (isCap ? 1.4 : 1);

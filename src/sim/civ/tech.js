@@ -56,7 +56,7 @@ import { DAYS_PER_YEAR, DAYS_PER_MONTH, ERAS, RESOURCES, BIOME } from '../../cor
 import { emitFx } from '../../core/world.js';
 import { emit } from '../../core/hooks.js';
 import { concatOf, mulOf, firstOf, hasProviders, extVersion, getModKeys, getRegisteredTechs } from '../../core/ext.js';
-import { GOVERNMENTS, RULER_TRAITS, wonderDef } from './data.js';
+import { GOVERNMENTS, RULER_TRAITS, wonderDef, ARTS } from './data.js';
 import { fin, record, civTowns } from './state.js';
 import { borderNeighbours } from './territory.js';
 import { PeopleOf, TheName, theName, peopleOf, pick } from './prose.js';
@@ -446,6 +446,9 @@ export function computeMods(world, civ) {
     m.culture += 0.15 * (fin(tr.religiosity, 0.5) - 0.5);
     m.expansionRange += Math.round(2 * (fin(tr.expansion, 0.5) - 0.5));
   }
+  // the rare arts it holds (civ/arts.js)
+  const arts = civ?.tech?.arts;
+  if (arts) for (const a in arts) if (ARTS[a]) applyFx(m, ARTS[a].fx);
   if (fin(civ?.goldenAge) > 0) applyFx(m, GOLDEN);
   if (fin(civ?.darkAge) > 0) applyFx(m, DARK);
   if (world && Array.isArray(world.wonders) && civ && civ.id != null) {

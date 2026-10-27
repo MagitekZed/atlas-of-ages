@@ -188,13 +188,14 @@ and steal the open arts as anyone may. Beyond that:
 A rare art does not spread by trade or border. It moves only:
 - **By conquest of its town.** The taker learns it (60 %), or its craftsmen flee to a friendly realm
   (25 %), or it dies with them (15 %).
-- **By defection.** A great craftsman or scholar of the holder may go abroad (a few times a
-  millennium per art), most likely in a dark age, a lost war or under a cruel ruler.
-- **By theft.** A rival whose ruler has intrigue (chunk 4) above 0.6 may steal it: 0.5 % a year ×
-  intrigue, more for a near neighbour. Told as smuggling ("monks carried silkworms out in hollow
+- **By defection.** A master craftsman of the holder may go abroad (0.05 % a year for each realm it
+  is in contact with, three times as likely in a dark age, twice under a cruel ruler).
+- **By theft.** A rival whose ruler has intrigue (chunk 4) of 0.6 or more may steal it: 0.3 % a year
+  × intrigue, half again for a neighbour. Told as smuggling ("monks carried silkworms out in hollow
   canes").
 - **By marriage or gift.** A royal marriage or an alliance of long standing, rarely.
-- **By reinvention.** Anyone who meets the recipe may find it again on their own.
+- **By reinvention.** Anyone who meets the recipe may find it again on their own, a quarter as
+  readily while another realm still holds it. At most three realms hold an art at once.
 
 It is **lost** when no holder remains: its town razed or taken while its craftsmen died, or its
 realm fallen. The world remembers that it existed ("the secret of Greek fire was lost"), and a dig
