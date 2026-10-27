@@ -414,25 +414,26 @@ Twelve worlds against main (52a2d0e, with chunk 4; the chunk 1 matrix):
 
 | | Population | Realms | Towns | Wars | Time at war | Average age (best realm) |
 | --- | --- | --- | --- | --- | --- | --- |
-| Historical, Year 500 | −12 % | −4 % | −4 % | −24 % | 18.5 → 14.7 % | 0.89 → 0.83 (1.00 → 1.17) |
-| Mythic, Year 500 | −13 % | −7 % | −8 % | −12 % | 16.7 → 13.9 % | 0.75 → 0.85 (1.00 → 1.00) |
-| Historical, Year 1000 | +9 % | −17 % | 0 % | −15 % | 28.0 → 24.8 % | 2.25 → 2.00 (2.67 → 2.17) |
-| Mythic, Year 1000 | +18 % | −5 % | −6 % | −3 % | 23.0 → 22.3 % | 2.23 → 2.16 (2.67 → 2.33) |
+| Historical, Year 500 | −5 % | −8 % | −2 % | −15 % | 18.5 → 16.3 % | 0.89 → 0.85 (1.00 → 1.00) |
+| Mythic, Year 500 | −9 % | −15 % | −8 % | −12 % | 16.7 → 14.0 % | 0.75 → 0.77 (1.00 → 1.33) |
+| Historical, Year 1000 | +13 % | −2 % | −2 % | −18 % | 28.0 → 23.1 % | 2.25 → 2.01 (2.67 → 2.33) |
+| Mythic, Year 1000 | +13 % | −4 % | −7 % | −17 % | 23.0 → 19.4 % | 2.23 → 2.52 (2.67 → 2.83) |
 
-No world came near failing: at least 6 realms and 98 towns in every world at both years.
+No world came near failing: at least 7 realms and 111 towns in every world at both years.
 
 **The march of the ages.** The first build stalled it: three of the six Bronze Age inventions had
 become uncommon, realms ground through them at three times the cost, and they finished every
 invention of an age before the next. Three changes brought it back toward today's pace (the user:
 "a little slower is okay", 2026-10-26): an uncommon invention without its land is a last resort,
 new inventions are priced as refinements (0.6 to 0.9 of their age), and with five inventions of its
-age known a realm turns a growing share of its research to the next age. The average realm is now
-about a tenth behind main at Year 1000 in Historical worlds and level in Mythic ones; the leading
-realms are slower still (a realm in the Classical Age by Year 1000 in 3 of 12 worlds, against 8 on
-main).
+age known a realm turns a growing share of its research to the next age. With the pull starting at
+five, the leading realms lagged (a realm in the Classical Age by Year 1000 in 3 of 12 worlds,
+against 8 on main); the user chose to start it at four. Now the average realm is about a tenth
+behind main at Year 1000 in Historical worlds and a tenth ahead in Mythic ones, and a realm reaches
+the Classical Age by Year 1000 in 7 of 12 worlds.
 
-**Population** is higher by Year 1000 (+9 % and +18 %): the plough, the mills and the calendar feed
-more people, and fewer realms fight fewer wars.
+**Population** is higher by Year 1000 (+13 %): the plough, the mills and the calendar feed more
+people, and realms fight fewer wars (−17 to −18 %).
 
 **Knowledge on the move** (1000-year worlds): of the inventions realms learned rather than
 inherited, about 45 % by their own research, 18 % from neighbours, 17 % by trade, 11 % from refugees
