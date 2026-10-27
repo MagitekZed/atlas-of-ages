@@ -62,6 +62,23 @@ export const mountainLift = (v, w, k, rid, sea) => k * w * (0.4 + 0.8 * rid) * c
 export const sinkTarget = (sea, str) => sea - (0.02 + 0.05 * str);
 export const sinkStep = (v, w, str, target) => (v > target ? v - (v - target) * Math.min(1, w * (0.12 + 0.3 * str)) : v);
 /** Raise Island: the height a tile is drawn toward (noise-shaped isle with a rocky heart). */
+/**
+ * True when tile i is a settled or claimed shore that a rising island leaves alone (with a strait
+ * of sea beside it), so a new isle never dams a bay into a lake over a town. Wild coast and the
+ * land this stroke raised (isle: { tile: 1 }) do not count: an island may grow onto them.
+ */
+export function isleShore(world, i, sea, isle = null) {
+  const f = world.f;
+  return f.elevation[i] >= sea && !(isle && isle[i]) && (f.owner[i] >= 0 || f.ownerSettle[i] >= 0);
+}
+
+/** True when a tile next to i (8-neighbours) is such a shore. */
+export function besideIsleShore(world, i, sea, isle = null) {
+  const W = world.W, H = world.H, x0 = i % W, y0 = (i / W) | 0;
+  for (let d = 0; d < 8; d++) { const nx = x0 + DX8[d], ny = y0 + DY8[d]; if (nx >= 0 && ny >= 0 && nx < W && ny < H && isleShore(world, ny * W + nx, sea, isle)) return true; }
+  return false;
+}
+
 export function islandTarget(world, tx, ty, w, sea, str) {
   const peak = sea + 0.025 + 0.14 * str;
   const n = 0.75 + 0.35 * ridgedL(noiseFor(world), (tx + 0.5) / world.H * 11 + 40, (ty + 0.5) / world.H * 11, 3);
@@ -180,12 +197,8 @@ export function islandPreview(world, x, y, opts = {}) {
   const r = radiusOf(opts, 3), str = strengthOf(opts), sea = seaOf(world);
   const v = world.f.elevation[y * world.W + x];
   if (v >= sea) return { ok: true, tone: 'neutral', severity: 0, text: 'Already land: an island rises only from the sea', rings: ringOf(x, y, r, 'neutral') };
-  // the isle keeps a strait from the shore it rises beside (terraform's island brush)
-  const { W, H } = world;
-  for (let d = 0; d < 8; d++) {
-    const nx = x + DX8[d], ny = y + DY8[d];
-    if (nx >= 0 && ny >= 0 && nx < W && ny < H && world.f.elevation[ny * W + nx] >= sea) return { ok: true, tone: 'neutral', severity: 0, text: 'Beside the shore: an island keeps a strait from the coast, so it would rise only further out', rings: ringOf(x, y, r, 'neutral') };
-  }
+  // the isle keeps a strait from a settled shore it rises beside (terraform's island brush)
+  if (besideIsleShore(world, y * world.W + x, sea)) return { ok: true, tone: 'neutral', severity: 0, text: 'Beside a settled shore: an island keeps a strait from the coast, so it would rise only further out', rings: ringOf(x, y, r, 'neutral') };
   const t = islandTarget(world, x, y, 1, sea, str);
   const n = stepsUp(v, sea, (e) => islandStep(e, t));
   return { ok: true, tone: 'neutral', severity: 0, text: n ? `Hold to raise: about ${plural(n, 'application')} to break the surface` : 'The sea is too deep here for this brush', rings: ringOf(x, y, r, 'neutral') };

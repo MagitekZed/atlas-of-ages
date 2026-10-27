@@ -25,12 +25,12 @@ import { RNG } from '../core/rng.js';
 import { makePlace } from '../core/names.js';
 import { nearestSettlement } from '../core/entities.js';
 import { WATER } from '../core/constants.js';
-import { clamp, clamp01, DX8, DY8 } from '../core/util.js';
+import { clamp, clamp01 } from '../core/util.js';
 import { ridgedL, num } from './grid.js';
 import { recomputeWater } from './hydrology.js';
 import { emitFx } from '../core/world.js';
 import {
-  brush, noiseFor, seaOf, radiusOf, strengthOf, raiseStep, lowerStep, mountainLift, sinkTarget, sinkStep, islandTarget, islandStep, flattenLevel,
+  brush, noiseFor, seaOf, radiusOf, strengthOf, raiseStep, lowerStep, mountainLift, sinkTarget, sinkStep, islandTarget, islandStep, flattenLevel, isleShore, besideIsleShore,
   raisePreview, lowerPreview, flattenPreview, mountainPreview, sinkPreview, islandPreview,
 } from './previews.js';
 import { classifyBiomes } from './biomes.js';
@@ -287,23 +287,17 @@ registerTool({
     const s = begin(world, 'island', x, y);
     s.isle ||= {};   // tiles this stroke has raised out of the sea: { tile: 1 }
     const nb = s.newLand, db = s.drowned;
-    const e = world.f.elevation, W = world.W, H = world.H;
+    const e = world.f.elevation;
     const sea = seaOf(world);
     const str = strengthOf(opts);
     const r = radiusOf(opts, 3);
-    // An island rises from the sea alone: the shore it rises beside keeps its height, and a strait
-    // of sea stays between them, so a new isle never dams a bay over the towns on its shore.
-    const shore = (i) => e[i] >= sea && !s.isle[i];
-    const besideShore = (i) => {
-      const x0 = i % W, y0 = (i / W) | 0;
-      for (let d = 0; d < 8; d++) { const nx = x0 + DX8[d], ny = y0 + DY8[d]; if (nx >= 0 && ny >= 0 && nx < W && ny < H && shore(ny * W + nx)) return true; }
-      return false;
-    };
+    // An island leaves a settled or claimed shore at its height, with a strait of sea beside it,
+    // so a new isle never dams a bay into a lake over the towns on that shore (previews.isleShore).
     brush(world, x, y, r, (i, w, tx, ty) => {
       const v = e[i];
-      if (shore(i)) return;
+      if (isleShore(world, i, sea, s.isle)) return;
       let t = islandTarget(world, tx, ty, w, sea, str);
-      if (t >= sea && besideShore(i)) t = Math.min(t, sea - 0.0005);
+      if (t >= sea && besideIsleShore(world, i, sea, s.isle)) t = Math.min(t, sea - 0.0005);
       if (v < t) { setElev(world, s, i, islandStep(v, t)); if (v < sea && e[i] >= sea) s.isle[i] = 1; }
     });
     after(world, x, y, r, 1, str);

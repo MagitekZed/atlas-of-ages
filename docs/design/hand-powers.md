@@ -32,10 +32,11 @@ All ten fixes, with natural quakes, waves and floods changed too; the fault's li
    harvest and the silt stay.
 5. **Alliances.** An alliance the hand forges cannot lapse for twenty years (`allyUntil` on both
    relations); war between the two still ends it.
-6. **Raise Island.** Two causes, two rules. An island rises from the sea alone: the brush leaves
-   existing land at its height and keeps a strait of sea (just below sea level) beside the shore,
-   so a new isle never dams a bay into a hollow that fills as a lake over the town on its shore
-   (the forecast says so when the brush sits beside the shore). And during play, a stretch of sea
+6. **Raise Island.** Two causes, two rules. Beside a settled or claimed shore (a realm's land or a
+   town's), the island leaves that shore at its height and keeps a strait of sea just below sea
+   level, so a new isle never dams a bay into a hollow that fills as a lake over the town on it
+   (`isleShore`; the forecast says so when the brush sits beside such a shore). Wild coast and the
+   island's own new land do not count, so an island can still be grown click by click. And during play, a stretch of sea
    closed off from the ocean stays sea at sea level, a lagoon, instead of filling to its rim
    (`recomputeWater(world, { keepSea })`; world generation is unchanged).
 7. **Lower.** Its forecast already named the town that would drown and after how many
@@ -54,3 +55,20 @@ All ten fixes, with natural quakes, waves and floods changed too; the fault's li
 A. Quakes, waves, floods and the fault's lift (1, 2, 4, 8). B. Storms, blizzards and wildfire (3,
 10). C. Island lagoon and Lower's warning (6, 7). D. Lasting alliances and reports over the reach
 (5, 9). Then the audit again, the gates, twelve worlds against main, speed and save size.
+
+## Results (2026-10-27)
+
+### Gates
+
+All pass: `npm test` (determinism with and without myth, rewind, the trial), the Mythic trial, the
+keyframe and cohort checks, three 300-year Mythic trials (deep, trial, amber), and the hand check
+with and without myth (the world's history identical with and without the observer, now that it
+asks a point power's forecast for its reach).
+
+### Checked in the game
+
+Storm's forecast over land reads "A tempest would break · Ziriankee (370) in its path"; raised at
+full fury, the tempest killed 15 of Ziriankee's 374 and the Chronicle told it ("For a day and a night
+a god-sent tempest raged over Ziriankee, killing 15"). Lower's forecast gives the people at risk
+(severity 3); Raise Island beside a shore says it would rise only further out; a 9.5 at sea forecasts
+its wave. No console errors.
