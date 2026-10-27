@@ -14,6 +14,7 @@
 import { civSettlements, transferSettlement, areAtWar, settlementsNear, enemiesOf, addOpinion, liveSettlements } from '../../core/entities.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
 import { emitFx } from '../../core/world.js';
+import { emit } from '../../core/hooks.js';
 import { takePeople } from '../../core/cohorts.js';
 import { firstOf, hasProviders } from '../../core/ext.js';
 import { getMods, refreshMods } from './tech.js';
@@ -473,6 +474,7 @@ function startDark(world, civ, why, silent = false) {
   civ.goldenAge = 0;
   civ.flags.darkCause = why;
   refreshMods(world, civ);
+  emit(world, 'darkAge', civ, why);   // knowledge.js: a dark age after defeat or collapse may cost knowledge
   if (silent) return;
   const reason = {
     plague: pick(world, [', its cities emptied by hunger and plague', ', its people decimated']),

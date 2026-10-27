@@ -61,7 +61,7 @@ const knows = (civ, id) => Boolean(civ && civ.tech && civ.tech.known && civ.tech
 export function gearTier(civ) {
   if (!civ) return 0;
   if (knows(civ, 'combustion')) return 6;
-  if (knows(civ, 'chemistry') || knows(civ, 'railways')) return 5;
+  if (knows(civ, 'rifle') || knows(civ, 'chemistry') || knows(civ, 'railways')) return 5;
   if (knows(civ, 'gunpowder')) return 4;
   if (knows(civ, 'iron') && (knows(civ, 'feudalism') || knows(civ, 'engineering'))) return 3;
   if (knows(civ, 'iron')) return 2;
@@ -73,7 +73,9 @@ export function gearTier(civ) {
 export function gearQuality(civ) {
   const m = civ && civ.mods ? civ.mods : null;
   const mining = m && finite(m.mining) ? m.mining : 1, prod = m && finite(m.production) ? m.production : 1;
-  return clamp(0.85 + 0.15 * (prod - 1) + 0.12 * (mining - 1), 0.6, 1.15);
+  // crucible steel (civ/arts.js): finer blades than any mine and workshop alone could give
+  const steel = civ && civ.tech && civ.tech.arts && civ.tech.arts.steel != null ? 0.1 : 0;
+  return clamp(0.85 + 0.15 * (prod - 1) + 0.12 * (mining - 1) + steel, 0.6, 1.25);
 }
 
 const ERA_MIX = [
@@ -126,12 +128,16 @@ export function mixFor(world, civ) {
   v[ROLE.SPEAR] *= 1 + 0.4 * land.high;
   v[ROLE.BLADE] *= (1 + 0.3 * land.high) * (0.8 + 0.4 * (t.aggression ?? 0.5));
   if (!knows(civ, 'engineering') && !knows(civ, 'mathematics') && era < 5) v[ROLE.ENG] = 0;
+  // the inventions that changed a host (civ/tech.js): the bow, the stirrup's knights, siege engines
+  if (!knows(civ, 'bow') && era < 2) v[ROLE.BOW] *= 0.5;
+  if (knows(civ, 'stirrup')) v[ROLE.HHORSE] *= 1.5;
+  if (knows(civ, 'siegeengines')) v[ROLE.ENG] *= 1.3;
   return horseless(civ, norm(v));
 }
 
 /** A people that has not tamed the horse fights on foot (its horse becomes spearmen and blades). */
 function horseless(civ, v) {
-  if (knows(civ, 'horseback') || knows(civ, 'wheel') || eraOf(civ) >= 3) return v;
+  if (knows(civ, 'horseback') || knows(civ, 'chariot') || eraOf(civ) >= 3) return v;
   const h = v[ROLE.LHORSE] + v[ROLE.HHORSE];
   if (!(h > 0)) return v;
   const out = v.slice();

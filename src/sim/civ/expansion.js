@@ -439,7 +439,9 @@ export function trySettlers(world, s, civ, ctx) {
       if (fl.roomFails >= 4) { fl.noRoomDay = day + Math.min(12, fl.roomFails) * DAYS_PER_YEAR; }
     } else { s.flags.noSiteN = 0; fl.roomFails = 0; }
   }
-  if ((!site && canSail && world.rng.chance(0.7)) || (site && canSail && world.rng.chance(0.12 * (0.5 + fin(civ.traits?.expansion))))) {
+  // a chartered company sends colonists beyond the seas twice as readily (tech.js)
+  const company = hasTech(civ, 'company') ? 2 : 1;
+  if ((!site && canSail && world.rng.chance(0.7)) || (site && canSail && world.rng.chance(0.12 * company * (0.5 + fin(civ.traits?.expansion))))) {
     const sea = findSite(world, s, civ, { overseas: true });
     if (sea) { site = sea; fl.seaFails = 0; }
     else {

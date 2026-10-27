@@ -13,7 +13,7 @@ import { registerProvider } from '../../core/ext.js';
 import { registerEvent } from '../../core/events.js';
 import { updateSite } from '../../core/sites.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
-import { record, effect, heat, T, canLearn, grantTechTo, techDef, recordFree } from './engine.js';
+import { record, effect, heat, T, canLearn, grantTechTo, techDef, recordFree, techAt, rediscoverArt } from './engine.js';
 import { SUBJ } from './heat.js';
 import { pick, say, civName, peopleOf, yearsWord } from './prose.js';
 
@@ -222,8 +222,15 @@ registerEvent({
     if (!site || !civ) return false;
     const old = ruinName(world, site) || 'a forgotten city';
     const fallen = site.data?.civId != null ? world.civs[site.data.civId] : null;
+    // a lost rare art practised there may be found again (civ/arts.js)
+    if (site.data?.sid != null && rediscoverArt(world, civ, s, site.data.sid)) { updateSite(world, site.id, { excavated: world.time.day, excavatedBy: s.id }); return true; }
     let lost = null;
-    if (fallen && fallen.tech && fallen.tech.known && world.rng.chance(0.4)) {
+    // what its library kept (civ/knowledge.js), else what its fallen realm knew
+    const arch = Array.isArray(site.data?.archive) ? site.data.archive.map(techAt).filter(Boolean) : null;
+    if (arch && arch.length && world.rng.chance(0.6)) {
+      const cands = arch.filter((id) => canLearn(civ, id)).sort();
+      if (cands.length) lost = world.rng.pick(cands);
+    } else if (fallen && fallen.tech && fallen.tech.known && world.rng.chance(0.4)) {
       const cands = Object.keys(fallen.tech.known).filter((id) => canLearn(civ, id)).sort();
       if (cands.length) lost = world.rng.pick(cands);
     }
@@ -231,7 +238,7 @@ registerEvent({
     const span = yearsWord(Math.round((world.time.day - fellDay(site)) / DAYS_PER_YEAR));
     let text;
     const t = lost ? techDef(lost) : null;
-    if (t && grantTechTo(world, civ, lost)) {
+    if (t && grantTechTo(world, civ, lost, `u:${fallen.id}`)) {
       text = say(world, [
         '{who} of {town} dug into the ruins of {old}, dead for {span}, and found tablets that taught {people} the lost art of {tech}.',
         'In the buried archive of {old} the {who2} of {town} rediscovered {tech}, known to {fallen} before their fall.',

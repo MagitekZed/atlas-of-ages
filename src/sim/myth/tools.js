@@ -247,7 +247,7 @@ function commonKnowledge(world, civ) {
       if (t.era > maxEra || civ.tech.known[t.id] != null || !t.prereqs.every((p) => civ.tech.known[p] != null)) continue;
       let n = 0;
       for (const c of civs) if (c.tech.known[t.id] != null) n++;
-      if (n / civs.length >= 0.6) civTech.grantTech(civ, t.id, world.time.day);
+      if (n / civs.length >= 0.6) civTech.grantTech(civ, t.id, world.time.day, 'd');
     }
   }
 }

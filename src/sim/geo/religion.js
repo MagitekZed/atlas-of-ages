@@ -822,7 +822,11 @@ function schisms(world, st) {
     if (age < 120 || r.followers < 15000 || (r.nations || 0) < 2) continue;
     if (r.lastSchismDay != null && world.time.day - r.lastSchismDay < 90 * DAYS_PER_YEAR) continue;
     const t = r.tenets;
-    let p = 0.008 * rp * mul * (t.includes('mystic') ? 2 : 1) * (t.includes('hierarchical') ? 0.65 : 1) * (1 + ((r.nations || 2) - 2) * 0.35) * (0.6 + r.fervor) * (alive.length > 10 ? 0.4 : 1);
+    // the printing press splits faiths (the Reformation): the share of its realms that print
+    let printing = 0, realms = 0;
+    for (const c of liveCivs(world)) if (c.stateReligion === r.id) { realms++; if (c.tech && c.tech.known && c.tech.known.printing != null) printing++; }
+    const pressF = 1 + 1.5 * (realms ? printing / realms : 0);
+    let p = 0.008 * rp * mul * pressF * (t.includes('mystic') ? 2 : 1) * (t.includes('hierarchical') ? 0.65 : 1) * (1 + ((r.nations || 2) - 2) * 0.35) * (0.6 + r.fervor) * (alive.length > 10 ? 0.4 : 1);
     if (!rng.chance(p)) continue;
     schism(world, st, r);
     return;

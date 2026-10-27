@@ -474,7 +474,7 @@ function restoration(world, ex, cands) {
   }
   // the towns lived under their masters' learning: the restored crown keeps it
   const teacher = holder && holder.tech ? holder : old;
-  for (const id in teacher.tech?.known || {}) grantTech(civ, id, world.time.day);
+  for (const id in teacher.tech?.known || {}) grantTech(civ, id, world.time.day, `i:${teacher.id}`);
   civ.tech.era = Math.max(fin(civ.tech.era, 0), computeEra(civ));
   refreshMods(world, civ);
   for (const s of cluster) transferSettlement(world, s.id, civ.id, 'rebellion');

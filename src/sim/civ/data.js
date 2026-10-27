@@ -135,12 +135,12 @@ export const RULER_TRAITS = {
 
 export const BUILDINGS = {
   granary:  { names: ['Granary', 'Great Granary'], tech: ['pottery', 'engineering'], minTier: 1, cost: 60, upkeep: 0.05 },
-  walls:    { names: ['Palisade', 'Stone Walls', 'Castle', 'Star Fort'], tech: ['toolmaking', 'masonry', 'feudalism', 'gunpowder'], minTier: [1, 2, 3, 3], cost: 90, upkeep: 0.08 },
+  walls:    { names: ['Palisade', 'Stone Walls', 'Castle', 'Star Fort'], tech: ['toolmaking', 'masonry', 'feudalism', 'cannon'], minTier: [1, 2, 3, 3], cost: 90, upkeep: 0.08 },
   temple:   { names: ['Shrine', 'Temple', 'Cathedral'], tech: ['mysticism', 'masonry', 'theology'], minTier: [1, 2, 3], cost: 70, upkeep: 0.06 },
   harbor:   { names: ['Harbour', 'Great Harbour'], tech: ['sailing', 'navigation'], minTier: [1, 3], cost: 120, upkeep: 0.08, coastal: true },
   mine:     { names: ['Mine', 'Deep Mine'], tech: ['bronze', 'gunpowder'], minTier: [1, 2], cost: 110, upkeep: 0.06, ore: true },
   barracks: { names: ['Barracks', 'Military Academy'], tech: ['bronze', 'tactics'], minTier: [2, 3], cost: 120, upkeep: 0.1 },
-  library:  { names: ['Library', 'Great Library'], tech: ['writing', 'printing'], minTier: [2, 3], cost: 150, upkeep: 0.07 },
+  library:  { names: ['Library', 'Great Library'], tech: ['writing', 'paper'], minTier: [2, 3], cost: 150, upkeep: 0.07 },
   market:   { names: ['Market', 'Grand Bazaar'], tech: ['currency', 'guilds'], minTier: [2, 3], cost: 140, upkeep: 0.04 },
   aqueduct: { names: ['Aqueduct'], tech: ['engineering'], minTier: 3, cost: 420, upkeep: 0.12 },
   theatre:  { names: ['Amphitheatre', 'Opera House'], tech: ['drama', 'printing'], minTier: [3, 4], cost: 300, upkeep: 0.1 },
@@ -149,7 +149,7 @@ export const BUILDINGS = {
   observatory: { names: ['Observatory'], tech: ['astronomy'], minTier: 3, cost: 500, upkeep: 0.12 },
   bank:     { names: ['Bank', 'Stock Exchange'], tech: ['banking', 'electricity'], minTier: [3, 4], cost: 600, upkeep: 0.05 },
   hospital: { names: ['Hospital', 'Teaching Hospital'], tech: ['anatomy', 'antibiotics'], minTier: [3, 4], cost: 650, upkeep: 0.2 },
-  factory:  { names: ['Factory', 'Industrial Works', 'Assembly Plant'], tech: ['steam', 'electricity', 'combustion'], minTier: [2, 3, 4], cost: 1200, upkeep: 0.25 },
+  factory:  { names: ['Factory', 'Industrial Works', 'Assembly Plant'], tech: ['factory', 'electricity', 'combustion'], minTier: [2, 3, 4], cost: 1200, upkeep: 0.25 },
   railway:  { names: ['Railway Station'], tech: ['railways'], minTier: 2, cost: 1100, upkeep: 0.2 },
   sewers:   { names: ['Sewers'], tech: ['sanitation'], minTier: 3, cost: 1300, upkeep: 0.2 },
   powerplant: { names: ['Power Station', 'Clean Power Station'], tech: ['electricity', 'renewables'], minTier: [3, 3], cost: 2200, upkeep: 0.3 },
@@ -292,3 +292,32 @@ export function wonderDef(kind) {
 export function allWonders() { syncDefs(); return ALL_WONDERS; }
 /** The extVersion the merged tables were last built at (for caches in world.cache). */
 export function defsVersion() { syncDefs(); return regV; }
+
+// ---------------------------------------------------------------------------
+// Rare arts (chunk 5, civ/arts.js; docs/design/inventions.md): secrets outside the ages, each
+// found by realms that meet its recipe, hoarded in one workshop town. kind: 'hist' (any world,
+// any people), 'people' (Mythic: practised by its own people; humans alone may take it
+// outright), 'open' (Mythic, any people). fx: added to the holder's mods (tech.js computeMods);
+// a few act by name as well (war.js: Greek fire and ship-singing at sea, stone-binding in a
+// siege; army.js: crucible steel's gear). chance: a year, once the recipe is met.
+
+export const ARTS = {
+  greekfire: { name: 'Greek Fire', kind: 'hist', fx: { defense: 0.05 }, chance: 0.02, first: 'to burn ships with fire that water cannot quench', what: 'its fleets win at sea' },
+  steel: { name: 'Crucible Steel', kind: 'hist', fx: { military: 0.05 }, chance: 0.015, first: 'to forge blades of watered steel', what: 'finer arms' },
+  silk: { name: 'Silk', kind: 'hist', fx: { trade: 0.1, culture: 0.05 }, chance: 0.015, first: 'to weave silk', what: 'trade and prestige' },
+  porcelain: { name: 'Porcelain', kind: 'hist', fx: { trade: 0.08, culture: 0.08 }, chance: 0.015, first: 'to fire porcelain', what: 'trade and culture' },
+  concrete: { name: 'Concrete', kind: 'hist', fx: { housing: 0.1, defense: 0.1 }, chance: 0.02, first: 'to build in concrete of volcanic ash', what: 'lasting walls and works' },
+  purple: { name: 'Purple Dye', kind: 'hist', fx: { trade: 0.06, stability: 0.02 }, chance: 0.015, first: 'to dye cloth royal purple', what: 'trade and a crown’s colour' },
+  wayfinding: { name: 'Wayfinding', kind: 'hist', fx: { navigation: 1, seaRange: 15 }, chance: 0.02, first: 'to find their way across the open sea by stars and swells', what: 'open-sea voyages before navigation' },
+  compositebow: { name: 'The Composite Bow', kind: 'hist', fx: { military: 0.1 }, chance: 0.015, first: 'to make bows of horn, wood and sinew', what: 'horse archers' },
+  clockwork: { name: 'Clockwork of the Heavens', kind: 'hist', fx: { research: 0.1 }, chance: 0.01, first: 'to build a clockwork of the heavens', what: 'research' },
+  glass: { name: 'Fine Glass', kind: 'hist', fx: { trade: 0.06, research: 0.03 }, chance: 0.015, first: 'to blow glass as clear as water', what: 'trade and lenses' },
+  shipsinging: { name: 'Ship-singing', kind: 'people', people: 'elf', fx: { seaRange: 10, trade: 0.05 }, chance: 0.015, first: 'to sing living ships out of the forest', what: 'living ships: fleets faster and surer' },
+  stonebinding: { name: 'Stone-binding', kind: 'people', people: 'dwarf', fx: { defense: 0.25 }, chance: 0.015, first: 'to bind stone that mends itself', what: 'walls that mend: sieges fail' },
+  warbeasts: { name: 'War-beast Breeding', kind: 'people', people: 'orc', fx: { military: 0.15 }, chance: 0.015, first: 'to breed great beasts for war', what: 'war beasts that fight far harder' },
+  everkeeping: { name: 'Everkeeping', kind: 'people', people: 'halfling', fx: { storage: 0.5 }, chance: 0.015, first: 'to seal larders that never spoil', what: 'famine hardly touches its towns' },
+  swampphysic: { name: 'Swamp-physic', kind: 'people', people: 'lizardfolk', fx: { plagueResist: 0.15 }, chance: 0.015, first: 'to cure fevers with the medicines of the swamp', what: 'plague deaths cut sharply' },
+  dragonbone: { name: 'Dragonbone Craft', kind: 'open', fx: { military: 0.1, defense: 0.1 }, chance: 0.02, first: 'to make armour of dragonbone', what: 'armour: fewer fall in battle' },
+  leyglass: { name: 'Ley-glass', kind: 'open', fx: { research: 0.08 }, chance: 0.015, first: 'to hold mana in lenses of ley-glass', what: 'arcane learning' },
+};
+export const ART_IDS = Object.keys(ARTS);

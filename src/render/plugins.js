@@ -14,6 +14,7 @@ const PLUGINS = [
   ['pins', 'WP8', () => import('./pins.js')],
   ['neatline', 'UI', () => import('./neatline.js')],
   ['pastborders', 'UI', () => import('./pastborders.js')],
+  ['knowledge', 'UI', () => import('./knowledge.js')],
 ];
 
 const status = [];

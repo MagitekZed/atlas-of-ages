@@ -242,7 +242,8 @@ export function revolutionTarget(world, civ) {
     if (era >= 5) add('constitutional', 0.4 + 0.4 * fin(tr.tolerance));
   } else if (era >= 1) {
     add('kingdom', 1);
-    add('theocracy', fin(tr.religiosity) * (holy ? 0.8 : 0.25));
+    // the keepers of the calendar, who know when to sow, hold the people's trust
+    add('theocracy', fin(tr.religiosity) * (holy ? 0.8 : 0.25) + (hasTech(civ, 'calendar') ? 0.15 : 0));
     add('chiefdom', 0.35);                       // central authority breaks down
     if (n >= 10) add('empire', 0.5 * (0.5 + fin(tr.militarism)));
   } else { add('chiefdom', 1); add('tribe', 0.3); }

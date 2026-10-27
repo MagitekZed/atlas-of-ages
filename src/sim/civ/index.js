@@ -50,6 +50,8 @@ import { adoptGovernment, styleName } from './government.js';
 import { setupRuler, noteDeed, installRuler, syncRulerDisplay, archiveRuler, endDynasty } from './rulers.js';
 import { ensureStyle } from './style.js';
 import { figuresYearly, figureDies } from './culture.js';
+import { knowledgeYearly, upgradeKnowledge } from './knowledge.js';
+import { artsYearly } from './arts.js';
 import { dynastyYearly, exileOnFall, onCivFall } from './dynasty.js';
 import { civReport } from './report.js';
 import { roughPower } from './peoples.js';
@@ -89,6 +91,7 @@ export const system = {
       genesisChronicle(world, tribes);
     } else {
       normaliseCivState(world.sys.civ);
+      upgradeKnowledge(world);
     }
     for (const civ of world.civs) {
       ensureCivFields(civ);
@@ -144,6 +147,8 @@ export const system = {
       peopleWorldYear(world);
       figuresYearly(world);
       dynastyYearly(world);
+      knowledgeYearly(world);
+      artsYearly(world);
       pruneRateLimits(world);
       settleIdleWars(world);
       pruneFallen(world);
@@ -307,7 +312,7 @@ on('civCreated', (world, civ) => {
   ensureTemper(world, civ);   // birth temperament (temper0) before the first ruler is drawn from it
   const parent = civ.parentId != null ? world.civs[civ.parentId] : null;
   if (parent && parent.tech) {
-    for (const id in parent.tech.known) if (civ.tech.known[id] == null) civ.tech.known[id] = parent.tech.known[id];
+    for (const id in parent.tech.known) if (civ.tech.known[id] == null) { civ.tech.known[id] = parent.tech.known[id]; (civ.tech.from ||= {})[id] = `i:${parent.id}`; }
     civ.tech.era = Math.max(civ.tech.era || 0, parent.tech.era || 0);
     civ.taxRate = fin(parent.taxRate, 0.08);
     if (parent.stateReligion != null && civ.stateReligion == null) civ.stateReligion = parent.stateReligion;

@@ -24,6 +24,7 @@ const MODULES = [
   ['annals', 'WP6', () => import('./annals.js')],
   ['digest', 'WP6', () => import('./digest.js')],
   ['views/records', 'WP6', () => import('./views/records.js')],
+  ['views/knowledge', 'UI', () => import('./views/knowledge.js')],
   // WP2 · roaming powers
   ['views/band', 'WP2', () => import('./views/band.js')],
   // WP5 · mythic

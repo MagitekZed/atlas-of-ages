@@ -33,6 +33,8 @@ import { govFactor, govNote } from './governor.js';
 let peoples = null, tech = null, disease = null, religion = null, trade = null, dynasty = null;
 try { peoples = await import('../civ/peoples.js'); } catch (e) { /* splits unavailable */ }
 try { tech = await import('../civ/tech.js'); } catch (e) { /* tech grants unavailable */ }
+let arts = null;
+try { arts = await import('../civ/arts.js'); } catch (e) { /* rare arts unavailable */ }
 try { disease = await import('../geo/disease.js'); } catch (e) { /* plagues unavailable */ }
 try { religion = await import('../geo/religion.js'); } catch (e) { /* faiths unavailable */ }
 try { trade = await import('../geo/trade.js'); } catch (e) { /* route breaks unavailable */ }
@@ -42,16 +44,22 @@ export const hasTech = (civ, id) => Boolean(civ && civ.tech && civ.tech.known &&
 /** Tech defs by id (empty when the civ module is missing). */
 export const techDef = (id) => (tech && tech.TECH_BY_ID ? tech.TECH_BY_ID[id] : null) || (tech && Array.isArray(tech.TECHS) ? tech.TECHS.find((t) => t.id === id) : null) || null;
 /** Can civ learn tech id now (unknown, prerequisites known)? */
+/** The historical tech at archive index k (civ/knowledge.js archives), or null. */
+export const techAt = (k) => (tech && Array.isArray(tech.TECHS) && tech.TECHS[k] ? tech.TECHS[k].id : null);
+/** Find a lost rare art again in a ruin (civ/arts.js), or false. */
+export const rediscoverArt = (world, civ, s, sid) => Boolean(arts && arts.rediscoverArt && arts.rediscoverArt(world, civ, s, sid));
+
 export function canLearn(civ, id) {
   const t = techDef(id);
   if (!t || hasTech(civ, id)) return false;
   return !Array.isArray(t.prereqs) || t.prereqs.every((p) => hasTech(civ, p));
 }
 /** Grant a tech quietly through WP3 (our entry tells the story). Returns true if learnt. */
-export function grantTechTo(world, civ, id) {
+export function grantTechTo(world, civ, id, via = 'r') {
   if (!tech || !civ || hasTech(civ, id)) return false;
   try {
-    if (typeof tech.discover === 'function') tech.discover(world, civ, id, 'grant');
+    // via: how the realm came by it (civ/knowledge.js HOW): its own people by default, 'u:civId' from a ruin
+    if (typeof tech.discover === 'function') tech.discover(world, civ, id, 'grant', null, { via });
     // grantTech(civ, id, day) today; tolerate a (world, civ, id) form (each no-ops on the other)
     if (!hasTech(civ, id) && typeof tech.grantTech === 'function') tech.grantTech(civ, id, world.time.day);
     if (!hasTech(civ, id) && typeof tech.grantTech === 'function') tech.grantTech(world, civ, id);
