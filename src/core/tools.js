@@ -191,6 +191,7 @@ function finishToolImpl(world, id, logMode, opts) {
   const log = begin(world, logMode, opts);
   try { t.finish(world); } catch (e) { console.error(`[tool:${id}:finish]`, e); } finally { end(world); }
   if (log) logIntervention(world, { kind: 'finish', id }, true);
+  emit(world, 'toolFinished', { id });   // (sim/hand.js: a held stroke is one act until here)
 }
 
 /** End a stroke of a continuous tool (runs def.finish once). opts: { log? }. */

@@ -44,6 +44,8 @@
 //                                                              ('defeat' | 'plague' | 'strife' | 'collapse'); civ/knowledge.js
 //   toolApplying   (world, { kind, id, x, y, opts | a, b | target }) core/tools.js, just before a power acts
 //                                                              (sim/hand.js measures the moment before)
+//   toolFinished   (world, { id })                             core/tools.js, when a brush stroke ends (finish,
+//                                                              live or replayed; sim/hand.js closes its act)
 //   outgunned      (world, loserCiv, winnerCiv)               geo/war.js, a named battle lost to better-armed foes;
 //                                                              civ/knowledge.js gives a head start on their arms
 //   armyCoup       (world, civ, gen|null)                     geo/raising.js, a standing army seizes power;

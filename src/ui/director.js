@@ -133,7 +133,8 @@ export function mount(app) {
       if (e.imp < (mine ? 2 : 3)) continue;
       const p = entryPoint(app, e);
       if (!p) continue;
-      const sel = entrySel(app, e);
+      // a war's letter opens the war (a claim sworn, a ruler taken, a town that held: still the war)
+      const sel = (e.cat === 'war' ? warSelOf(app, e) : null) || entrySel(app, e);
       const region = e.ref && (e.ref.k === 'civ' || e.ref.k === 'war' || e.ref.k === 'plague') ? { kind: e.ref.k, id: e.ref.id } : (!e.sid && e.x == null && e.civId != null ? { kind: 'civ', id: e.civId } : null);
       add({
         key: 'e' + e.seq, type: 'entry', cat: e.cat, imp: e.imp + (mine ? 1 : 0), x: p.x, y: p.y, born: nowT,
@@ -152,6 +153,31 @@ export function mount(app) {
     if (e.sid != null) return 12;
     return 9;
   }
+  /**
+   * The war a war entry belongs to, as a selection: its own reference, else the war its realm (or
+   * its town's, or its ruler's) was fighting that day, the one named in the text first. Or null.
+   */
+  function warSelOf(app, e) {
+    const w = app.world;
+    if (e.ref && e.ref.k === 'war' && w.wars[e.ref.id]) return { kind: 'war', id: e.ref.id };
+    const civs = new Set();
+    const add = (id) => { if (id != null && Number.isFinite(Number(id))) civs.add(Number(id)); };
+    add(e.civId);
+    if (e.sid != null) add(w.settlements[e.sid]?.civId);
+    if (e.ref?.k === 'civ') add(e.ref.id);
+    if (e.ref?.k === 'settlement') add(w.settlements[e.ref.id]?.civId);
+    if (e.ref?.k === 'ruler') add(parseInt(String(e.ref.id), 10));
+    const text = (e.text || '').toLowerCase();
+    let fought = null;
+    for (let k = w.wars.length - 1; k >= 0; k--) {
+      const q = w.wars[k];
+      if (!q || q.startDay > e.day || (!q.active && q.endDay != null && q.endDay < e.day)) continue;
+      if (q.name && text.includes(String(q.name).toLowerCase())) return { kind: 'war', id: q.id };
+      if (!fought && [...civs].some((c) => q.attackers.includes(c) || q.defenders.includes(c))) fought = { kind: 'war', id: q.id };
+    }
+    return fought;
+  }
+
   function placeName(e) {
     const w = app.world;
     if (e.sid != null && w.settlements[e.sid]) return w.settlements[e.sid].name;
