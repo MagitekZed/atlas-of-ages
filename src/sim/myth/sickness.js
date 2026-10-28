@@ -48,7 +48,7 @@
 //                     for a natural rising) × (½ + the mana where it rose) × log10(the dead to hand
 //                     / 500) (its own and the unrisen graves within 20 tiles). From 0.25 it has the
 //                     makings of a scourge: a ceiling × (1 + 4 × potential, ≤ 5) and more power from
-//                     each death (bands/kinds/undead.js). At 0.64 % of the world's people, six towns
+//                     each death (bands/kinds/undead.js). At 0.7 % of the world's people, six towns
 //                     overrun, it is named the Scourge: a master holds it only by great art (most
 //                     break free), it blights the towns within 8 tiles, the realms within 25 hunt
 //                     it together (bands/hunts.js) and want war less with each other; a year
@@ -720,7 +720,7 @@ const pickT = (world, arr) => arr[Math.floor(world.rng.next() * arr.length)];
 // ---------------------------------------------------------------------------
 // The Scourge
 
-const SCOURGE_AT = 0.0064;   // its power as a share of the world's people, to be named (1.6 × an ordinary host's ceiling)
+const SCOURGE_AT = 0.007;    // its power as a share of the world's people, to be named (1.75 × an ordinary host's ceiling)
 const DARK_YEARS = 25;       // years named before its darkness can fall
 const DARK_R = 35;           // the reach of its region
 
