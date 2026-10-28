@@ -339,10 +339,36 @@ Wasting, counts), `civ.flags.grave`, `ruler.flags.wound` / `guilt`, `plague.by` 
   leaves the new ruler's legitimacy 0.12 lower for the reign; a kinslayer, one time in three, is
   wounded too, the land's loss carried over at 60 %. Healing cups: a third of the elves'
   treasures of power, and 0.2 % a year for a realm of a healing faith without one (health +0.03).
+- **The Scourge** (phase 5; also in `bands/kinds/undead.js`, `bands/combat.js`,
+  `bands/hunts.js`, `events/data.js` and `events/ages.js` (the Age of the Dead, never rolled at
+  random), `civ/stability.js` (a dark age begun by others)). Every risen host gets a potential
+  (an `undeadRisen` hook): its maker's art (a caster's Necromancy + ½ arcana; the hand's
+  virulence above 0.8; 0.15 for a natural rising) × (½ + the mana where it rose) ×
+  log10(the dead to hand / 500), ≤ 2 (its own grave and the unrisen graves within 20 tiles). From
+  0.25 it has the makings: a ceiling × (1 + 4 × potential, ≤ 5), 1.44 power a death instead of
+  0.9, graves within 4 tiles swallowed, and in battle it is worn down (each defeat 10–50 % of its
+  power, each win feeding it 0.6 of the soldiers it kills) instead of felled. It is named the
+  Scourge at 0.74 % of the world's people (1.85 × an ordinary host's ceiling) with six towns
+  overrun; a master holds it at (art − 0.5) (≤ 60 %) and only while its power stays below
+  3 % × art of the world's people, otherwise it breaks free. Named, it reaches 30 tiles, never
+  fades, blights the towns within 8 tiles (harvests × 0.7, newcomers × 0.4, happiness −0.1, for
+  three years), wastes the land within 2, and the realms with towns within 25 hunt it together
+  (their summed strength against 1.5 × its own; each realm's part at least a quarter of it) and
+  want war with each other × 0.6; their old quarrels set aside is told once. A lone champion has
+  1 % against it (5 % while it sleeps); a company of three to six heroes of the nearest realm
+  goes at most every five years (30 %), at 0.3 × √(an ordinary ceiling / its power) (+0.15
+  asleep, +0.1 × arcana). A year without new dead and it sleeps where it stands (a barrow on the
+  map), losing 0.4 % a month; a grown town within 12 tiles wakes it (6 % a month), or an army
+  within 4; a realm near it strong enough sends an expedition. After 25 years named, with 8
+  towns or a realm destroyed or 6 % of the world's people dead by it, the darkness falls on 35
+  tiles: realms seated there sink into dark ages, its towns' harvests × 0.8, newcomers × 0.6,
+  for as long as it lives and fifteen years after. If it then carries its war 10 tiles beyond
+  that region, or grows past 1.8 % of the world's people five years on, the Age of the Dead (a
+  world age of 40 years: stability and happiness −0.03 on every realm, wars × 0.75).
 - **The hand.** The Plague power has a kind in Mythic worlds (a plague, a grave-plague whose dead
   rise masterless, mana-burn), chosen on its card; Curse Ruler asks which curse (madness and
   cruelty, or the Wasting).
-- **Not built:** a fled ruler carrying the wound abroad (rulers driven out leave no court in
+- **Not built:** a Scourge that founds a realm of the dead; a fled ruler carrying the wound abroad (rulers driven out leave no court in
   exile to follow), a seer as a named person, and the factions' own demand that a wounded ruler
   step down (the plots and the stability loss stand in for it).
 
