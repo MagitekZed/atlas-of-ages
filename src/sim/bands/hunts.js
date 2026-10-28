@@ -58,13 +58,14 @@ function huntName(world, civ, home, band) {
 }
 
 /** Raise a hunt of civ against band. Returns the army or null. */
-export function raiseHunt(world, civ, band) {
+export function raiseHunt(world, civ, band, opts = {}) {
   const rng = world.rng;
   const st = state(world);
   const bp = bandPower(band);
   const mp = manpowerOf(civ);
   const str = Math.round(clamp(1.6 * bp, 20, 0.6 * mp));
-  if (str < 1.15 * bp || str < 20) return null;
+  // (opts.share: one realm's part of a common hunt against a Scourge, myth/sickness.js)
+  if (str < (opts.share ? 0.25 : 1.15) * bp || str < 20) return null;
   const home = nearestSettlement(world, band.x, band.y, { civId: civ.id });
   if (!home) return null;
   const nav = civ.mods?.navigation || 0;
@@ -133,17 +134,30 @@ export function huntsMonthly(world) {
     if (isBeast(band) && !myth) continue;
     if (live.some((a) => a.flags.hunt === band.id && (a.civId === civ.id || isPeople(band)))) continue;
     if (!isReady(world, `hu${band.id}`, (isPeople(band) && band.kind !== 'horde' ? 2 : 1) * DAYS_PER_YEAR)) continue;
-    const strong = civPowerOf(world, civ) >= 1.5 * bandPower(band);
+    // against a Scourge (myth/sickness.js) the threatened realms hunt together: their strength summed
+    const sc = band.data && band.data.sc && band.data.sc.named ? band.data.sc : null;
+    const strong = sc ? alliedPower(world, st, band) >= 1.5 * bandPower(band) : civPowerOf(world, civ) >= 1.5 * bandPower(band);
     // outlaws must make a nuisance of themselves first; hosts, beasts and the dead at once
     const petty = isPeople(band) && band.kind !== 'horde' && band.kind !== 'company';
     const vexed = !petty || ((r.n >= 2 || (band.raids || 0) >= 3) && day - band.createdDay >= DAYS_PER_YEAR);
     if (strong && vexed && live.length < MAX_HUNTS && rng.chance(petty ? 0.12 : 0.25)) {
-      const a = raiseHunt(world, civ, band);
-      if (a) { ready(world, `hu${band.id}`, 0); live = huntArmies(world); continue; }
+      const a = raiseHunt(world, civ, band, sc ? { share: true } : {});
+      if (a) { if (!sc) ready(world, `hu${band.id}`, 0); live = huntArmies(world); continue; }
     }
     // a champion now and then, never more than one against a beast in three years
     if (isBeast(band) && rng.chance(band.kind === 'dragon' ? 0.025 : 0.015) && ready(world, `he${band.id}`, 3 * DAYS_PER_YEAR)) heroAttempt(world, civ, band);
   }
+}
+
+/** The summed strength of the realms a band has struck in the last three years (a common hunt). */
+function alliedPower(world, st, band) {
+  let p = 0;
+  for (const key of Object.keys(st.raided)) {
+    const r = st.raided[key];
+    if (r.bandId !== band.id || world.time.day - r.day > 3 * DAYS_PER_YEAR) continue;
+    p += civPowerOf(world, world.civs[key]);
+  }
+  return p;
 }
 
 // ---------------------------------------------------------------------------
@@ -299,6 +313,8 @@ const HEROBANE = ['Herobane', 'Knightsbane', 'Champion-Bane', 'Hero-Eater', 'Spe
 /** A hero's chance against a beast (pure): small, wounded and sleeping beasts fall more easily. */
 export function heroOdds(world, civ, band) {
   if (!band || !isBeast(band)) return 0;
+  // a lone champion is nothing to a Scourge; a company of heroes is another matter (myth/sickness.js)
+  if (band.kind === 'undead' && band.data?.sc?.named) return band.state === 'sleep' ? 0.05 : 0.01;
   const arcana = Number.isFinite(civ?.mods?.arcana) ? civ.mods.arcana : 0;
   const small = (band.power || 0) < 150 ? 0.2 : 0;
   const dragon = band.kind === 'dragon' ? 0.08 + (band.data?.elder ? 0.05 : 0) : 0;
@@ -369,7 +385,10 @@ export function slay(world, band, civ, by = {}) {
   say(world, band, {
     cat: 'myth', imp, fold: imp < 2, key: 'beast.slain', civId: civ ? civ.id : null, sid: town ? town.id : null,
     cause: by.cause ?? (Number.isFinite(band.data.rseq) ? band.data.rseq : null),
-    text: by.how === 'army'
+    // (by.company: a company of heroes against a Scourge, myth/sickness.js)
+    text: by.company
+      ? `${cap(name)} of ${civName(civ)} and ${by.company} companions went against ${bandName(band)}${placePhrase(world, band.x, band.y) ? ' ' + placePhrase(world, band.x, band.y) : ''}; ${by.lost ? `${by.lost} of them never came home, but ` : ''}it was destroyed, and ${name} was called ${slayerTitle(band, world)} ever after.`
+      : by.how === 'army'
       ? pick(world, [`${cap(by.army?.name || 'the hunters of ' + civName(civ))} slew ${bandName(band)}${name ? `; it was ${name} who struck the last blow, and was called ${slayerTitle(band, world)} ever after` : ''}.`,
         `${BandName(band)} died on the spears of ${civName(civ)}${placePhrase(world, band.x, band.y) ? ' ' + placePhrase(world, band.x, band.y) : ''}.`])
       : pick(world, [`${cap(name)} of ${civName(civ)} slew ${bandName(band)}, and was called ${slayerTitle(band, world)} ever after.`,

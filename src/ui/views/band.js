@@ -120,6 +120,8 @@ function lead(w, b, live) {
     case 'sleep': {
       const lair = siteOf(w, b.data?.lair);
       const since = b.data?.slept || b.createdDay;
+      // a sleeping Scourge (bands/kinds/undead.js) keeps no hoard
+      if (b.kind === 'undead') return `Dormant in ${lair?.name || 'its barrow'} these ${years(w.time.day - since)}, weakening slowly, until fresh foes wake it.`;
       return `Asleep in ${lair?.name || 'its lair'} these ${years(w.time.day - since)}, coiled about a hoard of ${fmtInt(b.loot)} crowns.`;
     }
     case 'hired': {

@@ -145,6 +145,7 @@ const BEGIN = {
   wanderings: ['Whole peoples took to the roads with their herds and their gods, and {name} began.'],
   omens: ['Comets and falling stars filled the skies, and every seer read doom in them: it was {name}.'],
   plenty: ['Mild seasons filled the granaries year after year; men would remember it as {name}.'],
+  dead: ['The dead marched beyond their own lands, and town after town fell silent; it was the beginning of {name}.'],
 };
 const GENESIS = ['In the first years of the world, ', 'While the world was young, ', 'From the very dawn of history, '];
 const END = [
@@ -153,7 +154,7 @@ const END = [
 ];
 /** Age names that read as plurals ('the Burning Years' drew to their close). */
 const pluralAge = (name) => /\b(Years|Summers|Winters|Seasons|Skies|Centuries|Harvests|Migrations|Wanderings|Snows|Voyages|Treks)$/.test(name) && !/^the (Age|Time|Years) of\b/i.test(name);
-const CAT = { winter: 'climate', fire: 'climate', plenty: 'climate', prophets: 'religion', restless: 'disaster', omens: 'disaster', plagues: 'disease' };
+const CAT = { winter: 'climate', fire: 'climate', plenty: 'climate', prophets: 'religion', restless: 'disaster', omens: 'disaster', plagues: 'disease', dead: 'myth' };
 
 function beginText(world, key, name, why, genesis) {
   const hegemon = why && why.civ != null && world.civs[why.civ] ? civName(world.civs[why.civ]) : 'one great realm';

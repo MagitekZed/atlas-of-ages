@@ -10,7 +10,7 @@
 
 import { settlementsNear, getBand } from '../../../core/entities.js';
 import { addSite, getSite, updateSite } from '../../../core/sites.js';
-import { on } from '../../../core/hooks.js';
+import { on, emit } from '../../../core/hooks.js';
 import { mythOn } from '../../../core/params.js';
 import { DAYS_PER_YEAR, MONTH_SEASON } from '../../../core/constants.js';
 import { latitude, monthOf } from '../../../core/world.js';
@@ -27,6 +27,8 @@ const Y = DAYS_PER_YEAR;
 
 const graveFloor = (world) => Math.max(250, worldPop(world) * 0.002);
 const powerCap = (world) => Math.max(60, worldPop(world) * 0.004);
+/** A host's ceiling: the ordinary one, × its potential if it was raised with the makings of a scourge (myth/sickness.js: data.sc.cm). */
+const capOf = (world, band) => powerCap(world) * (band.data && band.data.sc && Number.isFinite(band.data.sc.cm) ? band.data.sc.cm : 1);
 
 /** Remember a mass grave (from the battle hook or a razed city). Returns the site. */
 function grave(world, x, y, dead, name, civIds, seq = null) {
@@ -89,6 +91,7 @@ export function rise(world, site, opts = {}) {
   });
   if (opts.bound) band.civId = opts.bound.c;
   updateSite(world, site.id, { risen: world.time.day, bandId: band.id });
+  emit(world, 'undeadRisen', band, site, opts);   // its potential (myth/sickness.js)
   say(world, band, {
     cat: 'myth', imp: opts.divine || power >= 2000 ? 3 : 2, key: 'undead.rise', x: site.x, y: site.y, ref: { k: 'band', id: band.id },
     cause: Number.isFinite(site.data?.seq) ? site.data.seq : null,
@@ -121,7 +124,8 @@ function nearestLiving(world, band, reach) {
 
 function stillBound(world, b) {
   const civ = world.civs[b.c];
-  return Boolean(civ && civ.alive && civ.ruler && civ.ruler.id === b.r && world.time.day < b.u && enemySet(world, b.c).size > 0);
+  // (a master who holds a Scourge holds it at peace too: b.hold, myth/sickness.js)
+  return Boolean(civ && civ.alive && civ.ruler && civ.ruler.id === b.r && world.time.day < b.u && (b.hold || enemySet(world, b.c).size > 0));
 }
 
 function unbind(world, band) {
@@ -153,18 +157,79 @@ function nearestFoe(world, band, b, reach) {
   return best;
 }
 
+// ---------------------------------------------------------------------------
+// A Scourge (myth/sickness.js names it): a host raised with great potential grows past the
+// ordinary ceiling, swallows the graves it passes, and does not fade while it kills; a year
+// without new dead and it sleeps where it stands, weakening slowly (about 5 % a year) until
+// fresh foes come near and wake it, or armies and heroes end it in its barrow.
+
+/** The unrisen graves within 4 tiles rise into the host. */
+function absorbGraves(world, band) {
+  const day = world.time.day;
+  for (const site of world.sites) {
+    if (site.kind !== 'grave' || site.data?.risen || day - site.firstDay < Y || Math.abs(site.x - band.x) > 4 || Math.abs(site.y - band.y) > 4) continue;
+    band.power = Math.min(capOf(world, band), band.power + 3 * Math.pow(Math.max(50, site.dead), 0.8));
+    updateSite(world, site.id, { risen: day, bandId: band.id });
+    band.data.sc.graves = (band.data.sc.graves || 0) + 1;
+  }
+}
+
+function goSleep(world, band) {
+  band.state = 'sleep';
+  band.path = null;
+  band.targetSid = -1;
+  band.data.slept = world.time.day;
+  const lair = addSite(world, { kind: 'grave', x: band.x, y: band.y, dead: 0, name: `the Barrow of ${bandName(band).replace(/^the /, '')}`, civIds: [], data: { risen: world.time.day, barrow: band.id } });
+  if (lair) band.data.lair = lair.id;
+  say(world, band, {
+    cat: 'myth', imp: 3, key: 'undead.sleep',
+    text: pick(world, [
+      `No new dead came to ${bandName(band)}, and it lay down ${placePhrase(world, band.x, band.y) || 'where it stood'} to sleep; the barrow it made there was shunned for a generation.`,
+      `${BandName(band)} went to ground ${placePhrase(world, band.x, band.y) || 'in the wastes'}: it slept, and the living who remembered it did not.`,
+    ]),
+  });
+}
+
+function sleepMonth(world, band) {
+  band.power *= 0.996;
+  // fresh foes near its barrow wake it: a grown town, or an army passing close
+  let near = false;
+  for (const s of settlementsNear(world, band.x, band.y, 12)) if (fin0(s.population) >= 1000) { near = true; break; }
+  let army = false;
+  for (const a of world.armies) if (a.civId !== band.civId && Math.abs(a.x - band.x) <= 4 && Math.abs(a.y - band.y) <= 4 && a.flags?.hunt == null) { army = true; break; }
+  if (!army && !(near && world.rng.chance(0.06))) return;
+  band.state = 'lair';
+  band.data.lastKill = world.time.day;
+  band.data.woke = (band.data.woke || 0) + 1;
+  say(world, band, {
+    cat: 'myth', imp: 3, key: 'undead.wake',
+    text: `${BandName(band)} woke in its barrow ${placePhrase(world, band.x, band.y) || ''} after ${Math.max(1, Math.round((world.time.day - band.data.slept) / Y))} years, and turned toward the living again.`.replace(/ {2,}/g, ' '),
+  });
+}
+const fin0 = (v) => (Number.isFinite(v) ? v : 0);
+
 function month(world, band) {
   if (band.power < 20) { fade(world, band); return; }
+  if (band.state === 'sleep') { sleepMonth(world, band); return; }
   if (band.data.bound && !stillBound(world, band.data.bound)) unbind(world, band);
   const b = band.data.bound;
+  const sc = band.data.sc;
+  if (sc) absorbGraves(world, band);
   if (band.state === 'lair' || (band.state === 'roam' && (band.targetSid < 0 || !world.settlements[band.targetSid]?.alive))) {
-    const s = b ? nearestFoe(world, band, b, 30) : nearestLiving(world, band, 20);
+    const s = b ? nearestFoe(world, band, b, 30) : nearestLiving(world, band, sc && sc.named ? 30 : 20);
     if (s && planRoute(world, band, s.i)) { band.targetSid = s.id; band.state = 'raid'; }
   }
 }
 
 /** The dead fade without slaughter, faster in a southern summer. */
 function day(world, band) {
+  if (band.state === 'sleep') return;
+  const sc = band.data.sc;
+  if (sc && sc.named) {
+    // a Scourge does not fade: a year without new dead and it sleeps
+    if (world.time.day - (band.data.lastKill ?? band.createdDay) > Y) goSleep(world, band);
+    return;
+  }
   const lat = Math.abs(latitude(world, clamp(Math.round(band.y), 0, world.H - 1)));
   const summer = MONTH_SEASON[monthOf(world)] === 2;
   const since = world.time.day - (band.data.lastKill ?? band.createdDay);
@@ -178,11 +243,21 @@ function arrive(world, band) {
   band.targetSid = -1;
   if (s && s.alive) {
     (band.data.hit ||= {})[s.id] = world.time.day;
+    const cid = s.civId;
     const r = raidTown(world, band, s, {});
     if (!getBand(world, band.id)) return;
     if (r.ok && r.deaths > 0) {
-      band.power = Math.min(powerCap(world), band.power + 0.3 * r.deaths * 3);
+      const sc = band.data.sc;
+      // a host with the makings of a scourge feeds more on its dead (myth/sickness.js)
+      band.power = Math.min(capOf(world, band), band.power + (sc ? 1.44 : 0.9) * r.deaths);
       band.data.lastKill = world.time.day;
+      if (sc) {
+        sc.n = (sc.n || 0) + 1;
+        sc.dead = (sc.dead || 0) + r.deaths;
+        if (!s.alive) sc.razed = (sc.razed || 0) + 1;
+        if (cid >= 0 && !(sc.civs ||= []).includes(cid)) { sc.civs.push(cid); if (sc.civs.length > 16) sc.civs.shift(); }
+        if (cid >= 0 && world.civs[cid] && !world.civs[cid].alive) sc.realms = (sc.realms || 0) + 1;
+      }
     }
   }
   band.state = 'lair';

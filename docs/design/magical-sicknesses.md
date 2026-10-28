@@ -175,6 +175,33 @@ untouched.
 - **Told:** each year's blame, the revelation (or the ruler hiding it), the reckoning, the cure,
   the healing.
 
+### 4. The Scourge (phase 5, from talks with the user after the first build)
+
+A grave-plague's host can, very rarely, grow into an undead scourge that ruins a whole region.
+
+- **Its potential**, fixed when it rises: the caster's art (its Necromancy, arcana and the magic
+  in the land where it rose; the hand counts as a master at high virulence) × the dead to hand
+  (the plague's own toll, and the unrisen graves of battles and razed cities within 20 tiles).
+  Most hosts have little; their ceiling stays the ordinary one (0.4 % of the world's people).
+  One with great potential may grow up to several times that.
+- **Growth, if unchecked.** A host with potential does not fade while it kills at least once a
+  season; every town it overruns feeds it more of its dead, and the graves it passes rise into it.
+- **The Scourge.** Past about 1 % of the world's people, having overrun a few towns, it takes a
+  name ("the Scourge of …", told as a world event), breaks free of its maker (see the decisions)
+  and blights the land around its path (harvests fail, people flee).
+- **The world answers.** Realms in its reach count it their common foe; the threatened realms
+  hunt it together (their armies' strength summed against it, where today one realm must be 1.5
+  times a band's strength to hunt it alone), and a grand alliance against it is told.
+- **The darkness.** If the Scourge lives a generation (about 25 years) and destroys enough towns,
+  or a realm, an age of darkness falls on its region: every realm whose seat lies within it
+  sinks into a dark age, its land is blighted and its people flee, until some years after the
+  Scourge's end. Told as an epochal event.
+- **Its end**: armies grind it down; a hero destroys it; its heart is cleansed (an army that
+  reaches the plague-pits where it rose, while it is away, burns them, and it fades again); or it
+  burns out after a year without new dead.
+- **Rarity:** a Scourge in about one Mythic world in ten over a thousand years; an age of
+  darkness in about one in forty.
+
 ## Interface
 
 - **A plague's account:** its kind (grave-plague, mana-burn), who cast a grave-plague and the host
@@ -197,6 +224,8 @@ untouched.
 4. **The hand, interface and calibration:** the hand's options, then six Mythic worlds against main to Year 1000, plus forced cases
    that make each sickness happen early, to watch it play out; Historical worlds must stay
    identical to main.
+5. **The Scourge:** potential, growth, the Scourge, the common hunt, the darkness, its end;
+   then calibration again.
 
 ## Speed budget
 
@@ -223,6 +252,21 @@ Historical worlds are unchanged.
   is kin, about one time in three the land is wounded again, more lightly.
 - **The hand can bring them, through existing powers.** In Mythic worlds Curse Ruler can lay the
   Wasting, and the Plague power can choose a grave-plague or mana-burn.
+
+### The Scourge (the user's, 2026-10-28)
+
+- **Control: usually free.** A necromancer strong enough can keep its Scourge (until it outgrows
+  them or their ruler dies), but most Scourges break free.
+- **Its end: armies, a company of heroes, or sleep.** The threatened realms' armies can grind it
+  down, and a company of heroes can destroy it. With no new dead for a year it goes dormant: it
+  sleeps in its barrow and weakens slowly, over a generation, until armies can finish it; fresh
+  foes coming near wake it. (Added: a sleeping Scourge's barrow is a known place, and a realm
+  strong enough nearby sends an expedition to end it in its sleep.)
+- **Rarity:** a Scourge in about one Mythic world in ten, an age of darkness in about one in
+  forty.
+- **Reach: its region, and the world if it spreads beyond.** The darkness falls on its region;
+  an especially powerful Scourge that carries its war beyond its region brings a world age, the
+  Age of the Dead.
 
 ## As built
 

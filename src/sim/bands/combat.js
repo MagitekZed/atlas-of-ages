@@ -475,6 +475,8 @@ function bandTerrain(world, band, i) {
  * An army fights a band. opts: { hunt, quiet, name }. Returns { armyWon, d, deadA, deadB,
  * bandGone, slain, entry }. The band's family decides the kernel loss source.
  */
+const scourge = (band) => band.kind === 'undead' && Boolean(band.data && band.data.sc && band.data.sc.named);
+
 export function clash(world, army, band, opts = {}) {
   const rng = world.rng;
   const civ = world.civs[army.civId];
@@ -497,6 +499,10 @@ export function clash(world, army, band, opts = {}) {
       band.strength -= deadB;
       band.morale = clamp((band.morale ?? 1) - 0.35, 0.05, 1.2);
       if (d > 0.35 || band.strength < 12) bandGone = true;
+    } else if (scourge(band)) {
+      // a Scourge (myth/sickness.js) is ground down, not felled: each defeat costs it a share of its dead
+      band.power *= 1 - clamp(0.12 + 0.3 * d + rng.next() * 0.05, 0.1, 0.5);
+      if (band.power < 20) { bandGone = true; slain = true; }
     } else {
       band.hp = clamp01((band.hp ?? 1) - (0.3 + 0.7 * d) * (band.kind === 'dragon' ? 0.6 : 1));
       if (band.hp <= 0.08) { bandGone = true; slain = true; }
@@ -504,10 +510,12 @@ export function clash(world, army, band, opts = {}) {
   } else {
     deadA = s0 * clamp(0.15 + 0.45 * d + rng.next() * 0.1, 0.1, 0.85);
     if (isPeople(band)) { deadB = band.strength * rng.float(0.04, 0.14); band.strength -= deadB; band.morale = clamp((band.morale ?? 1) + 0.1, 0.05, 1.2); }
+    else if (scourge(band)) band.power *= 1 - rng.float(0.02, 0.08);
     else band.hp = clamp01((band.hp ?? 1) - rng.float(0.04, 0.18));
     army.morale = clamp((army.morale ?? 1) - (0.25 + 0.35 * d), 0.05, 1.2);
   }
   deadA = damageArmy(world, army, deadA, isBeast(band) ? 'beast' : 'band');
+  if (scourge(band) && !slain) band.power += 0.6 * deadA;   // the fallen rise into it
   band.kills = (band.kills || 0) + deadA;
   state(world).stats.kills += deadA;
   if (civ) noteRaid(world, band, civ.id);

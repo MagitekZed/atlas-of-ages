@@ -43,10 +43,27 @@
 //                     guilt (legitimacy, civ/rulers.js), and a kinslayer, one time in three, a
 //                     second, lighter Wasting.
 //
+//   The Scourge       Every risen host gets a potential (undeadRisen hook): its maker's art (a
+//                     caster's Necromancy + ½ arcana; the hand's virulence; the land's own magic
+//                     for a natural rising) × (½ + the mana where it rose) × log10(the dead to hand
+//                     / 500) (its own and the unrisen graves within 20 tiles). From 0.25 it has the
+//                     makings of a scourge: a ceiling × (1 + 4 × potential, ≤ 5) and more power from
+//                     each death (bands/kinds/undead.js). At 1 % of the world's people, three towns
+//                     overrun, it is named the Scourge: a master holds it only by great art (most
+//                     break free), it blights the towns within 8 tiles, the realms within 25 hunt
+//                     it together (bands/hunts.js) and want war less with each other; a year
+//                     without new dead and it sleeps, weakening, until fresh foes wake it. A
+//                     company of heroes may end it (better while it sleeps; a lone champion has no
+//                     chance, bands/hunts.js); realms strong enough near a sleeping one send
+//                     expeditions. After 25 years named, with 8 towns or a realm destroyed or 6 %
+//                     of the world's people dead by it, an age of darkness falls on its region (35
+//                     tiles: dark ages, blight); carried far beyond, it brings the Age of the Dead.
+//
 //   world.sys.myth.sick = {
 //     g      the grave-plague now raging: { pid, by, w, r, sid, x, y, day, pop, risen?, band? }
 //     dread  { [civId]: the day it last laid one }
 //     burns  [{ c: [mana cells], u: day it heals }]
+//     dark   { [bandId]: { x, y, r, day } } each Scourge's age of darkness (lifted 15 years after its end)
 //     wast   { [civId]: { r, c, by, d, s0, k, lv, rad, x, y, kn, bl, bk, path, cy, yrs, gone, how, cause } }
 //            the wounded ruler's id, the wound's cause and dealer, its day, the day the land began
 //            to fail, its strength, the loss and its reach, its centre; known (0 hidden, 1 the
@@ -65,11 +82,12 @@ import { registerProvider, firstOf, hasProviders } from '../../core/ext.js';
 import { liveCivs, liveSettlements, settlementsNear, areAtWar } from '../../core/entities.js';
 import { addEffect, removeEffect } from '../../core/effects.js';
 import { cohortTotal, isSet } from '../../core/cohorts.js';
-import { DAYS_PER_YEAR as Y, DAYS_PER_MONTH } from '../../core/constants.js';
+import { DAYS_PER_YEAR as Y, DAYS_PER_MONTH, WATER } from '../../core/constants.js';
 import { dayOfMonth, monthOf } from '../../core/world.js';
 import { temperOf, TP } from '../../core/character.js';
 import { isMythic, fin } from './races.js';
 import { knowsSchool } from './arcana.js';
+import { manaAt } from './mana.js';
 import { activeWarList, enemySet, civName, capFirst, capitalOf, listJoin, rateOk, rateReady } from '../geo/common.js';
 import { rulerShort, theName } from '../civ/prose.js';
 
@@ -84,6 +102,11 @@ try { rulers = await import('../civ/rulers.js'); } catch (e) { /* no abdication 
 try { treasures = await import('../civ/treasures.js'); } catch (e) { /* no healing cups */ }
 try { folk = await import('../geo/folk.js'); } catch (e) { /* no peoples to blame */ }
 try { divine = await import('./divine.js'); } catch (e) { /* no gods' domains */ }
+let engine = null, hunts = null, ages = null, stability = null;
+try { engine = await import('../bands/engine.js'); } catch (e) { /* no bands */ }
+try { hunts = await import('../bands/hunts.js'); } catch (e) { /* no heroes */ }
+try { ages = await import('../events/ages.js'); } catch (e) { /* no world ages */ }
+try { stability = await import('../civ/stability.js'); } catch (e) { /* no dark ages */ }
 
 const MONTH_DAY = 21;
 const GRAVE_GAP = 80;        // years between grave-plagues, world-wide
@@ -233,8 +256,10 @@ function raise(world, st, g, p) {
   const bound = civ && civ.alive && civ.ruler && civ.ruler.id === g.r && enemySet(world, civ.id).size > 0 ? { c: civ.id, w: g.w, r: g.r, u: world.time.day + 3 * Y } : null;
   const site = undead.digGrave(world, g.x, g.y, fin(p.deaths), `the Plague-Pits of ${place}`, [s ? s.civId : -1, g.by].filter((v) => v >= 0), p.seq);
   if (!site) return;
+  // the maker's art, for the host's potential (the Scourge): a caster's, else the hand's virulence
+  const art = civ && civ.alive ? fin(civ.mods && civ.mods.necromancy) + 0.5 * fin(civ.mods && civ.mods.arcana) : g.by < 0 ? Math.max(0, fin(p.lethality) / 0.375 - 0.8) : 0.15;
   const band = undead.rise(world, site, {
-    mul: 1.5, bound,
+    mul: 1.5, bound, art,
     text: (host) => bound
       ? `The dead of ${p.name} would not lie in the plague-pits of ${place}: they rose as ${host}, and marched for ${civName(civ)}.`
       : `The dead of ${p.name} rose from the plague-pits of ${place} as ${host}, and no one living was their master.`,
@@ -691,8 +716,201 @@ function curseYear(world, st, civ) {
 
 const pickT = (world, arr) => arr[Math.floor(world.rng.next() * arr.length)];
 
+
+// ---------------------------------------------------------------------------
+// The Scourge
+
+const SCOURGE_AT = 0.01;     // its power as a share of the world's people, to be named
+const DARK_YEARS = 25;       // years named before its darkness can fall
+const DARK_R = 35;           // the reach of its region
+
+/** A risen host's potential: its maker's art × the magic where it rose × the dead to hand. Pure. */
+function potentialOf(world, site, art) {
+  const mana = manaAt(world, site.x, site.y);
+  let dead = fin(site.dead);
+  for (const g of world.sites) {
+    if (g.kind !== 'grave' || g.id === site.id || (g.data && g.data.risen) || Math.abs(g.x - site.x) > 20 || Math.abs(g.y - site.y) > 20) continue;
+    dead += fin(g.dead);
+  }
+  return art * (0.5 + mana) * clamp(Math.log10(Math.max(1, dead) / 500), 0, 2);
+}
+
+on('undeadRisen', (world, band, site, opts) => {
+  if (!band || !site || !isMythic(world) || !world.sys.myth || world.sys.myth.v == null) return;
+  const pot = potentialOf(world, site, Number.isFinite(opts && opts.art) ? opts.art : 0.15);
+  if (pot < 0.25) return;
+  band.data.sc = { pot: Math.round(pot * 100) / 100, cm: 1 + 4 * Math.min(1, pot), n: 0, born: world.time.day };
+  const st = state(world);
+  st.n.scBorn = (st.n.scBorn || 0) + 1;
+});
+
+const scourges = (world) => (world.bands || []).filter((b) => b && b.kind === 'undead' && b.data && b.data.sc);
+const placeOf = (world, band) => {
+  const site = band.data.grave != null ? world.sites.find((x) => x && x.id === band.data.grave) : null;
+  const m = site && site.name ? /^the (?:Plague-Pits|Graves|Haunted Ruins) of (.+)$/.exec(site.name) : null;
+  if (m) return m[1];
+  const t = settlementsNear(world, band.x, band.y, 12)[0];
+  return t ? t.name : 'the Waste';
+};
+const tellBand = (world, band, e) => chronicle(world, { x: band.x, y: band.y, ref: { k: 'band', id: band.id }, icon: 'plague', tags: ['scourge'], ...e });
+
+/** The art a master holds a Scourge by, as a share of the world's people it can hold. */
+const holdOf = (civ) => (civ && civ.alive ? (fin(civ.mods && civ.mods.necromancy) + 0.5 * fin(civ.mods && civ.mods.arcana)) * 0.03 : 0);
+
+function nameScourge(world, st, band, wp) {
+  const sc = band.data.sc;
+  sc.named = world.time.day;
+  const old = band.name;
+  band.name = `the Scourge of ${placeOf(world, band)}`;
+  st.n.scourge = (st.n.scourge || 0) + 1;
+  const b = band.data.bound;
+  const master = b ? world.civs[b.c] : null;
+  let held = false;
+  if (master && master.alive) {
+    // a master holds it only by great art; most Scourges break free
+    const art = fin(master.mods && master.mods.necromancy) + 0.5 * fin(master.mods && master.mods.arcana);
+    held = world.rng.chance(clamp((art - 0.5) / 1, 0, 0.6)) && band.power <= holdOf(master) * wp;
+    if (held) { b.hold = 1; b.u = world.time.day + 500 * Y; sc.held = master.id; }
+    else { band.data.bound = null; delete band.data.bound; band.civId = -1; }
+  }
+  tellBand(world, band, {
+    cat: 'myth', imp: 4, key: 'myth.scourge',
+    text: `${capFirst(old)} had grown past all reckoning: ${sc.n} towns had fallen to it, and the living began to call it ${band.name}.${master && master.alive ? held ? ` The necromancers of ${civName(master)} still held it in their grip.` : ` It no longer answered to ${civName(master)}.` : ''}`,
+  });
+}
+
+function scourgeMonth(world, st) {
+  const day = world.time.day, yearly = monthOf(world) === 9;
+  // a darkness lifts slowly, fifteen years after its Scourge's end
+  if (yearly && st.dark) for (const id of Object.keys(st.dark)) {
+    const D = st.dark[id];
+    if (world.bands.some((b) => b && b.id === +id)) continue;
+    delete st.dark[id];
+    darkLand(world, D, day + 15 * Y);
+    chronicle(world, { x: D.x, y: D.y, icon: 'cure', tags: ['scourge'], cat: 'myth', imp: 3, key: 'myth.dawn', text: `The dead no longer walked the lands where the darkness had fallen; it would be a generation before the fields and roads came back.` });
+  }
+  const list = scourges(world);
+  if (!list.length) return;
+  const wp = engine ? engine.worldPop(world) : 1e6;
+  for (const band of list) {
+    const sc = band.data.sc;
+    if (!sc.named) {
+      if (band.state !== 'sleep' && band.power >= SCOURGE_AT * wp && fin(sc.n) >= 3) nameScourge(world, st, band, wp);
+      continue;
+    }
+    if (yearly) heroesYear(world, st, band, wp);
+    if (!world.bands.includes(band)) continue;   // destroyed
+    if (yearly && sc.dark) darkLand(world, sc.dark, day + 2 * Y);   // its region stays dark while it lives, waking or sleeping
+    if (band.state === 'sleep') { if (yearly) expeditionYear(world, band, wp); continue; }
+    // a held Scourge that outgrows its master's art breaks free
+    const b = band.data.bound;
+    if (b && b.hold && band.power > holdOf(world.civs[b.c]) * wp) {
+      const m = world.civs[b.c];
+      band.data.bound = null; delete band.data.bound; band.civId = -1; sc.held = null;
+      tellBand(world, band, { cat: 'myth', imp: 3, key: 'myth.scourgeFree', text: `${capFirst(band.name)} outgrew the art that bound it, and turned on ${m ? civName(m) : 'its makers'} first.` });
+    }
+    // it blights the land around it, and its neighbours hunt it together
+    const th = [];
+    for (const s of settlementsNear(world, band.x, band.y, 25)) {
+      const d = Math.hypot(s.x - band.x, s.y - band.y);
+      if (d <= 8) addEffect(world, { kind: 'settlement', id: s.id }, { k: 'myth.scourge', until: day + 3 * Y, m: { foodYield: 0.7, attract: 0.4, happiness: -0.1, unrest: 0.1 }, label: `Under ${band.name}` });
+      if (s.civId >= 0 && s.civId !== band.civId && !th.includes(s.civId)) th.push(s.civId);
+    }
+    const f = world.f, W = world.W;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+      const x = Math.round(band.x) + dx, y = Math.round(band.y) + dy;
+      if (x < 0 || y < 0 || x >= W || y >= world.H) continue;
+      const j = y * W + x;
+      if (f.devastation && f.water[j] === WATER.LAND) f.devastation[j] = Math.min(1, f.devastation[j] + 0.05);
+    }
+    sc.th = th.slice(0, 12);
+    if (engine) for (const id of sc.th) engine.noteRaid(world, band, id);
+    if (!sc.ally && th.length >= 2) {
+      sc.ally = day;
+      st.n.alliance = (st.n.alliance || 0) + 1;
+      const names = th.slice(0, 4).map((id) => civName(world.civs[id]));
+      tellBand(world, band, { cat: 'war', imp: 3, key: 'myth.alliance', text: `Old quarrels were set aside as ${listJoin(names)} made common cause against ${band.name}.` });
+    }
+    if (yearly) darknessYear(world, st, band, wp);
+  }
+}
+
+/** An age of darkness on its region, and the Age of the Dead if it carries its war far beyond. */
+function darknessYear(world, st, band, wp) {
+  const sc = band.data.sc, day = world.time.day;
+  if (!sc.dark) {
+    if (day - sc.named < DARK_YEARS * Y || !(fin(sc.razed) >= 8 || fin(sc.realms) >= 1 || fin(sc.dead) >= 0.06 * wp)) return;
+    sc.dark = { x: Math.round(band.x), y: Math.round(band.y), r: DARK_R, day };
+    (st.dark ||= {})[band.id] = sc.dark;
+    st.n.dark = (st.n.dark || 0) + 1;
+    tellBand(world, band, { cat: 'myth', imp: 5, key: 'myth.darkness', text: `For a generation ${band.name} had walked unchecked; now a darkness fell on all the lands around ${placeOf(world, band)}. The fields went to thorn, the roads emptied, and the realms there sank into an age of darkness.` });
+  }
+  const D = sc.dark;
+  for (const civ of liveCivs(world)) {
+    const cap = capitalOf(world, civ);
+    if (cap && Math.hypot(cap.x - D.x, cap.y - D.y) <= D.r && stability) stability.beginDarkAge(world, civ, 'dead');
+  }
+  // carried far beyond its region, or grown beyond all measure: the Age of the Dead
+  if (!sc.age && ages && (band.power >= 0.018 * wp || (sc.civs || []).length >= 6 || Math.hypot(band.x - D.x, band.y - D.y) > D.r + 10)) {
+    sc.age = day;
+    st.n.age = (st.n.age || 0) + 1;
+    ages.forceAge(world, 'dead', {}, 40);
+  }
+}
+function darkLand(world, D, until) {
+  for (const s of settlementsNear(world, D.x, D.y, D.r)) addEffect(world, { kind: 'settlement', id: s.id }, { k: 'myth.darkness', until, m: { foodYield: 0.8, attract: 0.6, happiness: -0.05 }, label: 'The age of darkness' });
+}
+
+/** Now and then a company of heroes of a threatened realm goes against it, with better odds while it sleeps. */
+function heroesYear(world, st, band, wp) {
+  if (!hunts || !engine) return;
+  const sc = band.data.sc;
+  if (sc.hy != null && world.time.day - sc.hy < 5 * Y) return;
+  const near = settlementsNear(world, band.x, band.y, 25).filter((s) => s.civId >= 0 && s.civId !== band.civId);
+  if (!near.length || !world.rng.chance(0.3)) return;
+  sc.hy = world.time.day;
+  near.sort((a, b) => b.population - a.population || a.id - b.id);
+  const civ = world.civs[near[0].civId];
+  const base = Math.max(60, 0.004 * wp);
+  const asleep = band.state === 'sleep';
+  const p = clamp(0.3 * Math.sqrt(base / Math.max(1, band.power)) + (asleep ? 0.15 : 0) + 0.1 * fin(civ.mods && civ.mods.arcana), 0.02, 0.6);
+  const n = 3 + Math.floor(world.rng.next() * 4);
+  if (world.rng.chance(p)) {
+    st.n.heroes = (st.n.heroes || 0) + 1;
+    hunts.slay(world, band, civ, { how: 'hero', company: n - 1, lost: Math.floor(world.rng.next() * (n - 1)) });
+    return;
+  }
+  band.data.heroes = (band.data.heroes || 0) + 1;
+  tellBand(world, band, { cat: 'myth', imp: 2, key: 'myth.heroesFell', civId: civ.id, text: `A company of ${n} heroes of ${civName(civ)} went ${asleep ? 'down into the barrow of' : 'against'} ${band.name}, and none of them came back.` });
+}
+
+/** A sleeping Scourge that has weakened enough draws an expedition from a strong realm nearby (bands/hunts.js). */
+function expeditionYear(world, band, wp) {
+  if (!engine) return;
+  const bp = engine.bandPower(band);
+  let best = null, bpow = 0;
+  for (const s of settlementsNear(world, band.x, band.y, 20)) {
+    const civ = world.civs[s.civId];
+    if (!civ || !civ.alive) continue;
+    const p = engine.civPowerOf(world, civ);
+    if (p > bpow) { bpow = p; best = civ; }
+  }
+  if (best && bpow >= 1.5 * bp && world.rng.chance(0.3)) engine.noteRaid(world, band, best.id);
+}
+
 // ---------------------------------------------------------------------------
 // Providers (pure, neutral outside a Mythic world)
+
+// realms that a Scourge threatens want war with each other less
+registerProvider('warAppetite', 'myth-scourge', (w, a, b) => {
+  if (!w.bands || !w.bands.length || !isMythic(w)) return 1;
+  const ia = idOf(a), ib = idOf(b);
+  for (const band of w.bands) {
+    const sc = band && band.kind === 'undead' && band.data && band.data.sc;
+    if (sc && sc.named && band.state !== 'sleep' && sc.th && sc.th.includes(ia) && sc.th.includes(ib)) return 0.6;
+  }
+  return 1;
+});
 
 // the Wasting's blame, while the cause is hidden: a minority persecuted, a neighbour hated
 const blamed = (w, civ) => { const st = peek(w); const x = st && st.wast && civ ? st.wast[civ.id] : null; return x && x.kn < 2 && x.gone == null ? x : null; };
@@ -792,6 +1010,7 @@ export const system = {
     if (dayOfMonth(world) !== MONTH_DAY) return;
     const st = state(world);
     graveMonth(world, st);
+    scourgeMonth(world, st);
     const m = monthOf(world);
     if (m === 6) manaYear(world, st);
     for (const civ of liveCivs(world).slice()) {
@@ -813,6 +1032,7 @@ export const system = {
       lines: [
         `Grave-plagues ${fin(n.grave)} (risen ${fin(n.risen)}, leagues ${fin(n.league)}) · mana-burn ${fin(n.mana)} (lands burnt ${fin(n.burnt)}, arts lost ${fin(n.artsLost)}, burnt now ${(st.burns || []).length})`,
         `The Wasting: ${fin(n.wast)} wounds, ${Object.keys(st.wast || {}).length} now`,
+        `Scourges: ${fin(n.scBorn)} hosts with the makings, ${fin(n.scourge)} named, ${fin(n.dark)} ages of darkness, ${fin(n.age)} Ages of the Dead, ${fin(n.heroes)} slain by heroes`,
       ],
       checks: [{ ok: !st.g || world.plagues[st.g.pid] != null, label: 'the raging grave-plague is a real plague' }],
     };
