@@ -22,18 +22,28 @@
 // sicknesses by living in its towns, trading with it, and surviving its plagues.
 //
 // Draws from world.rng only in the yearly and plague-end passes, in a fixed order.
+// Faiths (teachingOf) and physicians (PHYSIC, civ.physic: a ladder a realm climbs by its techs,
+// Mythic peoples starting from lores of their own) change infection and deaths, and in a plague's
+// months shut gates (quarantines), send nursing monks, flagellants and pilgrims.
+//
 // Exports: healthState, peopleRec, peekRec, frailOf, virginOf, plagueWeights, plagueToll,
-//          noteExposed, originPeople, townInf, CUSTOMS, system
+//          noteExposed, originPeople, townInf, townCfr, teachingOf, physicKey, physicOf, CUSTOMS,
+//          TEACH, PHYSIC, system
 
 import { on } from '../../core/hooks.js';
 import { chronicle } from '../../core/chronicle.js';
 import { registerProvider, mulOf, firstOf, hasProviders } from '../../core/ext.js';
-import { liveSettlements, damageSettlement } from '../../core/entities.js';
+import { liveSettlements, liveCivs, damageSettlement, settlementsNear } from '../../core/entities.js';
 import { takePeople, takeOfPeople, isSet, cohortTotal } from '../../core/cohorts.js';
+import { addEffect, getEffect } from '../../core/effects.js';
+import { makePerson } from '../../core/names.js';
 import { DAYS_PER_YEAR as DPY, DAYS_PER_MONTH } from '../../core/constants.js';
+import { hasTech } from '../civ/tech.js';
 import { civPeople, folkById, peopleName, FOLK_MIN } from './folk.js';
 import { routesOf } from './trade.js';
-import { hashPick, pickOne } from './common.js';
+import { expose } from './disease.js';
+import { boostFervor } from './religion.js';
+import { hashPick, pickOne, rateOk, civName, capFirst } from './common.js';
 
 const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -60,7 +70,7 @@ export const CUSTOMS = {
 const RACE_CUSTOM = { elf: 'bath', dwarf: 'wells', halfling: 'hearth', orc: 'fear', lizardfolk: 'bath' };
 // a people's first custom by the warmth of its homeland: bathhouses in hot lands, steam-baths in the cold
 const HOT = ['bath', 'bath', 'bath', 'rite', 'wells', 'plain', 'plain', 'fear'];
-const MILD = ['bath', 'wells', 'wells', 'hearth', 'plain', 'plain', 'plain', 'fear', 'fear'];
+const MILD = ['bath', 'wells', 'wells', 'hearth', 'plain', 'plain', 'plain', 'fear'];
 const COLD = ['bath', 'bath', 'wells', 'hearth', 'plain', 'plain', 'plain', 'fear'];
 
 export function healthState(world) {
@@ -236,6 +246,7 @@ export function plagueToll(world, s, p, frac) {
 
 /** A new outbreak in town s: its peoples are counted as exposed to plague p. */
 export function noteExposed(world, s, p) {
+  if (p.qs && p.qs.includes(s.id)) { const qx = (p.qx ||= []); if (!qx.includes(s.id)) qx.push(s.id); }
   if (!sharesOf(world, s)) return;
   const by = (p.byP ||= {});
   const N = fin(s.population);
@@ -299,8 +310,14 @@ function townYear(world, s) {
     const t = world.settlements[r.aId === s.id ? r.bId : r.aId];
     if (t && t.alive) learn(world, own, originPeople(world, t));
   }
+  // how the town lives: its faith's rites, its physicians, the crowds at a holy city
+  const civ = world.civs[s.civId];
+  const P = physicOf(world, civ);
+  let im = P.inf * (teachingOf(world, s.dominantReligion) === 'purity' ? 0.9 : 1);
+  if (s.dominantReligion != null && world.religions[s.dominantReligion]?.holyCityId === s.id) im *= 1.1;
+  ht += P.ht;
   const sk = s.sick && typeof s.sick === 'object' ? s.sick : (s.sick = {});
-  sk.im = 1;
+  sk.im = Math.round(im * 1e4) / 1e4;
   sk.ht = Math.round(ht * 1e4) / 1e4;
 }
 
@@ -326,10 +343,269 @@ function worldYear(world) {
 }
 
 // ---------------------------------------------------------------------------
+// Faiths: what each teaches about sickness
+
+/**
+ * heal: hospitals and nursing orders (a healing faith: deaths × 0.8; a monastic one × 0.9), and
+ * monks who come to nurse a stricken town; purity: rites of washing and fasting (× 0.9 infection);
+ * penance: sickness as punishment (processions of flagellants carry it from town to town); fate: none.
+ */
+export const TEACH = {
+  heal: { label: 'tends the sick' }, purity: { label: 'rites of purity' }, penance: { label: 'sickness as punishment' }, fate: { label: 'no teaching on sickness' },
+};
+export function teachingOf(world, rid) {
+  const r = rid != null ? world.religions[rid] : null;
+  if (!r || r.alive === false) return 'fate';
+  const x = hasProviders('faithHealing') ? firstOf('faithHealing', world, r) : null;
+  if (x && TEACH[x]) return x;
+  const t = Array.isArray(r.tenets) ? r.tenets : [];
+  if (t.includes('healing') || t.includes('monastic')) return 'heal';
+  if (t.includes('apocalyptic')) return 'penance';
+  if (t.includes('ascetic')) return 'purity';
+  return 'fate';
+}
+const faithCfr = (world, rid) => {
+  const r = rid != null ? world.religions[rid] : null;
+  if (!r || r.alive === false || !Array.isArray(r.tenets)) return 1;
+  return r.tenets.includes('healing') ? 0.8 : r.tenets.includes('monastic') ? 0.9 : 1;
+};
+
+// ---------------------------------------------------------------------------
+// Physicians and their theories
+
+/**
+ * A realm's theory of sickness. rank: the ladder (a realm climbs by its techs: medicine → the
+ * humours, anatomy → bad air or contagion, vaccination → germs); inf / cfr: × infection and deaths
+ * in its towns; ht: + health; q: how readily it shuts a town's gates against a plague; ill: × the
+ * death hazard of a ruler in a lasting illness (the humours bleed them); fever: × fever ground's
+ * harm; drain: it may drain a marsh. The Mythic lores are where each people starts.
+ */
+export const PHYSIC = {
+  spirits: { rank: 0, label: 'spirits', inf: 1, cfr: 1, ht: 0, q: 0.1, ill: 1, fever: 1, held: 'sickness is the work of spirits, to be driven out with charms and smoke' },
+  humours: { rank: 1, label: 'the humours', inf: 1, cfr: 1.04, ht: 0.01, q: 0.15, ill: 1.25, fever: 1, held: 'sickness is an imbalance of the four humours, mended by rest, diet and the lancet' },
+  air: { rank: 2, label: 'bad air', inf: 0.93, cfr: 0.98, ht: 0.015, q: 0.5, ill: 1.1, fever: 0.8, drain: true, gate: 'the sickness rode the foul air out of the stricken towns', held: 'sickness rides the foul air of marsh and midden, and clean streets keep it off' },
+  contagion: { rank: 2, label: 'contagion', inf: 0.94, cfr: 0.98, ht: 0.01, q: 1, ill: 1.1, fever: 1, drain: true, gate: 'the sickness passed from the sick to the well', held: 'sickness passes from the sick to the well, and the sick must be kept apart' },
+  germs: { rank: 3, label: 'germs', inf: 0.85, cfr: 0.85, ht: 0.02, q: 1, ill: 0.7, fever: 0.6, drain: true, gate: 'the sickness was carried by living seeds', held: 'sickness is carried by living seeds too small to see' },
+  herbs: { rank: 1, label: 'herb-lore', inf: 1, cfr: 0.92, ht: 0.01, q: 0.15, ill: 0.85, fever: 0.9, lore: 'elf', held: 'every sickness has its herb, if one knows the woods' },
+  stone: { rank: 1, label: 'stone-physic', inf: 0.95, cfr: 1, ht: 0.005, q: 0.8, ill: 1, fever: 1, lore: 'dwarf', gate: 'the sick must be walled apart from the well', held: 'sickness rises from foul water, and the sick must be walled apart' },
+  hearth: { rank: 1, label: 'hearth-remedies', inf: 1, cfr: 0.94, ht: 0.01, q: 0.2, ill: 0.9, fever: 1, lore: 'halfling', held: 'the sick are mended by broth, warmth and patient nursing' },
+  shaman: { rank: 0, label: 'spirit-shamans', inf: 1, cfr: 1, ht: 0, q: 0.05, ill: 1, fever: 1, lore: 'orc', held: 'sickness is a spirit to be fought with drums and blood' },
+  swamp: { rank: 1, label: 'swamp-physic', inf: 1, cfr: 0.95, ht: 0.005, q: 0.1, ill: 0.9, fever: 0.6, lore: 'lizardfolk', held: 'fevers are cured by the bitter barks and muds of the fen' },
+};
+const LORE = { elf: 'herbs', dwarf: 'stone', halfling: 'hearth', orc: 'shaman', lizardfolk: 'swamp' };
+
+/** A realm's theory (read: its own, its parent's, or where its people starts; never written here). */
+export function physicKey(world, civ) {
+  if (!civ) return 'spirits';
+  if (civ.physic && PHYSIC[civ.physic]) return civ.physic;
+  const par = civ.parentId != null ? world.civs[civ.parentId] : null;
+  if (par && par !== civ && par.physic && PHYSIC[par.physic]) return par.physic;
+  const x = hasProviders('physicRule') ? firstOf('physicRule', world, civ) : null;
+  if (x && PHYSIC[x]) return x;
+  return (mythic(world) && LORE[civ.race]) || 'spirits';
+}
+export const physicOf = (world, civ) => PHYSIC[physicKey(world, civ)];
+
+/** × deaths in town s for its faith and its realm's physicians (disease.js cfrFor). */
+export function townCfr(world, s, civ) {
+  return faithCfr(world, s.dominantReligion) * physicOf(world, civ).cfr * (s.disease && s.disease.nu != null ? 0.85 : 1);
+}
+
+const physician = (world, civ) => makePerson(civ.language || world.lang, world.rng);
+const capitalName = (world, civ) => { const c = civ.capitalId != null ? world.settlements[civ.capitalId] : null; return c && c.alive ? c.name : null; };
+
+/** The theory a realm takes when it learns anatomy: what its strongest neighbour holds, else its own school. */
+function rivalPick(world, civ) {
+  let best = null, bp = -1;
+  for (const k in civ.relations || {}) {
+    if (!(civ.relations[k] && civ.relations[k].border > 0)) continue;
+    const o = world.civs[k];
+    if (!o || !o.alive) continue;
+    const ok = physicKey(world, o);
+    if ((ok === 'air' || ok === 'contagion') && (o.population || 0) > bp) { bp = o.population || 0; best = ok; }
+  }
+  return best || hashPick(['air', 'air', 'air', 'contagion', 'contagion'], civ.id, strHash(String(world.params.seed ?? '')));
+}
+
+function adopt(world, civ, key, was) {
+  civ.physic = key;
+  if (was == null) return;
+  const P = PHYSIC[key];
+  const cap = capitalName(world, civ);
+  const who = physician(world, civ);
+  chronicle(world, {
+    cat: 'disease', imp: key === 'germs' ? 2 : 1, icon: 'cure', key: 'health.theory', civId: civ.id, tags: ['physic', key],
+    ...(civ.capitalId != null ? { sid: civ.capitalId } : {}),
+    text: pickOne(world, [
+      `${who}, a physician of ${cap || civName(civ)}, taught that ${P.held}; in time the physicians of ${civName(civ)} held with the teaching.`,
+      `The physicians of ${civName(civ)} came to hold that ${P.held}${was ? `, and put aside the old teaching of ${PHYSIC[was].label}` : ''}.`,
+    ]),
+  });
+}
+
+/** A realm's year: its physicians' theory, and a reformer or a faith that changes its people's custom. */
+function realmYear(world, civ) {
+  const had = civ.physic && PHYSIC[civ.physic] ? civ.physic : null;
+  const cur = physicKey(world, civ);
+  if (!had) civ.physic = cur;
+  const P = PHYSIC[cur];
+  let nu = null;
+  if (hasTech(civ, 'vaccines')) { if (cur !== 'germs') nu = 'germs'; }
+  else if (hasTech(civ, 'anatomy') && P.rank < 2) nu = rivalPick(world, civ);
+  else if (hasTech(civ, 'medicine') && P.rank < 1) nu = 'humours';
+  else if (P.rank === 2 && world.rng.chance(0.03)) {
+    // a rival school, from a stronger neighbour
+    for (const k in civ.relations || {}) {
+      const o = world.civs[k];
+      if (!o || !o.alive || !(civ.relations[k] && civ.relations[k].border > 0)) continue;
+      const ok = physicKey(world, o);
+      if (PHYSIC[ok].rank === 2 && ok !== cur && (o.population || 0) > 1.5 * (civ.population || 0)) { nu = ok; break; }
+    }
+  }
+  if (nu && nu !== cur) adopt(world, civ, nu, had ? cur : null);
+  // customs: a reformer of the newer theories cleans a city; a faith of purity brings its rites
+  const key = civPeople(world, civ);
+  if (!key) return;
+  const r = peopleRec(world, key);
+  if (r.c !== 'fear' && r.c !== 'plain') return;
+  const cap = civ.capitalId != null ? world.settlements[civ.capitalId] : null;
+  if (PHYSIC[civ.physic].rank >= 2 && cap && cap.alive && (cap.tier || 0) >= 3 && world.rng.chance(0.012)) {
+    const was = r.c;
+    r.c = r.sh != null ? 'bath' : 'wells';
+    const who = physician(world, civ);
+    chronicle(world, {
+      cat: 'disease', imp: 2, icon: 'cure', key: 'health.reform', civId: civ.id, sid: cap.id, x: cap.x, y: cap.y, ref: { k: 'folk', id: key }, tags: ['people'],
+      text: r.c === 'bath'
+        ? `${who} of ${cap.name} persuaded ${peopleName(world, key)} to open their bathhouses again, ${was === 'fear' ? 'after generations of fearing water' : 'long shut in fear of plague'}.`
+        : `The reformer ${who} cleaned ${cap.name}: the middens were carted off and the wells walled apart from them, and ${peopleName(world, key)} took up the custom.`,
+    });
+  } else if (teachingOf(world, civ.stateReligion) === 'purity' && world.rng.chance(0.02)) {
+    r.c = 'rite';
+    const f = world.religions[civ.stateReligion];
+    chronicle(world, {
+      cat: 'religion', imp: 1, icon: 'cure', key: 'health.rite', civId: civ.id, ref: { k: 'folk', id: key }, tags: ['people'],
+      text: `${capFirst(peopleName(world, key))} took up the washings of ${f && f.name ? f.name : 'their faith'}, before prayer and before every meal.`,
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The month in a plague: quarantines, nursing monks, flagellants, pilgrims
+
+const QUAR_DAYS = 180;
+function monthly(world) {
+  let any = false;
+  for (const p of world.plagues) if (p && p.active) { any = true; break; }
+  if (!any) return;
+  const holy = new Map();
+  for (const r of world.religions) if (r && r.alive !== false && r.holyCityId != null) holy.set(r.holyCityId, r);
+  const day = world.time.day;
+  for (const s of liveSettlements(world).slice()) {
+    const d = s.disease;
+    if (!d || !(d.I * s.population > 5)) continue;
+    const p = world.plagues[d.pid];
+    if (!p || !p.active) continue;
+    const near = settlementsNear(world, s.x, s.y, 10);
+    // gates shut against it, by the theory of each neighbour's physicians
+    for (const n of near) {
+      if (n === s || n.disease || (n.tier || 0) < 2) continue;
+      const civ = world.civs[n.civId];
+      if (!civ || Math.hypot(n.x - s.x, n.y - s.y) > 8) continue;
+      const q = physicOf(world, civ).q;
+      if (!(q > 0) || getEffect(world, { kind: 'settlement', id: n.id }, 'quarantine') || !world.rng.chance(0.2 * q)) continue;
+      addEffect(world, { kind: 'settlement', id: n.id }, { k: 'quarantine', until: day + QUAR_DAYS, m: { plagueDose: 0.35, trade: 0.75, happiness: -0.03 }, label: 'Quarantine' });
+      const qs = (p.qs ||= []);
+      if (qs.length < 30 && !qs.includes(n.id)) qs.push(n.id);
+      // told once or twice a plague, where a theory explains it
+      const P = physicOf(world, civ);
+      if (p.notable && P.gate && (n.tier || 0) >= 3 && rateOk(world, `quar${p.id}`, 4 * DPY)) chronicle(world, {
+        cat: 'disease', imp: 2, icon: 'plague', key: 'health.quarantine', civId: civ.id, sid: n.id, x: n.x, y: n.y, ref: { k: 'plague', id: p.id }, ...(p.seq != null ? { cause: p.seq } : {}),
+        text: `${n.name} shut its gates against ${p.name} and turned away every traveller from ${s.name}; its physicians held that ${P.gate}.`,
+      });
+    }
+    // monks of a faith that tends the sick come to nurse a town of another faith
+    if (d.nu == null && p.notable) {
+      for (const n of near) {
+        const rid = n.dominantReligion;
+        if (n === s || rid == null || rid === s.dominantReligion || n.disease || teachingOf(world, rid) !== 'heal') continue;
+        if (!world.rng.chance(0.06)) break;
+        d.nu = rid;
+        convert(s, rid, 0.06);
+        boostFervor(world, rid, 0.02);
+        const f = world.religions[rid];
+        if (rateOk(world, `nurse${rid}:${p.id}`, 5 * DPY)) chronicle(world, {
+          cat: 'religion', imp: 2, icon: 'cure', key: 'health.nurse', civId: s.civId, sid: s.id, x: s.x, y: s.y, ref: { k: 'plague', id: p.id }, ...(p.seq != null ? { cause: p.seq } : {}),
+          text: pickOne(world, [
+            `Monks of ${f.name} came from ${n.name} to nurse the sick of ${s.name} through ${p.name}; many there turned to their faith.`,
+            `While ${p.name} raged in ${s.name}, the nursing brothers of ${f.name} tended its sick, and the town did not forget it.`,
+          ]),
+        });
+        break;
+      }
+    }
+    // flagellants of a faith of penance walk from town to town, and the sickness with them
+    if (p.notable && d.I >= 0.01 && teachingOf(world, s.dominantReligion) === 'penance' && world.rng.chance(0.1)) {
+      const to = settlementsNear(world, s.x, s.y, 14).filter((n) => n !== s && !n.disease && n.dominantReligion === s.dominantReligion).slice(0, 3);
+      for (const n of to) expose(world, n, p.id, { kind: 'near', fromSid: s.id });
+      if (to.length && rateOk(world, `flag${p.id}`, 3 * DPY)) {
+        const f = world.religions[s.dominantReligion];
+        chronicle(world, {
+          cat: 'religion', imp: 2, icon: 'plague', key: 'health.flagellants', civId: s.civId, sid: s.id, x: s.x, y: s.y, ref: { k: 'plague', id: p.id }, ...(p.seq != null ? { cause: p.seq } : {}),
+          text: `Holding ${p.name} a punishment for their sins, the faithful of ${f ? f.name : 'the old gods'} went in procession from ${s.name}, scourging themselves, and carried it to ${to[0].name}${to.length > 1 ? ' and beyond' : ''}.`,
+        });
+      }
+    }
+    // a holy city's pilgrims carry it home to the faith's far towns
+    const r = holy.get(s.id);
+    if (r && d.I * s.population > 10 && world.rng.chance(0.15)) {
+      const far = [];
+      for (const t of liveSettlements(world)) if (t !== s && !t.disease && t.dominantReligion === r.id && Math.hypot(t.x - s.x, t.y - s.y) > 12) far.push(t);
+      if (far.length) {
+        const t = far[Math.floor(world.rng.next() * far.length)];
+        expose(world, t, p.id, { kind: 'near', fromSid: s.id });
+        if (rateOk(world, `pilg${p.id}`, 4 * DPY)) chronicle(world, {
+          cat: 'religion', imp: 2, icon: 'plague', key: 'health.pilgrims', civId: t.civId, sid: t.id, x: t.x, y: t.y, ref: { k: 'plague', id: p.id }, ...(p.seq != null ? { cause: p.seq } : {}),
+          text: `Pilgrims home from ${s.name}, the holy city of ${r.name}, brought ${p.name} back with them to ${t.name}.`,
+        });
+      }
+    }
+  }
+}
+
+/** Raise faith rid's share of town s by g (the others give way). */
+function convert(s, rid, g) {
+  const sh = (s.religion ||= {});
+  sh[rid] = fin(sh[rid]) + g;
+  let tot = 0;
+  for (const k in sh) tot += sh[k];
+  if (tot > 1) for (const k in sh) if (+k !== rid) sh[k] *= Math.max(0, 1 - sh[rid]) / Math.max(1e-9, tot - sh[rid]);
+}
+
+// A town behind closed gates that the plague never reached: its physicians are remembered.
+on('plagueEnded', (world, p) => {
+  if (!p || !p.notable || !Array.isArray(p.qs)) return;
+  const hit = new Set(p.qx || []);
+  for (const sid of p.qs) {
+    const s = world.settlements[sid];
+    if (!s || !s.alive || hit.has(sid) || (s.tier || 0) < 4) continue;
+    const civ = world.civs[s.civId];
+    if (!civ || !physicOf(world, civ).gate) continue;
+    const who = physician(world, civ);
+    chronicle(world, {
+      cat: 'disease', imp: 2, icon: 'cure', key: 'health.spared', civId: civ.id, sid: s.id, x: s.x, y: s.y, ref: { k: 'plague', id: p.id }, ...(p.seq != null ? { cause: p.seq } : {}),
+      text: `Behind its shut gates ${s.name} was spared ${p.name}; its people credited the physician ${who}, who had held that ${physicOf(world, civ).held}.`,
+    });
+    break;
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Providers
 
-// the customs of a town's peoples (its yearly pass)
+// the customs of a town's peoples, its physicians (its yearly pass)
 registerProvider('townHealth', 'health', (world, s) => (s && s.sick ? fin(s.sick.ht) : 0));
+// the humours bleed a sick ruler; herb-lore and germs do better (civ/rulers.js)
+registerProvider('illCure', 'health', (world, civ) => physicOf(world, civ).ill);
 
 // ---------------------------------------------------------------------------
 // System
@@ -345,5 +621,10 @@ export const system = {
     const T = world.settlements;
     for (let id = (149 * ((doy + 180) % DPY)) % DPY; id < T.length; id += DPY) { const s = T[id]; if (s && s.alive && s.id === id) townYear(world, s); }
     if (day % DPY === 3 * DAYS_PER_MONTH + 9) worldYear(world);
+    if (day % DAYS_PER_MONTH === 17) {
+      monthly(world);
+      const mo = Math.floor(day / DAYS_PER_MONTH) % 12;
+      for (const civ of liveCivs(world)) if (civ.id % 12 === mo) realmYear(world, civ);
+    }
   },
 };

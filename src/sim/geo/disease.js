@@ -40,7 +40,7 @@ import {
 } from './common.js';
 import { composeName, possessive, nameWord, terrainAt, isEnglishWord } from '../../core/names.js';
 import { plagueTarget, cureTargets, plaguePreview, curePreview, toolLabel } from './previews.js';
-import { plagueWeights, plagueToll, noteExposed, originPeople, townInf } from './health.js';
+import { plagueWeights, plagueToll, noteExposed, originPeople, townInf, townCfr } from './health.js';
 
 export const PLAGUE_TICK = 5;          // days between SIR steps
 const TICK_PHASE = 2;
@@ -420,17 +420,11 @@ function cfrFor(world, s, p, civ) {
   let cfr = p.lethality * (world.params.plagueLethality ?? 1) * m.medicine * (1 - m.plagueResist);
   cfr *= 1.25 - 0.5 * clamp01(finite(s.health) ? s.health : 0.7);
   if (s.famine > 0) cfr *= 1.3;
-  if (healingFaith(world, s)) cfr *= 0.8;
+  cfr *= townCfr(world, s, civ);   // its faith's hospitals, its physicians, nursing monks (health.js)
   cfr *= p.lethalAtt ?? 1;
   return cfr < 0 ? 0 : cfr > 0.9 ? 0.9 : cfr;
 }
 
-function healingFaith(world, s) {
-  const rid = s.dominantReligion;
-  if (rid == null) return false;
-  const r = world.religions[rid];
-  return Boolean(r && r.alive !== false && Array.isArray(r.tenets) && r.tenets.includes('healing'));
-}
 function apocalypticFaith(world, s) {
   const rid = s.dominantReligion;
   if (rid == null) return false;

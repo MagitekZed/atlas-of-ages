@@ -94,6 +94,9 @@ export const EXT_POINTS = {
   secretRule: { combine: 'first', sig: '(w, civ, artId) → false to let a rare art spread like common knowledge | null (civ/arts.js)' },
   // health and sickness (chunk 11, geo/health.js)
   frailty: { combine: 'mul', clamp: [0.1, 4], sig: '(w, people) → × how readily a people catches a plague and dies of it' },
+  faithHealing: { combine: 'first', sig: "(w, religion) → what a faith teaches about sickness ('heal' | 'purity' | 'penance' | 'fate') | null" },
+  physicRule: { combine: 'first', sig: '(w, civ) → the theory of sickness a realm starts with (a PHYSIC key) | null' },
+  illCure: { combine: 'mul', clamp: [0.3, 3], sig: '(w, civ, ruler) → × the death hazard of a ruler in a lasting illness (civ/rulers.js)' },
   cleanRule: { combine: 'first', sig: "(w, people) → a people's first custom of cleanliness ('bath' | 'rite' | 'wells' | 'hearth' | 'plain' | 'fear') | null" },
   memoryRule: { combine: 'first', sig: '(w, s) → { grudge, thanks } years a town remembers (e-folding) | null (geo/memory.js)' },
   rates: { combine: 'mul', clamp: [0, 5], sig: '(w, key)' },
