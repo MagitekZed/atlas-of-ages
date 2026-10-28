@@ -289,3 +289,52 @@ peoples' rules in `myth/identity.js`. Ext points `heirRule`, `houseRule`, `royal
 - **Treasures:** regalia only for kingdoms, empires, feudal realms and theocracies of 15,000
   people from the Bronze Age on; treasures of power at most three made per realm, and several of
   a kind lend no more than about two.
+
+## Results (2026-10-27)
+
+### Gates
+
+All pass: `npm test`, the Mythic trial, the cohort check, the keyframe check (600 years, no
+stale copies), three 300-year Mythic trials, and the hand check with and without myth.
+
+### Twelve worlds against main
+
+Against main at ead7a12 (with chunk 7):
+
+    Historical Y500   pop +13%  realms −21%  towns −4%  wars −19%  at war 0.193→0.173
+    Mythic     Y500   pop +15%  realms  −9%  towns −3%  wars −25%  at war 0.163→0.141
+    Historical Y1000  pop  +0%  realms  −2%  towns −4%  wars −20%  at war 0.270→0.236
+    Mythic     Y1000  pop  +4%  realms −18%  towns −6%  wars −27%  at war 0.251→0.230
+    smallest world at Y1000: 10 realms (main 12)
+
+Against the world before chunk 7 (3e17cc1), realms at Year 1000 stand at +28 % (Historical)
+and +23 % (Mythic), wars at +4 % and +30 %.
+
+- **Successions** (twelve worlds, a thousand years): regencies 1,438 (main 1,993), coups by
+  regents 114 (245), civil wars 59 (60), crowns joined by inheritance 16 (5), unions that
+  merged 99 (135), restorations 63 (75), splits between heirs 118 (133; a split now needs a
+  real second heir). Fewer child rulers and fewer regents seizing the throne: the tree usually
+  holds a grown brother or uncle, and a real regent is the child's mother or uncle.
+- **Fewer wars.** Holy wars fell most (128 against 567), a count that swings between runs (one
+  world: 51, 1 and 130 in three runs before this chunk); every other cause is about 15 % lower,
+  following fewer realms in the middle centuries. The first run's routine matches warmed the
+  courts as much as a match from the event deck; softening them (+5 goodwill, not +15) changed
+  little, so they were not the cause.
+- **Families and treasures** at Year 1000: about 760 kept people a world (9,096 in twelve) and
+  about 120 treasures (1,445; the cap is 300). Royal matches: 3,074 (main: 247, all from the
+  event deck).
+- **Treasuries:** the median realm holds 0.5 to 3.0 years of income at Year 1000 (main 0.3 to
+  3.8).
+
+### Speed
+
+Fresh Year-900 saves from main, 100 years, three rounds: −0.9 % (Historical) and −10.1 %
+(Mythic) per simulated year. The families cost about 1 ms a year (the realm system +0.9 ms in
+the Historical world), more than paid back by fewer wars (war −9 % / −31 %, diplomacy −23 % /
+−36 %).
+
+### Save
+
+A Year-900 save from main, 100 years on: 25.24 MB on main, 25.06 MB on the branch (−0.7 %, fewer
+wars to remember); the families take 141 KB (1,128 people) and the treasures 9 KB. A save from
+before chunk 7 loads and runs; its realms' families are seeded on their first yearly pass.
