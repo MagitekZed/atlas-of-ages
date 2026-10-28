@@ -33,6 +33,7 @@ import { theName, TheName, rulerName, rulerShort, pick, listJoin, seasonWord } f
 import { makeRuler, installRuler, rulerAge, lifeOf, syncRulerDisplay, startDynasty, succession, newDynastyName } from './rulers.js';
 import { roughPower } from './peoples.js';
 import { grantTech, computeEra, refreshMods } from './tech.js';
+import { treasuresWorldYear } from './treasures.js';
 import { kinOf, crownKin, marryNoble, syncSpouse, kinSweep, matchKin, relationWords, asPerson, kinDied, grownKin, lineOf, courtOf } from './kin.js';
 
 const EXILE_CAP = 24, MARRIAGE_CAP = 60;
@@ -486,6 +487,7 @@ function murderedChild(world, civ, child, reg) {
 export function dynastyYearly(world) {
   const day = world.time.day;
   kinSweep(world);
+  treasuresWorldYear(world);
   for (const c of world.civs) {
     if (!c || !c.alive || !c.claims) continue;
     for (const k of Object.keys(c.claims)) {
