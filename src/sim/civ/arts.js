@@ -169,13 +169,19 @@ function drop(world, civ, a, why) {
     r.lost = r.lost.concat([[civ.id, sid, world.time.day, why]]).slice(-6);
     const s = world.settlements[sid];
     if (rateOk(world, `artLost:${a}`, 30)) {
-      record(world, { cat: 'tech', imp: 3, key: 'art.lost', civ, s: s || undefined, tags: [a, 'art'], text: pick(world, [
+      record(world, { cat: 'tech', imp: 3, key: 'art.lost', civ, s: s || undefined, tags: [a, 'art'], text: pick(world, why === 'sickness' ? [
+        `The secret of ${nameOf(a)} died in ${s ? s.name : theName(civ)} with the last who knew it, taken by sickness.`,
+        `${capName(a)} passed out of the world when the sickness took the last who knew it in ${s ? s.name : theName(civ)}.`,
+      ] : [
         `The secret of ${nameOf(a)} was lost with the ${why === 'razed' ? 'burning' : why === 'fled' ? 'scattering' : 'fall'} of ${s ? s.name : theName(civ)}; no one living knew it any more.`,
         `${capName(a)} passed out of the world: the last who knew it in ${theName(civ)} ${why === 'razed' ? 'died in the flames of ' + (s ? s.name : 'their town') : 'took the secret to their graves'}.`,
       ]) });
     }
   }
 }
+
+/** Published: realm civ loses rare art a (why: 'sickness' for one whose last keepers died, myth/sickness.js). */
+export function loseArt(world, civ, a, why) { drop(world, civ, a, why); }
 
 const nameOf = (a) => ARTS[a].name.replace(/^The /, 'the ');
 const capName = (a) => ARTS[a].name;

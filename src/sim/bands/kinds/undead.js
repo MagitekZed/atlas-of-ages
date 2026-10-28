@@ -15,6 +15,7 @@ import { mythOn } from '../../../core/params.js';
 import { DAYS_PER_YEAR, MONTH_SEASON } from '../../../core/constants.js';
 import { latitude, monthOf } from '../../../core/world.js';
 import { clamp } from '../../../core/util.js';
+import { enemySet } from '../../geo/common.js';
 import { registerKind, spawnBand, endBand, ready, isReady as readyCheck, aliveOf, worldPop } from '../engine.js';
 import { planRoute } from '../move.js';
 import { raidTown } from '../combat.js';
@@ -27,11 +28,13 @@ const Y = DAYS_PER_YEAR;
 const graveFloor = (world) => Math.max(250, worldPop(world) * 0.002);
 const powerCap = (world) => Math.max(60, worldPop(world) * 0.004);
 
-/** Remember a mass grave (from the battle hook or a razed city). */
+/** Remember a mass grave (from the battle hook or a razed city). Returns the site. */
 function grave(world, x, y, dead, name, civIds, seq = null) {
   // seq: the chronicle entry of the slaughter that dug it (the first one, when graves merge)
-  addSite(world, { kind: 'grave', x, y, dead, name, civIds, data: Number.isFinite(seq) ? { risen: 0, seq } : { risen: 0 } });
+  return addSite(world, { kind: 'grave', x, y, dead, name, civIds, data: Number.isFinite(seq) ? { risen: 0, seq } : { risen: 0 } });
 }
+/** Published: a grave dug by other means (a grave-plague's dead, myth/sickness.js). Returns the site. */
+export const digGrave = grave;
 
 on('battle', (world, b) => {
   if (!b || !mythOn(world) || !world.sys.bands || b.kind === 'beast' || b.kind === 'band') return;
@@ -73,19 +76,23 @@ function spawn(world) {
   }
 }
 
-/** A grave rises. */
+/**
+ * A grave rises. opts: { mul (× power), divine, text (the line told, or a function of the host's name), bound: { c, w, r, u } (a
+ * host bound to realm c in war w while ruler r reigns, until day u: myth/sickness.js) }.
+ */
 export function rise(world, site, opts = {}) {
   const power = Math.round(Math.min(powerCap(world), 6 * Math.pow(Math.max(50, site.dead), 0.8)) * (opts.mul || 1));
   const band = spawnBand(world, {
-    kind: 'undead', name: site.name ? site.name.replace(/^the (Graves|Haunted Ruins) of /, () => `the ${undeadTitle(world)} of `) : beastName(world, 'undead', site.x, site.y),
+    kind: 'undead', name: site.name ? site.name.replace(/^the (Graves|Haunted Ruins|Plague-Pits) of /, () => `the ${undeadTitle(world)} of `) : beastName(world, 'undead', site.x, site.y),
     x: site.x, y: site.y, homeI: site.i, homeR: 25, state: 'lair', strength: 0, power, morale: 1,
-    data: { grave: site.id, start: power, lastKill: world.time.day, last: world.time.day },
+    data: { grave: site.id, start: power, lastKill: world.time.day, last: world.time.day, ...(opts.bound ? { bound: { ...opts.bound } } : {}) },
   });
+  if (opts.bound) band.civId = opts.bound.c;
   updateSite(world, site.id, { risen: world.time.day, bandId: band.id });
   say(world, band, {
     cat: 'myth', imp: opts.divine || power >= 2000 ? 3 : 2, key: 'undead.rise', x: site.x, y: site.y, ref: { k: 'band', id: band.id },
     cause: Number.isFinite(site.data?.seq) ? site.data.seq : null,
-    text: opts.divine
+    text: opts.text ? (typeof opts.text === 'function' ? opts.text(bandName(band)) : opts.text) : opts.divine
       ? `At a word no living tongue could speak, the dead of ${site.name ? site.name.replace(/^the /, 'the ') : 'the old battlefield'} clawed their way up into the light.`
       : pick(world, [
         `${when(world, site.y)}, the earth of ${site.name || 'an old battlefield'} broke open, and ${count(site.dead)} dead rose as ${bandName(band)}.`,
@@ -107,10 +114,51 @@ function nearestLiving(world, band, reach) {
   return best;
 }
 
+// ---------------------------------------------------------------------------
+// A host bound to a realm (a grave-plague's dead, myth/sickness.js): it marches only on the towns
+// of its master's enemies, and the binding breaks when its master is at peace, its master's
+// ruler dies or its time runs out. Then it is a host like any other.
+
+function stillBound(world, b) {
+  const civ = world.civs[b.c];
+  return Boolean(civ && civ.alive && civ.ruler && civ.ruler.id === b.r && world.time.day < b.u && enemySet(world, b.c).size > 0);
+}
+
+function unbind(world, band) {
+  const b = band.data.bound;
+  delete band.data.bound;
+  band.civId = -1;
+  band.data.lastKill = world.time.day;   // a few months' grace before it starts to fade
+  const civ = world.civs[b.c];
+  say(world, band, {
+    cat: 'myth', imp: 2, key: 'undead.unbound', ...(civ && civ.alive ? { civId: civ.id } : {}),
+    text: pick(world, [
+      `The binding on ${bandName(band)} broke${civ && civ.alive ? `, and the dead no longer knew ${civ.name} for their master` : ''}; they turned toward the nearest living.`,
+      `${BandName(band)} was bound no longer. It stood a night where it was, and then it walked toward whoever was nearest.`,
+    ]),
+  });
+}
+
+/** The nearest town of the bound host's master's enemies (not hit in the last year). */
+function nearestFoe(world, band, b, reach) {
+  const foes = enemySet(world, b.c);
+  let best = null, bd = Infinity;
+  const hit = band.data.hit || {};
+  for (const s of settlementsNear(world, band.x, band.y, reach)) {
+    if (!foes.has(s.civId)) continue;
+    if (hit[s.id] != null && world.time.day - hit[s.id] < Y) continue;
+    const d = Math.hypot(s.x - band.x, s.y - band.y);
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+
 function month(world, band) {
   if (band.power < 20) { fade(world, band); return; }
+  if (band.data.bound && !stillBound(world, band.data.bound)) unbind(world, band);
+  const b = band.data.bound;
   if (band.state === 'lair' || (band.state === 'roam' && (band.targetSid < 0 || !world.settlements[band.targetSid]?.alive))) {
-    const s = nearestLiving(world, band, 20);
+    const s = b ? nearestFoe(world, band, b, 30) : nearestLiving(world, band, 20);
     if (s && planRoute(world, band, s.i)) { band.targetSid = s.id; band.state = 'raid'; }
   }
 }
@@ -120,7 +168,8 @@ function day(world, band) {
   const lat = Math.abs(latitude(world, clamp(Math.round(band.y), 0, world.H - 1)));
   const summer = MONTH_SEASON[monthOf(world)] === 2;
   const since = world.time.day - (band.data.lastKill ?? band.createdDay);
-  if (since > 90) band.power *= lat < 0.35 && summer ? 0.985 : 0.994;
+  // its master's art holds a bound host together longer
+  if (since > 90) band.power *= band.data.bound ? 0.997 : lat < 0.35 && summer ? 0.985 : 0.994;
   if (band.power < 20) fade(world, band);
 }
 

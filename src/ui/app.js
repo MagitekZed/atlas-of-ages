@@ -136,7 +136,10 @@ export function createApp() {
       const saved = app.toolSettings[id] || {};
       const radius = Number.isFinite(saved.radius) ? saved.radius : (t.radius ?? 0);
       const strength = Number.isFinite(saved.strength) ? saved.strength : (t.strength?.default ?? 1);
-      return { radius, strength };
+      // a tool with kinds (t.kinds(world) → [[value, label]]): the one chosen, else the first
+      const kinds = typeof t.kinds === 'function' && app.world ? t.kinds(app.world) : null;
+      const kind = Array.isArray(kinds) && kinds.length ? (kinds.some((k) => k[0] === saved.kind) ? saved.kind : kinds[0][0]) : null;
+      return kind != null ? { radius, strength, kind } : { radius, strength };
     },
     setToolOption(id, key, value) {
       const s = (app.toolSettings[id] ||= {});

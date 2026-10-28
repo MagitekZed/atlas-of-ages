@@ -182,6 +182,9 @@ on('succession', (world, civ, prev, next) => {
  * succeed against the ruler's intrigue (succession: rulers.js). Returns true when the throne changed
  * hands.
  */
+/** × the odds of a plot against a ruler whose wound is known to waste the land (myth/sickness.js: r.flags.wound.k). */
+const woundSpur = (r) => (r && r.flags && r.flags.wound && r.flags.wound.k ? 4 : 1);
+
 export function heirPlotYear(world, civ, r, succession, seize = null) {
   const h = r && r.heir;
   if (civ.flags && civ.flags.union) return false;
@@ -197,7 +200,7 @@ export function heirPlotYear(world, civ, r, succession, seize = null) {
   }
   if (h.am.k !== 'throne' || day - h.am.since < 3 * DPY) return false;
   const hi = skillsOf(h, day)[SK.INT], ri = skillsOf(r, day)[SK.INT];
-  if (!world.rng.chance(0.06 * (0.5 + hi))) return false;
+  if (!world.rng.chance(0.06 * (0.5 + hi) * woundSpur(r))) return false;
   if (world.rng.chance(Math.max(0.1, Math.min(0.8, 0.35 + 0.4 * (hi - ri))))) {
     // the heir takes the crown by the ordinary path, told as an overthrow (rulers.js 'usurped')
     h.am = null;
@@ -236,7 +239,7 @@ function kinPlotYear(world, civ, r, seize) {
     if (p.am.k !== 'throne' || day - p.am.since < 3 * DPY) continue;
     if (day > p.am.by) { delete p.am; continue; }
     const pi = skillsOf(v, day)[SK.INT], ri = skillsOf(r, day)[SK.INT];
-    if (!world.rng.chance(0.04 * (0.5 + pi))) continue;
+    if (!world.rng.chance(0.04 * (0.5 + pi) * woundSpur(r))) continue;
     const words = relationWords(world, me, p) || 'kinsman';
     delete p.am;
     if (world.rng.chance(Math.max(0.1, Math.min(0.7, 0.3 + 0.4 * (pi - ri))))) {

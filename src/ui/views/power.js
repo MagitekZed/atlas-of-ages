@@ -16,7 +16,7 @@ const yearOf = (day) => Math.floor(fin(day) / DAYS_PER_YEAR);
 const cap = (s) => String(s || '').replace(/^./, (c) => c.toUpperCase());
 
 const MOOD = (l) => (l >= 0.7 ? 'loyal' : l >= 0.5 ? 'content' : l >= 0.35 ? 'uneasy' : l >= 0.25 ? 'angry' : 'near revolt');
-const WHY = { tax: 'the taxes', hunger: 'hunger', court: 'the court’s spending', coin: 'the coin', war: 'the wars', faith: 'the faith', land: 'the land', bond: 'their bondage', rights: 'their rights', ruler: 'the ruler', purge: 'the purge' };
+const WHY = { tax: 'the taxes', hunger: 'hunger', court: 'the court’s spending', coin: 'the coin', war: 'the wars', faith: 'the faith', land: 'the land', bond: 'their bondage', rights: 'their rights', ruler: 'the ruler', purge: 'the purge', dark: 'the dark arts' };
 const LAW_WORDS = {
   inherit: { eldest: 'passes whole to the eldest heir', divided: 'is shared among the heirs', elective: 'is chosen by the great', seniority: 'passes to the eldest of the house' },
   faith: { one: 'one faith; the others forbidden', tolerated: 'the other faiths suffered', free: 'every faith free' },

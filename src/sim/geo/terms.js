@@ -36,6 +36,7 @@ const AIM_OF = {
   trade: 'tribute', opportunism: 'tribute',
   revenge: 'humble', enmity: 'humble', provocation: 'humble',
   liberation: 'free', independence: 'free', debt: 'debt',
+  league: 'humble', dread: 'humble', blight: 'humble', cure: 'towns',
 };
 
 function cleanAim(x) {

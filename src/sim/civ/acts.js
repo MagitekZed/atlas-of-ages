@@ -20,6 +20,7 @@
 // Published (contracts §12): colonize(world, fromSid, x, y), depose(world, civ, how).
 
 import { registerTool } from '../../core/tools.js';
+import { emit as emitHook } from '../../core/hooks.js';
 import { transferSettlement } from '../../core/entities.js';
 import { emitFx, bumpVersion } from '../../core/world.js';
 import { sliceLike, takePeople, addPeople } from '../../core/cohorts.js';
@@ -142,9 +143,12 @@ registerTool({
 registerTool({
   id: 'curse_ruler', label: 'Curse Ruler', group: 'fate', icon: 'hatred', order: 61, target: 'entity', hidden: true, polarity: 'bane',
   entity: { kinds: ['civ', 'ruler'] },
-  desc: 'Lay a curse on a ruler: madness or cruelty, and death close behind.',
+  desc: 'Lay a curse on a ruler: madness or cruelty, and death close behind; in a Mythic world, or a wound that wastes the land.',
+  // in a Mythic world the curse may instead be the Wasting (myth/sickness.js, through the handWound hook)
+  args: [{ key: 'curse', type: 'select', label: 'The curse', options: (world) => (fin(world.params.mythLevel) >= 2 ? [['mind', 'Madness and cruelty'], ['wound', 'A wound that wastes the land']] : []) }],
   preview: previewCurse,
-  applyEntity(world, target) {
+  applyEntity(world, target, args = {}) {
+    if (args && args.curse === 'wound' && fin(world.params.mythLevel) >= 2) return woundAct(world, target);
     const pv = previewCurse(world, null, null, { target });
     if (!pv.ok) return refuse(pv);
     const { civ, ruler } = rulerOf(world, target);
@@ -170,6 +174,21 @@ registerTool({
     return { ok: true, message: `A curse lies on ${rulerName(ruler)}.`, seq: e.seq };
   },
 });
+
+/** The hand's Wasting: a wound that will not close, and the land fails with it (myth/sickness.js). */
+function woundAct(world, target) {
+  const t = rulerOf(world, target);
+  if (!t) return { ok: false, message: 'Choose a nation or its ruler.' };
+  const { civ, ruler } = t;
+  if ((ruler.flags && ruler.flags.wound) || world.sys.myth?.sick?.wast?.[civ.id]) return { ok: false, message: `${rulerName(ruler)} already bears a wound that will not close.` };
+  emitHook(world, 'handWound', civ);
+  if (!(ruler.flags && ruler.flags.wound)) return { ok: false, message: 'The curse found no purchase.' };
+  counted(world);
+  const p = spot(world, civ);
+  fx(world, { type: 'curse', x: p.x, y: p.y, r: 3, civId: civ.id });
+  fx(world, { type: 'label', x: p.x, y: p.y, text: 'The Wasting', tone: 'bane', size: 1.1 });
+  return { ok: true, message: `A wound that will not close lies on ${rulerName(ruler)}; in a year or two the land will begin to fail.` };
+}
 
 registerTool({
   id: 'smite_ruler', label: 'Smite Ruler', group: 'fate', icon: 'lightning', order: 62, target: 'entity', hidden: true, polarity: 'bane',
