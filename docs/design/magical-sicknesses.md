@@ -25,7 +25,7 @@ untouched.
   believes ("its people blame the Orsk; the true cause is the queen's wound").
 - **Not in this chunk:** new kinds of people (seers are a realm's scrying and healers, not named
   figures); wild-magic surges and rifts beyond mana-burn; the dead besieging towns (a bound host
-  raids and joins battles, it does not besiege); new powers of the hand (see the decisions).
+  raids and joins battles, it does not besiege).
 
 ## What exists today
 
@@ -194,7 +194,7 @@ untouched.
    the burnt land, the late flare.
 3. **The Wasting:** wounds, the failing land, blame, revelation, reckoning (abdication, cures,
    guilt), flight, healing.
-4. **Interface and calibration:** six Mythic worlds against main to Year 1000, plus forced cases
+4. **The hand, interface and calibration:** the hand's options, then six Mythic worlds against main to Year 1000, plus forced cases
    that make each sickness happen early, to watch it play out; Historical worlds must stay
    identical to main.
 
@@ -209,3 +209,17 @@ In a Mythic world over a thousand years: a grave-plague once or twice (some worl
 Necromancy is rare), mana-burn two to four times (mostly in the great arcane realms), the Wasting
 once or twice. Mythic population, realms and wars stay close to main (within a few per cent);
 Historical worlds are unchanged.
+
+## Decisions (the user's, 2026-10-28)
+
+- **The grave-plague can turn a war.** The bound dead are a real host for a season and the
+  stricken city is crippled, enough to save a losing war. The price is heavy: shunned for about a
+  century, often a league war against the caster, unrest at home, and the plague may come home.
+- **Mana-burn strikes mages, then elves.** Mages and healers of every people die hardest; of the
+  races, elves most, dwarves and lizardfolk somewhat; men, halflings and orcs barely, apart from
+  their mages.
+- **Killing a ruler of the Wasting leaves guilt, and sometimes more.** The land heals, but the
+  killer's legitimacy stays low for their reign and their house gets a cursed name; if the killer
+  is kin, about one time in three the land is wounded again, more lightly.
+- **The hand can bring them, through existing powers.** In Mythic worlds Curse Ruler can lay the
+  Wasting, and the Plague power can choose a grave-plague or mana-burn.
