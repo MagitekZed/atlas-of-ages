@@ -229,6 +229,7 @@ export function createSettlement(world, civId, x, y, opts = {}) {
     foodImport: undefined, emigrants: undefined, taxes: undefined, jobs: undefined,
     mem: undefined,         // what it remembers of other realms (geo/memory.js), from its first memory
     peoples: undefined, peoplesPast: undefined,
+    wall: undefined,        // its walls' condition, towers, moat, stores (geo/siege.js), at the first read
   };
   addIndexed(world, 'settlements', s);
   // the name set holds exactly the names of every settlement ever founded — what a reload

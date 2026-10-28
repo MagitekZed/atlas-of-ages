@@ -114,9 +114,10 @@ Each day for the leading army, each month a choice of what to press:
   were mined at the river gate and the breach stormed."
 - Surrender spares a town the sack and leaves a kinder memory (`geo/memory.js`); a storming
   leaves the bitterest.
-- **Famous sieges:** a siege of over a year, one that cost many thousands, or one that took a
-  capital, is named ("the Siege of Varn", "the Great Siege of Varn" for the longest) and kept on
-  the siege ground and in the world's list; the Hall of Records' longest siege reads it.
+- **Famous sieges:** a siege of a year and a half or more, one that cost many thousands, or one
+  that took a great capital after half a year, is named ("the Siege of Varn", "the Great Siege of
+  Varn" for the longest) and kept on the siege ground and in the world's list; the Hall of
+  Records' longest siege reads it.
 
 ## Events and heat
 
@@ -180,3 +181,39 @@ E. Gates, the twelve worlds, speed and save size.
   last; elves grow thorn-walls that regrow and never burn, and starve a town rather than storm
   it; orcs build stake-walls, storm and never surrender; lizardfolk build causeways and marsh
   moats that defeat mines; halflings build hedge-banks, surrender readily and are spared.
+
+## As built (2026-10-27)
+
+Modules: `geo/siege.js` (walls and their ground, people's walls and siegecraft, stores, the
+monthly mending and laying by, famous sieges, slighting), `geo/war.js` (the daily siege step,
+the siege's lines in the Chronicle, a capture told by how it fell, slighting after it),
+`ui/views/siege.js` (the town's walls, a siege ground's famous sieges) and the siege gauge in
+`ui/inspector.js`. Mythic peoples' forms in `myth/identity.js`. Ext points `wallKind`,
+`siegeCraft`, `surrenderRule`, `slightRule`. Choices made while building, with the reasons:
+
+- **Walls against engines:** palisade 3, stone walls 12, castle 28, star fort 60 (days × 30 at
+  engines of worth 1), × towers (12 % each), a hill (× 1.25) or a crag (× 1.5) and a people's
+  own; guns × 4 against walls built before them, × 1.2 against a star fort; a palisade burns
+  (× 1.4). A breach opens below 40 %. Engines are worth √(engineers / 150) (at least a quarter:
+  ladders and fire) × the realm's siege knowledge^0.8.
+- **Storms, tempered.** The first run took half again as many towns as main (an open town fell
+  in a month). Now the ladders and lines take two weeks against an open town and four against
+  walls before any storm; a breach is stormed at 60 % a month (an open town 50 %), and succeeds
+  at power ÷ (power + 2 × the defence), over unbreached walls 3.5 ×.
+- **Mines dug by anyone.** Early armies have no sappers, and any river or shore counted as a moat:
+  seven mines in 2,700 captures. Soldiers now dig without sappers (more slowly), only rock and a
+  town in the marsh stop a mine, the sea or a river slows it, and a found mine is set back (10 %
+  a month), not ended.
+- **Stores:** a walled town lays by up to 1 / 3 / 5 / 6 months (palisade to star fort) × its
+  wealth (0.8 to 2.4) × 1.5 for a capital × 1.25 a granary level, at most 14, a month's worth a
+  month while its realm is at war, paid at the grain price, and sells them off at 3 % a month in
+  peace. A harbour is fed half its need from the sea while the besieger has no fleet.
+- **Famous sieges** need a year and a half (a year named 200 in 700 years), 5,000 dead, or a
+  great capital taken after half a year.
+- **Towns' siege tallies** (sieges, held, taken) were never counted, though the events read them
+  for epithets ("the Unbowed", "the Oft-Taken"); now they are.
+- **Treachery** 0.3 % a month, × up to 3 for a disloyal town, × 1.6 another people, × 1.4 another
+  faith, × up to 3 in hunger, × 1.5 with gold to spend, × 0.6–1.4 by cunning; **surrender** once
+  starving, 10 to 70 % a month by hunger (× the people's rule); **slighting** 4 % + up to 12 %
+  far from the seat + 10 % after a sack + 10 % another people + 12 % after a year's siege, at
+  most half.
