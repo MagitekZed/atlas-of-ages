@@ -475,7 +475,8 @@ function bandTerrain(world, band, i) {
  * An army fights a band. opts: { hunt, quiet, name }. Returns { armyWon, d, deadA, deadB,
  * bandGone, slain, entry }. The band's family decides the kernel loss source.
  */
-const scourge = (band) => band.kind === 'undead' && Boolean(band.data && band.data.sc && band.data.sc.named);
+// a host with the makings of a Scourge (myth/sickness.js: data.sc), named or not
+const scourge = (band) => band.kind === 'undead' && Boolean(band.data && band.data.sc);
 
 export function clash(world, army, band, opts = {}) {
   const rng = world.rng;
@@ -500,7 +501,7 @@ export function clash(world, army, band, opts = {}) {
       band.morale = clamp((band.morale ?? 1) - 0.35, 0.05, 1.2);
       if (d > 0.35 || band.strength < 12) bandGone = true;
     } else if (scourge(band)) {
-      // a Scourge (myth/sickness.js) is ground down, not felled: each defeat costs it a share of its dead
+      // a Scourge, or a host that could become one, is ground down, not felled: each defeat costs it a share of its dead
       band.power *= 1 - clamp(0.12 + 0.3 * d + rng.next() * 0.05, 0.1, 0.5);
       if (band.power < 20) { bandGone = true; slain = true; }
     } else {

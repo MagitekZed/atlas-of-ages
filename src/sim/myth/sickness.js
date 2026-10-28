@@ -48,7 +48,7 @@
 //                     for a natural rising) × (½ + the mana where it rose) × log10(the dead to hand
 //                     / 500) (its own and the unrisen graves within 20 tiles). From 0.25 it has the
 //                     makings of a scourge: a ceiling × (1 + 4 × potential, ≤ 5) and more power from
-//                     each death (bands/kinds/undead.js). At 1 % of the world's people, three towns
+//                     each death (bands/kinds/undead.js). At 0.64 % of the world's people, six towns
 //                     overrun, it is named the Scourge: a master holds it only by great art (most
 //                     break free), it blights the towns within 8 tiles, the realms within 25 hunt
 //                     it together (bands/hunts.js) and want war less with each other; a year
@@ -720,7 +720,7 @@ const pickT = (world, arr) => arr[Math.floor(world.rng.next() * arr.length)];
 // ---------------------------------------------------------------------------
 // The Scourge
 
-const SCOURGE_AT = 0.01;     // its power as a share of the world's people, to be named
+const SCOURGE_AT = 0.0064;   // its power as a share of the world's people, to be named (1.6 × an ordinary host's ceiling)
 const DARK_YEARS = 25;       // years named before its darkness can fall
 const DARK_R = 35;           // the reach of its region
 
@@ -795,7 +795,11 @@ function scourgeMonth(world, st) {
   for (const band of list) {
     const sc = band.data.sc;
     if (!sc.named) {
-      if (band.state !== 'sleep' && band.power >= SCOURGE_AT * wp && fin(sc.n) >= 3) nameScourge(world, st, band, wp);
+      // how far the hosts with potential get (for the report and calibration)
+      const r = band.power / Math.max(60, 0.004 * wp);
+      if (r > fin(st.n.scPeak)) st.n.scPeak = Math.round(r * 100) / 100;
+      if (fin(sc.n) > fin(st.n.scTowns)) st.n.scTowns = sc.n;
+      if (band.state !== 'sleep' && band.power >= SCOURGE_AT * wp && fin(sc.n) >= 6) nameScourge(world, st, band, wp);
       continue;
     }
     if (yearly) heroesYear(world, st, band, wp);
@@ -851,7 +855,7 @@ function darknessYear(world, st, band, wp) {
     if (cap && Math.hypot(cap.x - D.x, cap.y - D.y) <= D.r && stability) stability.beginDarkAge(world, civ, 'dead');
   }
   // carried far beyond its region, or grown beyond all measure: the Age of the Dead
-  if (!sc.age && ages && (band.power >= 0.018 * wp || (sc.civs || []).length >= 6 || Math.hypot(band.x - D.x, band.y - D.y) > D.r + 10)) {
+  if (!sc.age && ages && (Math.hypot(band.x - D.x, band.y - D.y) > D.r + 10 || (band.power >= 0.018 * wp && day - D.day >= 5 * Y))) {
     sc.age = day;
     st.n.age = (st.n.age || 0) + 1;
     ages.forceAge(world, 'dead', {}, 40);
