@@ -339,11 +339,11 @@ export function feverAt(world, x, y) {
     const j = yy * W + xx;
     if (f.water[j] !== WATER.LAND) continue;
     const b = f.biome[j];
-    if (b === BIOME.WETLAND) v += 1; else if (b === BIOME.TROPICAL_FOREST || b === BIOME.RAINFOREST) v += 0.5;
+    if (b === BIOME.WETLAND) v += 1; else if (b === BIOME.TROPICAL_FOREST || b === BIOME.RAINFOREST) v += 0.25;
     if (f.river && f.river[j]) river = true;
   }
-  const heat = clamp((fin(f.temp[cy * W + cx], 10) - 4) / 16, 0.15, 1);
-  return clamp((v / 9 * 1.2 + (river ? 0.12 : 0)) * heat, 0, 1);
+  const heat = clamp((fin(f.temp[cy * W + cx], 10) - 8) / 14, 0.1, 1);
+  return clamp((v / 9 * 1.2 + (river ? 0.08 : 0)) * heat, 0, 1);
 }
 /** × how hard fever ground is on a people (ext feverRule: lizardfolk bear it, elves half). */
 const bearOf = (world, key) => (key && hasProviders('feverRule') ? mulOf('feverRule', world, key) : 1);
@@ -390,8 +390,8 @@ function groundYear(world, s, civ, sk, P, n) {
     let harm = 0;
     for (let j = 0; j < n; j++) { const b = bearOf(world, WK[j]); WD[j] = WS[j] * b; harm += WD[j]; }
     harm *= (0.15 + 0.85 * (1 - sk.sn)) * P.fever;
-    ht -= 0.15 * sk.fv * harm + 0.02 * sk.fv;
-    const dead = fin(s.population) * sk.fv * harm * 0.03;
+    ht -= 0.1 * sk.fv * harm + 0.015 * sk.fv;
+    const dead = fin(s.population) * sk.fv * harm * 0.015;
     if (dead >= 1) { WN = n; takeShared(world, s, dead, 'all', 'fever'); }
   }
   return { im, ht };
@@ -448,19 +448,22 @@ export function campMonth(world, army) {
   const P = physicOf(world, civ);
   const cf = fl.cf;
   if (cf) {
-    const loss = army.strength * 0.08 * fin(cf.k, 1) * P.cfr * clamp(fin(modsOf(world, civ).medicine, 1), 0.2, 1.5);
+    const loss = army.strength * 0.1 * fin(cf.k, 1) * P.cfr * clamp(fin(modsOf(world, civ).medicine, 1), 0.2, 1.5);
     CAMP.dead = loss * 0.8; CAMP.fled = loss * 0.2;
     cf.n = Math.round(fin(cf.n) + loss);
     army.morale = clamp(fin(army.morale, 1) - 0.04, 0.05, 1.2);
     if (world.rng.chance(0.3)) { delete fl.cf; if (cf.n >= 1000 && army.strength >= 2500 && !fl.cfh) carryHome(world, army, civ, cf); }
     return CAMP;
   }
-  const months = (world.time.day - fin(army.createdDay, world.time.day)) / DAYS_PER_MONTH;
-  if (months < 2 || army.warId == null) return CAMP;   // a host in the field, at war
+  // months in the field: the host's own, or most of its war's (a long war's camps stay foul)
+  const war = army.warId != null ? world.wars[army.warId] : null;
+  if (!war || !war.active) return CAMP;
+  const months = Math.max(world.time.day - fin(army.createdDay, world.time.day), 0.7 * (world.time.day - fin(war.startDay, world.time.day))) / DAYS_PER_MONTH;
+  if (months < 2) return CAMP;
   const key = civPeople(world, civ);
   const r = key ? peekRec(world, key) : null;
   const fv = feverAt(world, army.x, army.y) * bearOf(world, key) * P.fever;
-  const pr = 0.015 * clamp(months / 12, 0.1, 3) * clamp(Math.pow(army.strength / 2000, 0.35), 0.5, 2)
+  const pr = 0.03 * clamp(months / 12, 0.1, 3) * clamp(Math.pow(army.strength / 2000, 0.35), 0.5, 2)
     * (army.state === 'sieging' ? 2 : 1) * (fin(army.supply, 1) < 0.5 ? 1.5 : 1) * (seasonAt(world, army.y) === 2 ? 1.3 : 1)
     * (1 + 2 * fv) * (CUSTOMS[r ? r.c : 'plain'] || CUSTOMS.plain).inf * P.inf
     * (hasProviders('campRule') ? mulOf('campRule', world, army, civ) : 1);
@@ -835,7 +838,7 @@ export function healthParts(world, s) {
     let harm = 0;
     for (let j = 0; j < n; j++) harm += WS[j] * bearOf(world, WK[j]);
     harm *= (0.15 + 0.85 * (1 - fin(sk.sn))) * P.fever;
-    add('Fever ground', -(0.15 * sk.fv * harm + 0.02 * sk.fv));
+    add('Fever ground', -(0.1 * sk.fv * harm + 0.015 * sk.fv));
   }
   return out.sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
 }
@@ -860,7 +863,7 @@ export function sparedWhy(world, key, p) {
 registerProvider('siteBonus', 'health', (world, civ, i) => {
   const W = world.W;
   const fv = feverAt(world, i % W, Math.floor(i / W));
-  return fv > 0.05 ? -0.3 * fv * bearOf(world, civPeople(world, civ)) : 0;
+  return fv > 0.05 ? -0.2 * fv * bearOf(world, civPeople(world, civ)) : 0;
 });
 
 // the customs of a town's peoples, its physicians (its yearly pass)

@@ -207,3 +207,63 @@ yearly; fever ground is a cached field; camp fever is one roll per army per mont
   later and engineering can drain a marsh into farmland as a great work.
 - **Mythic peoples** (following the earlier chunks): each its own customs and healing lore at the
   start, as in Mechanics.
+
+## As built
+
+All in `sim/geo/health.js` (a new system, order 56), with hooks into `disease.js` (the plague
+step), `war.js` (camp fever, the fever's dead per war), `civ/rulers.js` (ext `illCure`),
+`myth/races.js` (ext `frailty`, `feverRule`) and `events/decks/town.js` (fire risk by material);
+the Inspector in `ui/views/health.js`. New ext points: `frailty`, `cleanRule`, `faithHealing`,
+`physicRule`, `illCure`, `feverRule`, `buildRule`, `campRule`; `townHealth` now clamps to
+−0.3…+0.12. New records: `sys.health.p` (per people: hardiness, custom, whose sicknesses it knows,
+when its bathhouses shut), `s.sick` (per town), `civ.physic`, `plague.op`/`byP`/`qs`/`qx`,
+`war.fever`, `army.flags.cf`.
+
+- **Peoples and sickness.** In a plague town each people catches it by √frailty × its custom ×
+  (1 + 0.4·virgin) and dies of it by √frailty × (1 + 3.5·virgin); frailty = the race's value
+  (Mythic) × (1 − hardiness). Hardiness rises by 0.8 × the share of a people a plague killed (to
+  0.4 at most) and fades 1.5 % a year; a great city (tier 4+) hardens its peoples toward 0.12.
+  Virgin soil: a people that has never met the plague's people, with homelands more than 12 % of
+  the map's diagonal apart, fully at 37 %. Peoples learn each other's sicknesses by sharing a town
+  (2 %+ each), by trade between their realms, and by surviving a plague. Mythic races share most
+  towns from the start, so virgin soil is a Historical matter.
+- **Customs** (infection × / health +): bathing 0.85 / +0.02, ritual washing 0.9 / +0.01, wells
+  apart 0.9 / +0.015, clean hearths 0.92 / +0.02, none 1 / 0, fear of water 1.15 / −0.02. Mythic:
+  elves and lizardfolk bathe, dwarves keep wells apart, halflings clean hearths, orcs fear water,
+  men by the land like a Historical people (seeded by the warmth of its homeland). After a notable
+  plague that killed 5 %+ of a bathing people, 35 %: it shuts its bathhouses (fear of water at
+  15 %+). A reformer of the newer theories (1.2 % a year in a realm with a city capital) raises a
+  people from fear or none to wells apart, or reopens shut bathhouses; a state faith of purity
+  brings its washings (2 % a year).
+- **Faiths** teach from their tenets: healing or monastic → tends the sick (deaths × 0.8 / 0.9;
+  in a notable plague its monks nurse a stricken town of another faith, 6 % a month: deaths × 0.85
+  there, +6 % converts), apocalyptic → penance (flagellant processions from an infected town, 10 %
+  a month, carry it to up to three towns of the faith), ascetic → purity (× 0.9 infection). A holy
+  city takes in sickness × 1.1 and its pilgrims carry it to the faith's far towns (15 % a month).
+- **Physicians:** spirits → humours (medicine) → bad air or contagion (anatomy; a neighbour's, or
+  three to two for bad air) → germs (vaccination); a rank-2 realm may take the rival school from a
+  neighbour half again its size (3 % a year). Mythic lores at the start: herb-lore (elves), stone-
+  physic (dwarves), hearth-remedies (halflings), spirit-shamans (orcs), swamp-physic (lizardfolk).
+  Each theory sets infection, deaths, health, a quarantine readiness, the death hazard of an ill
+  ruler (humours 1.25, germs 0.7) and fever's harm (PHYSIC in health.js). Quarantine: a town of
+  tier 2+ within 8 tiles of an infected one, 20 % × readiness a month: plague dose × 0.35, trade
+  × 0.75 for 180 days. A city of tier 4+ behind shut gates that the plague never reached credits a
+  physician (one line per plague).
+- **Housing:** slums follow crowding in towns over 3,000 (people against housing above 0.7 ×
+  size), clear at 8 % a year (×2.5 with sewers): infection × (1 + 0.5·slums), health −0.08·slums.
+  Material by land: stone in the hills, mud brick on plains and in dry lands, timber elsewhere;
+  great cities of era 3+ turn to stone (2 % a year), and at once after a great fire. Fire risk ×
+  1.2 timber, 0.8 mud brick, 0.55 stone.
+- **Fever ground:** 3×3 tiles: marsh 1, hot wet forest 0.5, a river +0.12, by heat; read once a
+  century. Harm = the peoples' bearing (lizardfolk 0, elves ½) × (0.15 + 0.85 × unseasoned) × the
+  theory's fever factor: health −0.15·fever·harm − 0.02·fever, and 3 %·fever·harm of the town a
+  year. Seasoning rises a twenty-fifth of the way a year; a people born on fever ground arrives
+  at 0.8; conquest sets it back 15 %. Settlers score fever ground −0.3·fever. Draining: a realm
+  with bad air, contagion or germs and engineering, with 1.5× half a year's income, 5 % a year,
+  its worst fever town (tier 2+, fever 0.3+): eight years' work, then fever × 0.25 and food × 1.1.
+- **Camp fever:** a host at war two months or more: 1.5 % a month × months/12 (0.1–3) × size
+  ((strength/2000)^0.35, 0.5–2) × 2 in siege lines × 1.5 hungry × 1.3 in summer × (1 + 2 × fever
+  ground) × its people's custom × its physicians. A fever runs about three months, costing 8 % ×
+  severity (0.6–1.4) × the physicians' deaths × medicine of the host a month, a fifth of it
+  deserters who walk home. A great host (2,500+, 1,000+ lost) may carry it home as a plague: 6 % ×
+  the world's room for a new pestilence, once in 60 years at most.

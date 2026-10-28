@@ -1441,7 +1441,9 @@ function casualty(world, army, n, src, tally = true) {
     const g = geoOf(world, war);
     g.monthCas[army.civId] = (g.monthCas[army.civId] || 0) + d;
     war.casualties[army.civId] = (war.casualties[army.civId] || 0) + d;
-    if (src === 'plague') (war.fever ||= {})[army.civId] = (war.fever[army.civId] || 0) + d;   // the fever's dead apart (health.js)
+    // the fever's dead apart (health.js), and the sword's, to weigh them
+    if (src === 'plague') (war.fever ||= {})[army.civId] = (war.fever[army.civId] || 0) + d;
+    else if (src === 'battle') (war.slain ||= {})[army.civId] = (war.slain[army.civId] || 0) + d;
   }
   return d;
 }
