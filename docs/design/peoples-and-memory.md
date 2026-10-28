@@ -190,3 +190,39 @@ F. Gates, the twelve worlds, speed and save size.
   pogroms are rare but remembered; some realms grant equality and draw migrants.
 - **Great migrations: a few per world per millennium,** damped so they reshape a frontier
   without swamping realms.
+
+## As built (2026-10-27)
+
+Modules: `geo/folk.js` (a system of its own, order 72: the peoples, town mixes, feelings,
+cultural distance, standings and waves), `ui/views/folk.js` (a town's and a realm's peoples, a
+people's record) and the peoples in the Almanac. Hooks from the realm side: `settled` and
+`migrants` (`civ/expansion.js`), `royalMatch` (`civ/dynasty.js`), `townRazed` (`geo/war.js`);
+the ext points `townGrievance` (`civ/settlement.js` adds it to a town's grievances), `kinRule`
+(the Mythic races' old table, `myth/races.js`), `assimilateRule`, `minorityRule`, `migrateRule`.
+Diplomacy's target opinion reads the peoples' feelings (× 0.35) and how alike the realms are
+(12 × (0.45 − distance)); Mythic migration reads the feelings instead of the fixed table, Mythic
+towns' own expulsions need their realm to persecute that race, and a realm's decree of expulsion
+drives a race out through `myth/peoples.js` (`expelDecree`). Choices made while building:
+
+- **Historical mixes are shares only** (no age bands per people: those cost Mythic worlds a
+  fifth of their speed); a Historical people remembers as men do (a grudge 40 years, a kindness 25).
+- **Feelings, slower.** The first run moved them three to ten times as fast: they sat at ±100 and
+  persecution fed on itself (140 expulsions in 600 years). Now a year at war sours the defenders
+  by 1.5 and the attackers by 0.8 and warms allies by 0.6; a razing −10, a conquest −2, a
+  liberation +4, trade up to +0.3 a year, a royal match +1.5, persecution −6, a pogrom −6, an
+  expulsion −15, equality +6.
+- **Standings:** harshness = 0.6 × the ruling people's dislike + 0.9 × (0.5 − mercy) + 0.7 ×
+  (0.5 − tolerance) + 0.25 × (piety − 0.5), ± 0.15 for the faith law, up to 0.23 in hard times,
+  ± 0.1 for a minority of a quarter or more; equal below −0.35, tolerated to 0.35, taxed to 0.6
+  (a greedy ruler), persecuted to 0.95, expelled beyond — after ten years of persecution (or
+  past 1.2), and never twice in sixty years. A taxed minority adds up to 12 % of its share to
+  the crown's take. Pogroms need a restless town in a shaken realm or a hungry one, one a realm
+  in fifteen years.
+- **Waves** start at a pressure of 0.6 (the worst region reaches 1 only a few years a century),
+  at 8 % × (pressure − 0.4) a year: three to five a world in a thousand years, of 2,000 to 6,000.
+- **Caches by the day** and **places in the record shapes** for the realms' and towns' new fields
+  (and chunk 7's: purse, laws, estates, court), or a reloaded world reads or orders things
+  differently from a running one.
+- **A silent failure caught:** a name clash in `geo/diplomacy.js` stopped it loading, and the
+  loader skipped it and the war module without a word (a world without wars). Probes now list
+  the systems they load.
