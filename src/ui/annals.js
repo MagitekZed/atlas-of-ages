@@ -1,6 +1,6 @@
 // The Annals — the Annals tab (key R). Four leaves:
 //   Almanac    every war, plague, faith, eruption, quake, storm, fire, other catastrophe,
-//              great figure, wonder, trade road, dynasty, treasure, fallen nation, historic site and
+//              great figure, wonder, trade road, dynasty, treasure, people, fallen nation, historic site and
 //              roaming band that ever was: searchable, sortable (recent, oldest, toll, length,
 //              size) and filtered (living or ended); every row opens its record
 //   Records    the Hall of Records: the superlatives of this world as cards — holder, value,
@@ -32,7 +32,7 @@ const CATS = [
   ['wars', 'Wars', 'war'], ['plagues', 'Plagues', 'plague'], ['faiths', 'Faiths', 'faith'],
   ['eruptions', 'Eruptions', 'volcano'], ['quakes', 'Quakes', 'quake'], ['storms', 'Storms', 'storm'],
   ['fires', 'Fires', 'wildfire'], ['disasters', 'Other catastrophes', 'flood'], ['figures', 'Great people', 'star'],
-  ['wonders', 'Wonders', 'wonder'], ['routes', 'Trade roads', 'trade'], ['dynasties', 'Dynasties', 'crown'], ['treasures', 'Treasures', 'star'],
+  ['wonders', 'Wonders', 'wonder'], ['routes', 'Trade roads', 'trade'], ['dynasties', 'Dynasties', 'crown'], ['treasures', 'Treasures', 'star'], ['peoples', 'Peoples', 'people'],
   ['fallen', 'Fallen nations', 'nations'], ['sites', 'Ruins and sites', 'ruin'], ['bands', 'Bands', 'army'],
 ];
 const SORTS = [['recent', 'Most recent'], ['oldest', 'Oldest first'], ['toll', 'Greatest toll'], ['long', 'Longest'], ['size', 'Greatest']];
@@ -116,6 +116,10 @@ export function almanacIndex(w) {
       const living = c.alive && dynastyName(c.ruler?.dynasty) === n;
       push({ cat: 'dynasties', icon: 'crown', label: n, sub: `${c.name} · ${F.lifespan(x.start, living ? null : x.end)}`, n: `${x.n} rulers`, toll: 0, size: (living ? day : x.end) - x.start, start: x.start, end: living ? day : x.end, live: living, sel: { kind: 'dynasty', id: `${c.id}:${n}` } });
     }
+  }
+  // the peoples of a Historical world (sim/geo/folk.js)
+  for (const p of w.sys?.civ?.folk?.p || []) {
+    push({ cat: 'peoples', icon: 'people', label: F.headName(p.name), sub: `A people since Y${yearOf(p.born)}${p.gone != null ? ` · gone Y${yearOf(p.gone)}` : ''}`, n: p.peak ? F.people(p.peak) + ' at most' : '', toll: 0, size: fin(p.peak), start: p.born, end: p.gone ?? day, live: p.gone == null, sel: { kind: 'folk', id: 'f:' + p.id } });
   }
   // named treasures (sim/civ/treasures.js): where each is now
   for (const t of w.sys?.civ?.art?.t || []) {
