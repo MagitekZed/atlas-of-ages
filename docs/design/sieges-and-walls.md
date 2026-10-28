@@ -217,3 +217,45 @@ the siege's lines in the Chronicle, a capture told by how it fell, slighting aft
   starving, 10 to 70 % a month by hunger (× the people's rule); **slighting** 4 % + up to 12 %
   far from the seat + 10 % after a sack + 10 % another people + 12 % after a year's siege, at
   most half.
+
+## Results (2026-10-27)
+
+### Gates
+
+All pass: `npm test`, the Mythic trial, the cohort check, the keyframe check, three 300-year
+Mythic trials, and the hand check with and without myth. The long trials first failed a save →
+load → continue: a town's new `wall` field had no place in the settlement record's shape
+(`core/world.js SETTLEMENT_SHAPE`, `core/entities.js`), so a loaded town listed its fields in
+another order than a running one and the saved text differed. Fixed by giving it a place.
+
+### Twelve worlds against main
+
+Against main at d3befc9 (with chunk 9):
+
+    Historical Y500   pop −1%  realms  +4%  towns +4%  wars  +3%  at war 0.173→0.147  war length 2.5→1.9y
+    Mythic     Y500   pop −8%  realms  −5%  towns −8%  wars −10%  at war 0.141→0.105  war length 2.5→1.8y
+    Historical Y1000  pop +0%  realms +12%  towns +4%  wars +11%  at war 0.236→0.252  war length 1.9→1.8y
+    Mythic     Y1000  pop −3%  realms  +1%  towns −1%  wars  +8%  at war 0.230→0.210  war length 2.0→1.7y
+
+- **How towns fall** (twelve worlds, a thousand years; main has a single way): stormed 6,691
+  (54 %), surrendered 2,444 (20 %), mined 1,498 (12 %), betrayed 1,363 (11 %), rebel seats
+  crushed 437, gates opened from memory 24. Towns taken: 12,457 (main 9,113, +37 %).
+- **How long it takes** (per world, days to take a town): the fastest tenth 36 to 45 (main 165
+  to 180), the median 126 to 199 (main 234 to 261), the slowest tenth 317 to 559 (main 378 to
+  465), the longest 858 to 1,265 (main 891 to 1,415). Behind stone walls the slowest tenth now
+  takes 636 days (main 511) and the longest 1,371 (main 1,181); the very longest sieges more
+  often end with the town holding out until the peace ("the Siege of Anlee ended after three
+  years: Anlee held out").
+- **Wars** run a little shorter (towns fall faster), and realm and war counts stay near main's.
+
+### Speed
+
+Fresh Year-900 saves from main, 100 years, three rounds: −2.0 % (Historical) and +11.6 %
+(Mythic) per simulated year. The siege code itself is cheap (the war system +0.4 ms a year in
+the Historical world); the Mythic save's century went another way: 15 realms at its end against
+10, 1.4 wars at a time against 1.0, twice the sieges under way.
+
+### Save
+
+A Year-900 save from main, 100 years on: 25.54 MB on main, 25.44 MB on the branch (−0.4 %). A
+save from before chunk 7 loads and runs; its towns' walls are read on first use.
