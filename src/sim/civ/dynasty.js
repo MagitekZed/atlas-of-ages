@@ -309,7 +309,8 @@ function resolveUnion(world, senior, junior, prev, since) {
 /**
  * A royal match between two crowns (a, b: civs or ids). The stronger crown's ruler (or heir)
  * weds a prince or princess of the other: opinion and trust rise, and each house gains a
- * claim on the other's throne (the stronger 0.35, the weaker 0.2). opts: { divine, cause }.
+ * claim on the other's throne (the stronger 0.35, the weaker 0.2). opts: { divine, cause, routine
+ * (a match of the yearly round: less warmth, a minor entry) }.
  * Returns { ok, entry, seq, a, b, message } or { ok: false, reason }.
  */
 export function arrangeMarriage(world, a, b, opts = {}) {
@@ -333,8 +334,9 @@ export function arrangeMarriage(world, a, b, opts = {}) {
     x.claims ||= {};
     x.claims[y.id] = Math.min(1, fin(x.claims[y.id], 0) + v);
   }
-  addOpinion(world, A.id, B.id, opts.divine ? 30 : 15);
-  for (const [x, y] of [[A, B], [B, A]]) { const r = rel(world, x.id, y.id); r.trust = Math.min(1, fin(r.trust, 0.5) + 0.1); }
+  // a routine match (matchYearly) warms the two courts only a little: royal weddings were common
+  addOpinion(world, A.id, B.id, opts.divine ? 30 : opts.routine ? 5 : 15);
+  for (const [x, y] of [[A, B], [B, A]]) { const r = rel(world, x.id, y.id); r.trust = Math.min(1, fin(r.trust, 0.5) + (opts.routine ? 0.03 : 0.1)); }
   const st = world.sys.civ;
   if (st) {
     st.marriages.push({ a: A.id, b: B.id, day, house: B.dynasty || null });
@@ -364,7 +366,7 @@ export function arrangeMarriage(world, a, b, opts = {}) {
       `The courts of ${theName(A)} and ${theName(B)} were joined when ${who} ${young ? 'was betrothed to' : 'wed'} ${bride.name}, ${kin} of ${rulerShort(B.ruler)}, with ${pick(world, ['three days of feasting', 'tourneys and a great hunt', 'gifts of horses and gold'])}.`,
     ]);
   const entry = record(world, {
-    cat: opts.divine ? 'divine' : 'diplomacy', imp: opts.divine ? 3 : 2, key: opts.divine ? 'divine.arrange_marriage' : 'dynasty.marriage',
+    cat: opts.divine ? 'divine' : 'diplomacy', imp: opts.divine ? 3 : opts.routine ? 1 : 2, key: opts.divine ? 'divine.arrange_marriage' : 'dynasty.marriage',
     civ: A, ref: rulerRef(A, A.ruler), tags: ['marriage'], cause: opts.cause ?? null,
     text,
   });
@@ -400,7 +402,7 @@ export function matchYearly(world, civ) {
     if (sc > bs) { bs = sc; best = o; }
   }
   if (!best || bs < 0.6) return null;
-  const res = arrangeMarriage(world, civ, best);
+  const res = arrangeMarriage(world, civ, best, { routine: true });
   return res && res.ok ? res : null;
 }
 

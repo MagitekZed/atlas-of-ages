@@ -252,3 +252,40 @@ F. Gates, the twelve worlds, speed and save size.
   everywhere; each Mythic people's own treasures (dwarven runeblades, elven starglass, orc
   war-totems, lizardfolk egg-stones, halfling heirloom books), with real powers for whoever
   holds them.
+
+## As built (2026-10-27)
+
+Modules: `civ/kin.js` (the families: the store, births, deaths, marriages, bastards, the prune,
+the line, the successor and the danger behind them, matches, claims from the line, seeding old
+saves), `civ/treasures.js` (treasures and their turns), `ui/views/kin.js` (the family and line on
+a ruler's record, a person's record, a house's tree, the royal house and treasures in a realm's
+dossier, a treasure's record; treasures in the Almanac). Succession (`civ/rulers.js`) reads the
+line: the first at home, else the next in blood abroad (`foreignSuccession`), refused or not
+(`refusedHeir`); crises take their pretender from the tree, and a kinsman may seize the throne
+from a child (`successionCrisis`) or plot for it (`ambitions.js kinPlotYear`, `seizeThrone`).
+Regents come from the tree (`dynasty.js startRegency`); a divided realm's second share goes to
+the real second heir, or there is no split (`laws.js`); a restored realm crowns its exiled
+ruler or their heir; a crown leaving a union takes back its old house if any of it lives. Mythic
+peoples' rules in `myth/identity.js`. Ext points `heirRule`, `houseRule`, `royalBirths`,
+`bastardRule`, `matchRule`. Choices made while building, with the reasons:
+
+- **Royal matches abroad, yearly.** Matches came only from the event deck (three or four in six
+  hundred years), so almost no one stood in a foreign line. A royal house with someone to wed
+  now seeks a match at 6 % a year among the houses it knows and does not hate: about one a
+  decade per world.
+- **Claims come from the line.** A match no longer adds a fixed claim for a house on record
+  (that claim drifted into wars of succession by itself); a realm whose people stand in another
+  realm's line holds a claim the stronger the fewer heirs that realm has at home (0.65 with
+  none, 0.45 with one, under the 0.4 a war needs with two or more).
+- **Heirs abroad come last.** Members of a house living at another court (a princess married
+  abroad, her children) stand after everyone at home, so a crown goes abroad only when the house
+  at home has died out, as decided. A consort of a sitting ruler never leaves to take another
+  crown.
+- **Smaller families.** Courts first grew a dozen children per couple; a royal wife's chance of a
+  child a year now peaks at 27 % (in her twenties). No two living members of a court share a
+  name, save a son named for his father.
+- **Bastards** are fathered by rulers and their brothers (of low honour); **the elective law**
+  picks the ablest of the first six grown at home.
+- **Treasures:** regalia only for kingdoms, empires, feudal realms and theocracies of 15,000
+  people from the Bronze Age on; treasures of power at most three made per realm, and several of
+  a kind lend no more than about two.
