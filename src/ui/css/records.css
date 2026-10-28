@@ -239,3 +239,13 @@ table.data.hand-report th[scope="row"], table.data.hand-numbers th[scope="row"] 
 .hand-arrow.boon { color: var(--good); }
 .hand-arrow.bane { color: var(--danger); }
 .hand-arrow.even { color: var(--ink-3); }
+
+/* dynasties (views/kin.js): a house's family tree, families in a record */
+ul.kin-tree { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 1px solid var(--rule-2); display: flex; flex-direction: column; gap: 3px; }
+ul.kin-tree.is-root { border-left: 0; padding-left: 0; }
+ul.kin-tree li > ul.kin-tree { margin-top: 3px; }
+ul.kin-tree .kin-row { display: inline; }
+ul.kin-tree .yrs { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-3); }
+ul.kin-tree li:not(.is-living) > .kin-row .link { color: var(--ink-2); }
+ul.kin-tree .kin-crown { color: var(--brass); }
+.kin-list .kin-dead { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink-3); }

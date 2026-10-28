@@ -35,6 +35,7 @@ import { theName, TheName, rulerName, pick } from './prose.js';
 import { splitCiv } from './peoples.js';
 import { makeRuler, installRuler } from './rulers.js';
 import { estatePower } from './power.js';
+import { kinOf, lineOf, asPerson, grownKin } from './kin.js';
 
 export const LAWS = {
   inherit: ['eldest', 'divided', 'elective', 'seniority'],
@@ -187,13 +188,23 @@ on('succession', (world, civ, prev, r, how) => {
   if (how !== 'heir' && how !== 'kin') return;
   if (civ.settlementIds.length < SPLIT_MIN || civ.flags?.union) return;
   if (!world.rng.chance(SPLIT_P)) return;
-  civ.flags.partition = { day: world.time.day, prev: prev ? rulerName(prev) : null };
+  civ.flags.partition = { day: world.time.day, prev: prev ? rulerName(prev) : null, pid: prev ? prev.id ?? null : null };
 });
 
 // the seniority law: grown heirs, a little more legitimacy
 on('succession', (world, civ, prev, r, how) => {
   if (civ && civ.laws && civ.laws.inherit === 'seniority' && (how === 'heir' || how === 'kin')) civ.legitimacy = Math.min(1, fin(civ.legitimacy, 0.6) + 0.03);
 });
+
+/** The dead ruler's next heir at home after the one crowned: a child or sibling of the dead, grown or nearly. */
+function pickSecond(world, civ, dead, heir) {
+  for (const p of lineOf(world, civ, dead, { abroad: false, max: 6 })) {
+    if (heir && p.id === heir.id) continue;
+    const near = p.f === dead.id || p.m === dead.id || (dead.f != null && p.f === dead.f);
+    if (near && grownKin(world, civ, p, 12)) return asPerson(world, civ, dead, p);
+  }
+  return null;
+}
 
 /** At the end of a month a realm marked for partition is split between its heirs. */
 export function partitionMonthly(world, civ) {
@@ -212,13 +223,18 @@ export function partitionMonthly(world, civ) {
   const half = Math.floor(towns.length / 2);
   if (share.length < 2 || share.length > towns.length - 2) share = towns.slice(0, half);
   const heir = civ.ruler;
+  // the younger heir is the next in the dead ruler's line after the new one (kin.js): no second
+  // heir at home, no split
+  const dead = kinOf(world, pt.pid);
+  const second = dead ? pickSecond(world, civ, dead, heir) : null;
+  if (dead && !second) return;
   const res = splitCiv(world, civ, share.map((s) => s.id), { cause: 'partition', government: civ.government, nameFrom: 'city', loyalty: 0.75 });
   if (!res) return;
   const kid = res.civ;
   // a younger heir of the same house; the two crowns kin, allied, each with a claim on the other
   const house = civ.dynasty || heir?.dynasty || null;
   if (house) kid.dynasty = house;
-  const r = makeRuler(world, kid, { dynasty: house, age: [16, 36], inherit: heir?.traits });
+  const r = makeRuler(world, kid, { dynasty: second?.house || house, age: [16, 36], inherit: heir?.traits, person: second });
   installRuler(world, kid, r, null);
   kid.laws = { ...lawsOf(world, civ), since: { ...civ.laws.since } };
   for (const [a, b] of [[civ, kid], [kid, civ]]) {

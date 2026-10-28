@@ -34,6 +34,7 @@ import { fin, record, rulerRef } from './state.js';
 import { theName, TheName, rulerName, rulerShort, fmtInt, pick } from './prose.js';
 import { ERAS } from '../../core/constants.js';
 import { makePerson } from '../../core/names.js';
+import { personOfRuler, spouseOf, marryNoble, kinBorn, syncSpouse, syncHeir } from './kin.js';
 import {
   resolveTarget, blessPlan, cursePlan, renamePlan, settlersPlan, cedePlan, wonderChoices, wonderLabel,
   previewBless, previewCurse, previewSmite, previewGrantHeir, previewGiftTech, previewCommission, previewRename,
@@ -203,8 +204,19 @@ registerTool({
     const { civ, ruler } = rulerOf(world, target);
     let born = null;
     if (!ruler.heir) {
-      const gender = world.rng.chance(0.5) ? 'm' : 'f';
-      ruler.heir = { name: makePerson(civ.language, world.rng), gender, born: world.time.day, relation: gender === 'f' ? 'daughter' : 'son' };
+      // a child of the ruler and their consort (kin.js), married first if need be
+      const me = personOfRuler(world, civ, ruler);
+      if (me) {
+        const sp = spouseOf(world, me) || marryNoble(world, civ, me);
+        const [w, h] = me.g === 'f' ? [me, sp] : [sp, me];
+        kinBorn(world, civ, w, h);
+        syncSpouse(world, civ, ruler, me);
+        syncHeir(world, civ);
+      }
+      if (!ruler.heir) {
+        const gender = world.rng.chance(0.5) ? 'm' : 'f';
+        ruler.heir = { name: makePerson(civ.language, world.rng), gender, born: world.time.day, relation: gender === 'f' ? 'daughter' : 'son' };
+      }
       born = ruler.heir;
     }
     civ.flags.heirSecured = true;

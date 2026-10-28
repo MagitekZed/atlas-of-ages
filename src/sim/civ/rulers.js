@@ -22,7 +22,7 @@
 // usurper | civil war | union | revolution | divine | restoration | deposed.
 
 import { makePerson, makeWord, isEnglishWord } from '../../core/names.js';
-import { civSettlements, enemiesOf } from '../../core/entities.js';
+import { civSettlements, enemiesOf, startWar, rel, areAtWar, addOpinion } from '../../core/entities.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
 import { emit, on } from '../../core/hooks.js';
 import { skillsOf, growSkills, useSkill, bodyOf, wound, madTemper, settleAmbition, SK, WOUND_WORDS, WOUND_EPITHETS, ILLNESSES } from '../../core/character.js';
@@ -30,10 +30,11 @@ import { mulOf, hasProviders, registerProvider } from '../../core/ext.js';
 import { RULER_TRAITS, GOVERNMENTS, isDynastic } from './data.js';
 import { rulerTitle, govDef, adoptGovernment, revolutionTarget } from './government.js';
 import { refreshMods, getMods } from './tech.js';
-import { splitCiv } from './peoples.js';
+import { splitCiv, roughPower } from './peoples.js';
 import { fin, record, rateOk, rulerRef, DYNASTY_CAP } from './state.js';
 import { theName, TheName, PeopleOf, peopleOf, rulerName, rulerShort, pick, roman } from './prose.js';
-import { heirOnInstall, takeHeir, unionSuccession, onRulerGone, startRegency, unionPartner } from './dynasty.js';
+import { heirOnInstall, takeHeir, unionSuccession, onRulerGone, startRegency, unionPartner, joinCrowns, canJoin } from './dynasty.js';
+import { personOfRuler, pickSuccessor, asPerson, kinOf, kinDied, kinSetAside, grownKin, spouseOf, relationWords } from './kin.js';
 import { epithetFor, EPITHET_THEMES } from './epithets.js';
 import { rulerAmbitionYear, heirPlotYear } from './ambitions.js';
 import { figureDies } from './culture.js';
@@ -182,7 +183,7 @@ export function makeRuler(world, civ, opts = {}) {
     born = world.time.day - Math.round(age * DAYS_PER_YEAR) - world.rng.int(0, 359);
   }
   const r = {
-    id: st ? st.nextPersonId++ : 0,
+    id: p && p.id != null ? p.id : st ? st.nextPersonId++ : 0,
     name, title: '', epithet: null, regnal: 1,
     born,
     reignStart: world.time.day,
@@ -317,7 +318,7 @@ export function rulersMonthly(world, civ, agg) {
     considerEpithet(world, civ, r);
     // what the ruler wants, and an heir who will not wait (ambitions.js)
     rulerAmbitionYear(world, civ, r);
-    heirPlotYear(world, civ, r, succession);
+    heirPlotYear(world, civ, r, succession, seizeThrone);
   }
 }
 
@@ -480,23 +481,38 @@ export function succession(world, civ, cause, agg = {}, opts = {}) {
   if (shared) return shared;
 
   if (g.succession === 'hereditary') {
-    // an heir in waiting, else kin of the wider house, else a crisis (a secured heir averts it)
+    // the line of the royal house (kin.js), else (no family on record) an heir in waiting or kin
+    // of the wider house; a weak first heir or a strong rival behind invites a crisis (a secured
+    // heir averts it)
     const secured = Boolean(civ.flags.heirSecured);
     civ.flags.heirSecured = false;
-    const heirP = takeHeir(world, civ, prev);
-    const kin = !heirP && world.rng.chance(0.6);
-    const hasHeir = Boolean(heirP) || kin || secured;
-    const pCrisis = secured ? 0 : (hasHeir ? 0.02 : 0.3) * g.crisis * (1.4 - civ.legitimacy) * (cause === 'assassinated' ? 1.6 : 1) / sf;
-    if (world.rng.chance(Math.min(0.9, pCrisis))) {
-      const res = successionCrisis(world, civ, prev, cause, died, n, heirP, base, tagsOf, keyOf, impOf);
+    const me = isDynastic(civ.government) ? personOfRuler(world, civ, prev) : null;
+    const pk = me ? pickSuccessor(world, civ, me) : null;
+    let heirP = null;
+    // the house has died out at home: the next in blood abroad (a union of crowns, a prince or
+    // princess come home), unless the great refuse them
+    if (pk && !pk.first && pk.abroad.length && !secured) {
+      const res = foreignSuccession(world, civ, prev, died, cause, base, impOf, keyOf, tagsOf, me, pk);
       if (res) return res;
     }
-    const heir = makeRuler(world, civ, { dynasty: prev.dynasty || civ.dynasty, age: [16, 40], inherit: prev.traits, person: heirP });
+    if (pk && pk.first) { heirP = asPerson(world, civ, me, pk.first); prev.heir = null; }
+    else if (!me) heirP = takeHeir(world, civ, prev);
+    const kin = !heirP && !me && world.rng.chance(0.6);
+    const hasHeir = Boolean(heirP) || kin || secured;
+    const pCrisis = secured ? 0 : (hasHeir ? 0.02 * (pk ? pk.danger : 1) : 0.3) * g.crisis * (1.4 - civ.legitimacy) * (cause === 'assassinated' ? 1.6 : 1) / sf;
+    if (world.rng.chance(Math.min(0.9, pCrisis))) {
+      const res = successionCrisis(world, civ, prev, cause, died, n, heirP, base, tagsOf, keyOf, impOf, pk);
+      if (res) return res;
+    }
+    const heir = makeRuler(world, civ, { dynasty: heirP?.house || prev.dynasty || civ.dynasty, age: [16, 40], inherit: prev.traits, person: heirP });
     const relw = heirP ? `${pron(prev)} ${heirP.relation || (heir.gender === 'f' ? 'daughter' : 'son')}` : kinWord(world, prev, heir);
-    installRuler(world, civ, heir, cause, { how: heirP ? 'heir' : 'kin' });
+    const how = pk && pk.first ? (pk.how === 'elected' ? 'heir' : pk.how) : heirP ? 'heir' : 'kin';
+    installRuler(world, civ, heir, cause, { how });
     civ.legitimacy = Math.min(1, 0.55 * civ.legitimacy + 0.35);
     const child = startRegency(world, civ, heir, prev);
-    let text = `${died}; ${relw} ${rulerShort(heir)} took the throne`;
+    let text = pk && pk.how === 'elected'
+      ? `${died}; the great of the realm chose ${relw} ${rulerShort(heir)} from among the royal blood`
+      : `${died}; ${relw} ${rulerShort(heir)} took the throne`;
     if (child) {
       text += child.long
         ? `, still a child by the long reckoning of ${peopleOf(civ)}, with ${child.regentPhrase} ruling in ${heir.gender === 'f' ? 'her' : 'his'} name`
@@ -552,6 +568,73 @@ export function succession(world, civ, cause, agg = {}, opts = {}) {
   return e;
 }
 
+/**
+ * The crown goes abroad (kin.js: the line at home is empty): the first of the blood at another
+ * court who can take it. A foreign ruler joins the two crowns (dynasty.js joinCrowns); a prince or
+ * princess comes home to reign. The great may refuse a foreigner (more readily one of another
+ * people, a realm at war with them or hated; less one of their own house) and crown one of their
+ * own, founding a new house; the refused heir's realm keeps its claim and may fight for it.
+ * Returns the chronicle entry, or null to go on with the ordinary succession.
+ */
+function foreignSuccession(world, civ, prev, died, cause, base, impOf, keyOf, tagsOf, me, pk) {
+  for (const p of pk.abroad.slice(0, 4)) {
+    const A = world.civs[p.c];
+    if (!A || !A.alive || A.id === civ.id) continue;
+    const isRuler = Boolean(A.ruler && A.ruler.id === p.id);
+    const sp = spouseOf(world, p);
+    if (!isRuler && sp && A.ruler && sp.id === A.ruler.id) continue;   // a consort stays at their crown's side
+    if (isRuler && !canJoin(world, civ, A)) continue;
+    const words = relationWords(world, me, p) || (p.g === 'f' ? 'kinswoman' : 'kinsman');
+    let refuse = 0.25;
+    if ((A.race ?? null) !== (civ.race ?? null)) refuse += 0.2;
+    if (areAtWar(world, A.id, civ.id) || fin(rel(world, civ.id, A.id).opinion) < -20) refuse += 0.25;
+    if (p.h && p.h === (me.h || civ.dynasty)) refuse -= 0.12;
+    if (world.rng.chance(refuse)) return refusedHeir(world, civ, prev, died, cause, base, impOf, keyOf, tagsOf, A, p, words);
+    if (isRuler) {
+      return joinCrowns(world, civ, A, prev, cause, base, (capB) => [
+        `${died} leaving no heir at home; the crown passed to ${pron(prev)} ${words} ${rulerName(A.ruler)} of ${theName(A)}, and the two realms were joined under one ruler.`,
+        `${died}, the last of ${pron(prev)} line at home; by right of blood the throne fell to ${rulerShort(A.ruler)} of ${theName(A)}, ${pron(prev)} ${words}, who now governed both crowns from ${capB ? capB.name : 'abroad'}.`,
+      ], words);
+    }
+    const heirP = asPerson(world, civ, me, p);
+    const heir = makeRuler(world, civ, { dynasty: heirP.house || prev.dynasty || civ.dynasty, age: [16, 40], inherit: prev.traits, person: heirP });
+    if (heir.dynasty && heir.dynasty !== civ.dynasty) startDynasty(world, civ, heir.dynasty, 'passed to another house', heir);
+    installRuler(world, civ, heir, cause, { how: 'kin' });
+    civ.legitimacy = Math.min(1, 0.5 * civ.legitimacy + 0.3);
+    const child = startRegency(world, civ, heir, prev);
+    const capA = world.settlements[A.capitalId];
+    const e = record(world, { ...base, imp: impOf(3), key: keyOf('succession.abroad'), tags: tagsOf(['abroad', ...(child ? ['regency'] : [])]), text: pick(world, [
+      `${died}, the last of ${pron(prev)} line at home; ${pron(prev)} ${words} ${rulerShort(heir)} came from the court of ${theName(A)} to take the throne${child ? `, a child, under the regency of ${child.regentPhrase}` : ''}.`,
+      `${died} with no heir in the realm, and the great sent to ${capA ? capA.name : theName(A)} for ${pron(prev)} ${words} ${rulerShort(heir)}, who was crowned${heir.dynasty !== prev.dynasty && heir.dynasty ? `, bringing the ${heir.dynasty.replace(/^the\s+/i, '')} to the throne` : ''}.`,
+    ]) });
+    onRulerGone(world, civ, prev, heir, 'kin');
+    return e;
+  }
+  return null;
+}
+
+/** The great will not have the foreign heir: one of their own founds a new house; the refused realm may fight. */
+function refusedHeir(world, civ, prev, died, cause, base, impOf, keyOf, tagsOf, A, p, words) {
+  const nr = makeRuler(world, civ, { age: [30, 55] });
+  const dyn = newDynastyName(world, civ, nr.name);
+  startDynasty(world, civ, dyn, 'the crown refused abroad', nr);
+  nr.dynasty = dyn;
+  installRuler(world, civ, nr, cause, { how: 'council' });
+  civ.legitimacy = 0.45;
+  A.claims ||= {};
+  A.claims[civ.id] = Math.max(fin(A.claims[civ.id]), 0.7);
+  addOpinion(world, A.id, civ.id, -20);
+  let tail = '';
+  if (A.ruler && !areAtWar(world, A.id, civ.id) && roughPower(world, A) > 0.8 * roughPower(world, civ) && world.rng.chance(0.35)) {
+    const war = startWar(world, [A.id], [civ.id], 'claim', `The War of the ${civ.adjective} Succession`);
+    if (war) tail = `; ${theName(A)} took up the claim of ${p.n} by the sword, and ${war.name.replace(/^The /, 'the ')} began`;
+  }
+  const e = record(world, { ...base, imp: impOf(tail ? 4 : 3), key: keyOf('succession.refused'), tags: tagsOf(['abroad', 'new-dynasty']), text:
+    `${died}, the last of ${pron(prev)} line at home; the great of ${theName(civ)} would not bow to ${pron(prev)} ${words} ${p.n} of ${theName(A)}, and crowned ${rulerShort(nr)}, founding ${/^the /i.test(dyn) ? dyn : 'the ' + dyn}${tail}.` });
+  onRulerGone(world, civ, prev, nr, 'council');
+  return e;
+}
+
 function election(world, civ) {
   const prev = civ.ruler;
   const reelect = world.rng.chance(prev.traits.includes('charismatic') ? 0.45 : 0.2) && !prev.flags?.reelected;
@@ -587,10 +670,18 @@ export function succNames(civ) {
  * No clear heir: a usurper seizes the throne, or the realm splits in a war of succession.
  * heirP: the heir in waiting, if any (a child heir faces a stronger pretender).
  */
-function successionCrisis(world, civ, prev, cause, died, n, heirP, base, tagsOf, keyOf, impOf) {
+function successionCrisis(world, civ, prev, cause, died, n, heirP, base, tagsOf, keyOf, impOf, pk = null) {
   const st = world.sys.civ;
-  const heir = makeRuler(world, civ, { dynasty: prev.dynasty || civ.dynasty, age: [12, 35], inherit: prev.traits, person: heirP });
-  const claimant = makeRuler(world, civ, { dynasty: prev.dynasty || civ.dynasty, age: [20, 50] });
+  const heir = makeRuler(world, civ, { dynasty: heirP?.house || prev.dynasty || civ.dynasty, age: [12, 35], inherit: prev.traits, person: heirP });
+  // the pretender: an ambitious kinsman behind the heir, a bastard of the dead ruler, the next in
+  // line, else one who claims the blood (kin.js)
+  const me = kinOf(world, prev.id);
+  const rp = pk ? pk.rival || pk.bastard || pk.home.find((p) => p.id !== heirP?.id && grownKin(world, civ, p, 18)) || null : null;
+  const claimP = rp ? asPerson(world, civ, me, rp) : null;
+  const claimant = makeRuler(world, civ, { dynasty: claimP?.house || prev.dynasty || civ.dynasty, age: [20, 50], person: claimP });
+  const claimWords = claimP ? `${pron(prev)} ${claimP.relation} ${rulerShort(claimant)}` : rulerShort(claimant);
+  // a bastard who wins a crown may found a house of his own
+  const bastardHouse = (r) => { if (claimP && claimP.bastard && world.rng.chance(0.5)) { const dn = newDynastyName(world, civ, r.name, { from: 'founder' }); r.dynasty = dn; return dn; } return null; };
   const realmYears = (world.time.day - Math.max(fin(civ.foundedDay, 0), fin(civ.flags.independence, -1e9))) / DAYS_PER_YEAR;
   const civilWarOk = n >= 5 && realmYears >= 40 && world.time.day - fin(civ.flags.lastCivilWarDay, -1e9) >= 60 * DAYS_PER_YEAR;
   if (civilWarOk && world.rng.chance(0.45)) {
@@ -614,19 +705,39 @@ function successionCrisis(world, civ, prev, cause, died, n, heirP, base, tagsOf,
     if (res) {
       civ.flags.lastCivilWarDay = world.time.day;
       const rebel = res.civ;
-      claimant.dynasty = rebel.dynasty || claimant.dynasty;
+      const own = bastardHouse(claimant);
+      if (own) startDynasty(world, rebel, own, 'founded', claimant);
+      else claimant.dynasty = rebel.dynasty || claimant.dynasty;
       installRuler(world, rebel, claimant, 'deposed');
       rebel.legitimacy = 0.45;
       if (st) st.counters.civilWars++;
       const seat = world.settlements[rebel.capitalId];
       const e = record(world, {
         ...base, cat: base.cat === 'divine' ? 'divine' : 'war', imp: impOf(4), key: keyOf('succession.crisis'),
-        text: `${died}, leaving the succession in dispute: while ${relw} ${rulerShort(heir)} was crowned, ${rulerShort(claimant)} raised a rival banner at ${seat ? seat.name : 'the frontier'}, and ${res.war ? res.war.name.replace(/^The /, 'the ') : 'a war of succession'} began.`,
+        text: `${died}, leaving the succession in dispute: while ${relw} ${rulerShort(heir)} was crowned, ${claimWords} raised a rival banner at ${seat ? seat.name : 'the frontier'}${claimP && claimP.bastard ? ', claiming the crown for the blood of the old king' : ''}, and ${res.war ? res.war.name.replace(/^The /, 'the ') : 'a war of succession'} began.`,
         tags: tagsOf(['crisis', 'civil-war', 'pretender']),
       });
       onRulerGone(world, civ, prev, heir, 'civil war');
       return e;
     }
+  }
+  // a kinsman of the house seizes the throne from the heir
+  if (claimP && heirP) {
+    const own = bastardHouse(claimant);
+    if (own) startDynasty(world, civ, own, 'usurped', claimant);
+    installRuler(world, civ, claimant, cause, { how: 'usurper' });
+    civ.legitimacy = 0.38;
+    civ.stability = Math.max(0, civ.stability - 0.05);
+    const killed = world.rng.chance(0.35);
+    if (heirP.id != null) { if (killed) kinDied(world, heirP.id, 'murdered'); else kinSetAside(world, heirP.id); }
+    const young = rulerAge(world, civ, heirP) < 16;
+    const e = record(world, {
+      ...base, imp: impOf(3), key: keyOf('succession.crisis'),
+      text: `${died}; ${claimWords} set aside ${young ? 'the young ' : ''}${heirP.name}, ${pron(prev)} ${heirP.relation} and heir, and took the throne${killed ? `; ${heirP.name} did not live long` : ''}${own ? `, founding the ${own.replace(/^the\s+/i, '')}` : ''}.`,
+      tags: tagsOf(['crisis', 'usurper', 'pretender']),
+    });
+    onRulerGone(world, civ, prev, claimant, 'usurper');
+    return e;
   }
   // usurpation: a new house takes the throne
   const usurper = makeRuler(world, civ, { age: [28, 55], inherit: ['ambitious', 'cruel', 'warlike'] });
@@ -663,6 +774,22 @@ export function overthrow(world, civ, newGov, how = 'revolution', person = null)
   civ.legitimacy = 0.45;
   onRulerGone(world, civ, prev, nr, how);
   return { prev, ruler: nr };
+}
+
+/**
+ * A kinsman of the house takes the throne from the living ruler (a brother's or uncle's plot,
+ * ambitions.js): the ruler is done away with, the house keeps the crown. person: a kept person
+ * (kin.js asPerson). Returns the new ruler.
+ */
+export function seizeThrone(world, civ, person) {
+  const prev = civ.ruler;
+  emit(world, 'rulerDied', civ, prev, 'usurped');
+  const nr = makeRuler(world, civ, { dynasty: person.house || prev.dynasty || civ.dynasty, person });
+  installRuler(world, civ, nr, 'usurped', { how: 'usurper' });
+  civ.legitimacy = Math.min(fin(civ.legitimacy, 0.6), 0.42);
+  civ.stability = Math.max(0, fin(civ.stability) - 0.04);
+  onRulerGone(world, civ, prev, nr, 'usurper');
+  return nr;
 }
 
 // a learned ruler speeds the realm's research (core/character.js): × 0.95 to 1.05

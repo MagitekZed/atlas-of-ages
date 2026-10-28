@@ -22,6 +22,8 @@
 //   exiles          courts in exile [{ id, civId, name, adjective, hue, colorHex, dynasty,
 //                   ruler, hostCivId, homeSids, since, used }] (dynasty.js; cap 24)
 //   marriages       recent royal matches [{ a, b, day, house }] (dynasty.js; cap 60)
+//   kin             { p: { [id]: person }, v } the families of the ruling houses (kin.js)
+//   art             { t: [treasure], n, v } named treasures (treasures.js)
 
 import { chronicle } from '../../core/chronicle.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
@@ -61,6 +63,8 @@ export function newCivState() {
     dynasties: [],
     exiles: [],
     marriages: [],
+    kin: { p: {}, v: 0 },
+    art: { t: [], n: 1, v: 0 },
   };
 }
 
@@ -71,6 +75,8 @@ export function normaliseCivState(st) {
   for (const k of Object.keys(d)) if (st[k] == null) st[k] = d[k];
   for (const k of Object.keys(d.counters)) if (st.counters[k] == null) st.counters[k] = 0;
   for (const k of ['dynasties', 'exiles', 'marriages']) if (!Array.isArray(st[k])) st[k] = [];
+  if (!st.kin || typeof st.kin !== 'object' || !st.kin.p || typeof st.kin.p !== 'object') st.kin = { p: {}, v: 0 };
+  if (!st.art || typeof st.art !== 'object' || !Array.isArray(st.art.t)) st.art = { t: [], n: 1, v: 0 };
   if (!st.eraFirst || typeof st.eraFirst !== 'object') st.eraFirst = {};
   st.v = STATE_VERSION;
   return st;
