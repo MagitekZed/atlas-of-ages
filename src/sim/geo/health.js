@@ -448,11 +448,11 @@ export function campMonth(world, army) {
   const P = physicOf(world, civ);
   const cf = fl.cf;
   if (cf) {
-    const loss = army.strength * 0.1 * fin(cf.k, 1) * P.cfr * clamp(fin(modsOf(world, civ).medicine, 1), 0.2, 1.5);
+    const loss = army.strength * 0.09 * fin(cf.k, 1) * P.cfr * clamp(fin(modsOf(world, civ).medicine, 1), 0.2, 1.5);
     CAMP.dead = loss * 0.8; CAMP.fled = loss * 0.2;
     cf.n = Math.round(fin(cf.n) + loss);
-    army.morale = clamp(fin(army.morale, 1) - 0.04, 0.05, 1.2);
-    if (world.rng.chance(0.3)) { delete fl.cf; if (cf.n >= 1000 && army.strength >= 2500 && !fl.cfh) carryHome(world, army, civ, cf); }
+    army.morale = clamp(fin(army.morale, 1) - 0.02, 0.05, 1.2);
+    if (world.rng.chance(0.28)) { delete fl.cf; if (cf.n >= 1000 && army.strength >= 2500 && !fl.cfh) carryHome(world, army, civ, cf); }
     return CAMP;
   }
   // months in the field: the host's own, or most of its war's (a long war's camps stay foul)
@@ -463,7 +463,7 @@ export function campMonth(world, army) {
   const key = civPeople(world, civ);
   const r = key ? peekRec(world, key) : null;
   const fv = feverAt(world, army.x, army.y) * bearOf(world, key) * P.fever;
-  const pr = 0.03 * clamp(months / 12, 0.1, 3) * clamp(Math.pow(army.strength / 2000, 0.35), 0.5, 2)
+  const pr = 0.035 * clamp(months / 10, 0.1, 3) * clamp(Math.pow(army.strength / 2000, 0.35), 0.5, 2)
     * (army.state === 'sieging' ? 2 : 1) * (fin(army.supply, 1) < 0.5 ? 1.5 : 1) * (seasonAt(world, army.y) === 2 ? 1.3 : 1)
     * (1 + 2 * fv) * (CUSTOMS[r ? r.c : 'plain'] || CUSTOMS.plain).inf * P.inf
     * (hasProviders('campRule') ? mulOf('campRule', world, army, civ) : 1);
