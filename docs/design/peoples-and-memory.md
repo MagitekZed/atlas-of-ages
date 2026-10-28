@@ -227,3 +227,45 @@ drives a race out through `myth/peoples.js` (`expelDecree`). Choices made while 
 - **A silent failure caught:** a name clash in `geo/diplomacy.js` stopped it loading, and the
   loader skipped it and the war module without a word (a world without wars). Probes now list
   the systems they load.
+
+## Results (2026-10-27)
+
+### Gates
+
+All pass: `npm test`, the Mythic trial, the cohort check, the keyframe check, three 300-year
+Mythic trials, and the hand check with and without myth. Along the way the save → load →
+continue check caught two things: caches filled at the first read of a month (a reloaded world
+read them on another day: now by the day), and new realm fields without places in the record
+shape (now placed, chunk 7's with them).
+
+### Twelve worlds against main
+
+Against main at 265dc7c (with chunk 6):
+
+    Historical Y500   pop +8%  realms −11%  towns +1%  wars +3%  at war 0.141→0.147
+    Mythic     Y500   pop +7%  realms  +8%  towns +4%  wars +9%  at war 0.093→0.091
+    Historical Y1000  pop −1%  realms  +5%  towns +2%  wars +7%  at war 0.232→0.247
+    Mythic     Y1000  pop +7%  realms  −6%  towns +2%  wars −9%  at war 0.219→0.194
+
+- **Peoples** (the six Historical worlds): about 27 have arisen in each by Year 1000 (emerged,
+  or grown apart from their kin), about 16 still living; the rest were absorbed. 45 % of towns
+  hold a minority of 5 % or more (38 % at Year 500), and most realms of age hold one or two
+  peoples besides their own.
+- **Standings at Year 1000:** Historical realms tolerate 79 % of their minorities, tax 10 %,
+  persecute 6 %, hold 5 % equal; Mythic realms tolerate 70 %, hold 16 % equal, tax 6 %, persecute
+  6 %, and 2 % stand expelled. Harsher in the early ages (Year 500: 13–14 % persecuted).
+- **Great migrations:** about five a Historical world by Year 1000, of 2,000 to 6,000 people.
+
+### Speed
+
+Fresh Year-900 saves from main, 100 years, three rounds: +2.7 % (Historical) and +2.0 % (Mythic)
+per simulated year. The peoples' own code costs about 4 ms a year in a Historical world (the
+yearly town pass on mixes) and about 2.5 ms more in diplomacy (feelings and distance in every
+pair's opinion), over the 1.5 ms budget; a Mythic world's peoples system costs 0.5 ms. The first
+build cost 7 ms in the system and 7 ms in diplomacy: the distances between peoples and tongues
+are now cached for good (they never change), and the day's towns are found by their ids.
+
+### Save
+
+A Year-900 save from main, 100 years on: 23.85 MB on main, 23.99 MB on the branch (+0.6 %). A
+save from before chunk 7 loads and runs; its towns take their realm's people on first read.
