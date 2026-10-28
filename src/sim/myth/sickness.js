@@ -247,7 +247,7 @@ function raise(world, st, g, p) {
 
 /** How hard mana-burn falls on each race (the magic-touched hardest). */
 export const MAGIC_FRAIL = { elf: 1, dwarf: 0.4, lizardfolk: 0.4, orc: 0.15, halfling: 0.12, human: 0.12 };
-const BURN = 0.006;          // the yearly chance at full strain, for a town of twenty mages of the magic-touched
+const BURN = 0.009;          // the yearly chance at full strain, for a town of twenty mages of the magic-touched
 const BURN_GAP = 25;         // years between outbreaks, world-wide
 const BURN_K = 0.5;          // what is left of a burnt land's magic
 const BURN_YEARS = 25;
@@ -531,7 +531,8 @@ function revealYear(world, st, civ, w) {
   const dom = divine && rel ? divine.domainOf(rel) : null;
   const god = dom === 'secrets' || dom === 'fate' || dom === 'harvest';
   const confess = w.kn === 0 && tp[TP.HON] > 0.65 && w.yrs >= 3;
-  let p = 0.02 + 0.3 * scry + 0.1 * hf + (prophet ? 0.06 : 0) + (sage ? 0.05 : 0) + (god ? 0.06 : 0);
+  // the longer the blight, the more who suspect
+  let p = 0.03 + 0.01 * Math.min(15, w.yrs) + 0.3 * scry + 0.1 * hf + (prophet ? 0.06 : 0) + (sage ? 0.05 : 0) + (god ? 0.06 : 0);
   if (w.kn === 1) p *= 0.4;
   if (confess) p += 0.08;
   if (!world.rng.chance(clamp(p, 0, 0.6))) return;
@@ -573,9 +574,14 @@ function reckonYear(world, st, civ, w) {
     return;
   }
   if (w.path === 'cure') { cureYear(world, st, civ, w); return; }
-  // enduring: the realm loses faith in its ruler, and the knives come out (civ/ambitions.js)
+  // enduring: the realm loses faith in its ruler, the knives come out (civ/ambitions.js), and in
+  // the end the great of the realm may depose them
   addEffect(world, { kind: 'civ', id: civ.id }, { k: 'myth.endure', until: world.time.day + Y + 60, m: { stability: -0.05 }, label: 'A wounded ruler' });
   civ.legitimacy = Math.max(0, fin(civ.legitimacy, 0.5) - 0.03);
+  w.ky = (w.ky || 0) + 1;
+  if (!rulers || !world.rng.chance(Math.min(0.3, 0.05 + 0.02 * w.ky))) return;
+  const res = rulers.overthrow(world, civ, null, 'coup');
+  if (res && res.ruler) tellCiv(world, civ, { cat: 'civ', imp: 3, key: 'myth.deposed', text: `The great of ${theName(civ)} would wait no longer: they deposed ${rulerShort(r)}, whose wound was wasting the land, and raised ${rulerShort(res.ruler)} in ${pron(r)} place.` });
 }
 
 function cureYear(world, st, civ, w) {

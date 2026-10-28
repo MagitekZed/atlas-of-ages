@@ -294,7 +294,7 @@ export function rulersMonthly(world, civ, agg) {
   let haz = 0.011 + 0.0006 * Math.exp((a - 30) / 8) + 0.014 * Math.max(0, 1 - era / 6) * (1.2 - Math.min(1, mods.health * 0.8));
   if (r.flags?.blessed) haz *= 0.6;
   if (r.flags?.cursed) haz *= 2.5;
-  if (r.flags?.wound && r.flags.wound.h == null) haz *= 0.5;   // the wound of the Wasting neither heals nor kills (myth/sickness.js)
+  if (r.flags?.wound && r.flags.wound.h == null) haz *= 0.8;   // the wound of the Wasting is slow to kill (myth/sickness.js)
   if (r.bd && r.bd.ill) haz *= 1.7 * (hasProviders('illCure') ? mulOf('illCure', world, civ, r) : 1);   // a lasting illness (core/character.js), and its physicians (ext illCure)
   let cause = null;
   if (world.rng.chance(haz / 12)) cause = a > 62 && !(r.bd && r.bd.ill) ? 'old age' : 'illness';
