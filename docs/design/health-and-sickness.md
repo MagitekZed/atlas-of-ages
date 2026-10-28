@@ -250,16 +250,17 @@ when its bathhouses shut), `s.sick` (per town), `civ.physic`, `plague.op`/`byP`/
   × 0.75 for 180 days. A city of tier 4+ behind shut gates that the plague never reached credits a
   physician (one line per plague).
 - **Housing:** slums follow crowding in towns over 3,000 (people against housing above 0.7 ×
-  size), clear at 8 % a year (×2.5 with sewers): infection × (1 + 0.5·slums), health −0.08·slums.
+  size), clear at 8 % a year (×2.5 with sewers): infection × (1 + 0.3·slums), health −0.05·slums.
   Material by land: stone in the hills, mud brick on plains and in dry lands, timber elsewhere;
   great cities of era 3+ turn to stone (2 % a year), and at once after a great fire. Fire risk ×
   1.2 timber, 0.8 mud brick, 0.55 stone.
-- **Fever ground:** 3×3 tiles: marsh 1, hot wet forest 0.25, a river +0.08, × 1.2 / 9, by heat
-  ((°C − 8) / 14, 0.1 to 1); read once a century. Harm = the peoples' bearing (lizardfolk 0,
-  elves ½) × (0.1 + 0.9 × unseasoned) × the theory's fever factor: health −0.06·fever·harm −
-  0.01·fever, and 0.8 %·fever·harm of the town a year. Seasoning rises a fifteenth of the way a
+- **Fever ground:** 3×3 tiles: marsh 1, hot wet forest 0.15, × 1.2 / 9, by heat ((°C − 8) /
+  14, 0.1 to 1); read once a century. Hot rivers are not marked: the river valleys are where
+  civilisations rise, and marking them held back every world's leaders. Harm = the peoples'
+  bearing (lizardfolk 0, elves ½) × (0.05 + 0.95 × unseasoned) × the theory's fever factor:
+  health −0.04·fever·harm − 0.005·fever, and 0.5 %·fever·harm of the town a year. Seasoning rises a fifteenth of the way a
   year; a people born on fever ground arrives at 0.8; conquest sets it back 15 %. Settlers lean
-  away from it (−0.06·fever on a site's score, fever 0.1+). Draining: a realm with bad air,
+  away from it (−0.04·fever on a site's score, fever 0.1+). Draining: a realm with bad air,
   contagion or germs and engineering, with 1.5× half a year's income, 5 % a year, its worst fever
   town (tier 2+, fever 0.3+): eight years' work, then fever × 0.25 and food × 1.1.
 - **Camp fever:** a host at war two months or more: 3.5 % a month × months in the field / 10
@@ -268,4 +269,48 @@ when its bathhouses shut), `s.sick` (per town), `civ.physic`, `plague.op`/`byP`/
   ground) × its people's custom × its physicians. A fever runs about three and a half months,
   costing 9 % × severity (0.6–1.4) × the physicians' deaths × medicine of the host a month (a fifth
   of it deserters who walk home) and 0.02 morale. A great host (2,500+, 1,000+ lost) may carry it
-  home as a plague: 6 % × the world's room for a new pestilence, once in 60 years at most.
+  home as a plague: 4 % × the world's room for a new pestilence, once a century at most, its
+  lethality × 0.75.
+
+## Results
+
+Twelve worlds to Year 1000 (calibration 4, `a35fdcc`) against main (`eb3de4a`), six Historical
+and six Mythic, the same seeds as earlier chunks.
+
+| | Historical Y500 | Historical Y1000 | Mythic Y500 | Mythic Y1000 |
+|---|---|---|---|---|
+| Population | −6 % | −2 % | −9 % | +3 % |
+| Realms | +26 % | −1 % | +8 % | −1 % |
+| Towns | +12 % | 0 % | +10 % | +5 % |
+| Wars | +22 % | +5 % | +30 % | +9 % |
+| Plague dead | −37 % | +110 % | −10 % | −51 % |
+| Sieges taken | +20 % | +2 % | +29 % | +10 % |
+
+- **The ages:** the leading realm reaches the Classical Age by Year 1000 in 7 of 12 worlds (main
+  9; chunk 5 settled at 7 of 12); inventions known −1.4 %. Fever ground was the drag: with hot
+  rivers marked and a heavier fever, 5 of 12; with fever ground off, 8 of 12; with the whole
+  health system idle, 10 of 12. Calibration 4 dropped the rivers and lightened it.
+- **Plagues:** Historical plague deaths about double main's, mostly first-contact plagues
+  (2.6 M of 5.7 M in five Historical worlds), crowd plagues (1.6 M), returning strains (1.0 M) and
+  camp fever carried home (0.45 M). Two of the five Historical worlds had a virgin-soil
+  catastrophe (a people dying at three times the plague's rate or more, a quarter or more of those
+  exposed). Mythic plague deaths are half main's: five of the six races are hardier than men
+  (frailty 0.4 to 0.9; orcs 1.4).
+- **Camp fever** against the sword over the millennium: 0.13–0.16 in wars under a year,
+  0.39–0.41 in wars of three years or more; from the Year-900 saves (larger hosts, longer wars)
+  1.2–1.34 in wars of three years or more. Short wars feel little; the long wars of later ages
+  lose more to fever than to battle.
+- **Fever ground:** at Year 1000, 157 of 1,513 towns in the five worlds at myth level 0 and 232
+  of 1,844 in the six Mythic worlds stand on fever ground (0.2+); no marsh drained by Year 1000 (draining needs bad air or contagion and
+  engineering, which most realms reach later).
+- **Calibration lessons:** a penalty on settlers' sites changes where towns rise, not how many,
+  but a fever on hot rivers slows the river civilisations that lead each world; a plague a host
+  carries home skips the world's quiet years unless it asks for room (`plagueRoom`); measure
+  camp fever against battle deaths by war length, not against all casualties.
+- **Speed** (`tools/timeab.mjs`, 100 years from Year-900 saves made on main, three rounds): the
+  health system costs 2.0 ms per sim-year in both kinds of world (over the 1.5 ms budget; about
+  1 % of a run). Whole runs: Historical −5.2 % (the histories part after the load: fewer wars that
+  century), Mythic +0.7 %.
+- **Save size** (100 years on from the same saves): 23.16 MB against main's 23.48 (Historical),
+  23.72 against 23.79 (Mythic). The new state is about 35 KB: `s.sick` 23–25 KB, war tallies
+  8–14 KB, `sys.health` under 2 KB.
