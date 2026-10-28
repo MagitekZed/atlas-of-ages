@@ -121,6 +121,8 @@ export function createCiv(world, opts = {}) {
     arcane: undefined,      // Mythic arcana (myth/mana.js), at birth or its first monthly sample
     folk: undefined,        // its people (geo/folk.js), at its founding or first read
     minor: undefined,       // its minorities' standings (geo/folk.js), once it has one
+    // who holds power (chunk 7, civ/power.js, laws.js, court.js), from its first months
+    purse: undefined, laws: undefined, est: undefined, estWhy: undefined, court: undefined,
   };
   addIndexed(world, 'civs', civ);
   invalidate(world);

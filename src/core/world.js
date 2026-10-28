@@ -164,6 +164,7 @@ const CIV_SHAPE = (c) => ({
   darkAge: c.darkAge, population: c.population, territory: c.territory, wealth: c.wealth, peakPopulation: c.peakPopulation,
   peakTerritory: c.peakTerritory, effects: c.effects, effectsV: c.effectsV, style: c.style, claims: c.claims, landClaims: c.landClaims, forces: c.forces, flags: c.flags,
   culture: c.culture, temperLog: c.temperLog, arcane: c.arcane, folk: c.folk, minor: c.minor,
+  purse: c.purse, laws: c.laws, est: c.est, estWhy: c.estWhy, court: c.court,
 });
 const SETTLEMENT_SHAPE = (s) => ({
   id: s.id, name: s.name, civId: s.civId, originCivId: s.originCivId, alive: s.alive, x: s.x, y: s.y, i: s.i,
