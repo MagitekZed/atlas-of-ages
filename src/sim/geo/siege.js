@@ -162,6 +162,31 @@ export function wallsMonthly(world, atWar) {
   }
 }
 
+/**
+ * A siege has ended: is it one to remember? A year and a half or more, many thousands lost before
+ * the walls, or a great capital taken after half a year. Named "the Siege of X" (the Second, the Third … at the same
+ * town), "the Great Siege of X" when it outlasts every famous siege before it (and ran two
+ * years). Kept in sys.war.famous (cap 200). Returns the record or null.
+ */
+export function famousSiege(world, s, attId, defId, outcome, how, days, lost) {
+  const st = (world.sys.war ||= {});
+  const def = world.civs[defId];
+  const taken = outcome === 'captured' || outcome === 'razed';
+  const isCap = Boolean(def && def.capitalId === s.id);
+  if (!(days >= 540 || lost >= 5000 || (isCap && taken && days >= 180 && fin(s.tier) >= 3))) return null;
+  const list = (st.famous ||= []);
+  let prior = 0, longest = 0;
+  for (const f of list) { if (f.sid === s.id) prior++; if (f.days > longest) longest = f.days; }
+  const great = days >= 720 && days > longest;
+  const ord = ['', 'Second ', 'Third ', 'Fourth ', 'Fifth ', 'Sixth '][prior];
+  const name = great ? `the Great Siege of ${s.name}` : `the ${ord ?? 'Last '}Siege of ${s.name}`;
+  const day = world.time.day;
+  const rec = { sid: s.id, name, start: day - days, end: day, outcome, how: how || null, att: attId, def: defId ?? null, days, lost: Math.round(lost || 0) };
+  list.push(rec);
+  if (list.length > 200) list.splice(0, list.length - 200);
+  return rec;
+}
+
 /** The walls are torn down (a conqueror slights them): a town open again. */
 export function slight(world, s) {
   if (!s || !s.buildings) return;

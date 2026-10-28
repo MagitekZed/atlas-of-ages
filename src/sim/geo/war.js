@@ -80,7 +80,7 @@ import {
 } from './common.js';
 import { bestClaimOn, renounceClaims, hardenClaims, claimOf } from './claims.js';
 import { remember, memoryOf } from './memory.js';
-import { wallOf, wallKind, wallName, wallStand, WALL, BREACH, craftOf, surrenderOf, wallsMonthly, slight } from './siege.js';
+import { wallOf, wallKind, wallName, wallStand, WALL, BREACH, craftOf, surrenderOf, wallsMonthly, slight, famousSiege } from './siege.js';
 import { coFor, coSync, coShares, coGear, coTake, forcePower, companyShares, mixFor, gearTier, gearQuality, siegeMul, ROLE } from './army.js';
 import { battleExperience, veteransHome, levyXp } from './regiments.js';
 import { groundCode, weatherAt, roleFactor, choosePlan, planBonus, momentOf, momentText, learnPlan, weatherWord, PLANS } from './battlefield.js';
@@ -1188,8 +1188,28 @@ function endSiege(world, s, outcome, how = null) {
   const cur = st.sieges[s.id];
   if (!cur) return false;
   delete st.sieges[s.id];
-  emitHook(world, 'siegeEnded', { sid: s.id, armyId: cur[0], civId: cur[1], outcome, days: Math.max(0, world.time.day - cur[2]), ...(how ? { how } : {}), ...(s.siege ? { as: s.siege.as || 0, lost: Math.round(s.siege.lost || 0) } : {}) });
+  const days = Math.max(0, world.time.day - cur[2]);
+  const lost = s.siege ? fin0(s.siege.lost) : 0;
+  // the town's own tally (events read it for its epithets), and a siege to remember (siege.js)
+  const h = (s.hist ||= {});
+  h.sieges = (h.sieges | 0) + 1;
+  if (outcome === 'captured' || outcome === 'razed') h.conquered = (h.conquered | 0) + 1;
+  else if (days >= 60) h.held = (h.held | 0) + 1;
+  const fam = famousSiege(world, s, cur[1], s.civId, outcome, how, days, lost);
+  if (fam && outcome !== 'captured' && outcome !== 'razed') famousHeld(world, s, fam);
+  emitHook(world, 'siegeEnded', { sid: s.id, armyId: cur[0], civId: cur[1], outcome, days, ...(how ? { how } : {}), ...(s.siege ? { as: s.siege.as || 0, lost: Math.round(lost) } : {}), ...(fam ? { famous: fam.name } : {}) });
   return true;
+}
+
+/** A famous siege the town survived: held out, or relieved. */
+function famousHeld(world, s, fam) {
+  const att = world.civs[fam.att], def = world.civs[s.civId];
+  if (!att || !def) return;
+  const span = spanPhrase(fam.days);
+  const text = fam.outcome === 'broken'
+    ? `${capFirst(fam.name)} ended after ${span}: an army of ${civName(def)} broke the lines of ${civName(att)}, and ${s.name} was saved.`
+    : `${capFirst(fam.name)} ended after ${span}: ${s.name} held out, and ${civName(att)} marched away.`;
+  chronicle(world, { cat: 'war', imp: 3, text, x: s.x, y: s.y, civId: def.id, sid: s.id, icon: 'walls', key: 'siege.famous', ref: { k: 'settlement', id: s.id }, tags: ['siege', 'famous'] });
 }
 
 /** Sieges that vanished without an explicit end (transfers, harmony, a fallen besieger). */
@@ -1933,7 +1953,7 @@ function siegeStep(world, s, army, ctx) {
   if ((day + army.id) % DAYS_PER_MONTH !== 0) return null;
   const days = day - (sg.startDay ?? day);
   // the besieger gives up when its army has wasted away
-  if (army.strength < 0.35 * sg.s0) { siegeLine(world, s, atk, def, 'lift', days); return { lift: true }; }
+  if (army.strength < 0.35 * sg.s0) { if (days < 540) siegeLine(world, s, atk, def, 'lift', days); return { lift: true }; }
   // the defenders find the mine (dwarves dig best), or sally to burn the engines
   if (sg.mine > 0.2 && rng.chance(0.1 * Math.max(0.5, craftOf(world, def).mine))) sg.mine *= 0.3;
   if (fin0(s.garrison) > 0.25 * army.strength && rng.chance(0.2)) {
@@ -1972,7 +1992,7 @@ function siegeStep(world, s, army, ctx) {
   sg.lost = fin0(sg.lost) + loss;
   army.morale = clamp01((army.morale ?? 1) - 0.12);
   if (finite(s.garrison)) s.garrison *= 0.92;
-  siegeLine(world, s, atk, def, 'repulse', days, loss);
+  if (loss >= 300) siegeLine(world, s, atk, def, 'repulse', days, loss);
   return { repulse: loss };
 }
 const fin0 = (v, d = 0) => (Number.isFinite(v) ? v : d);
@@ -2150,8 +2170,10 @@ function capture(world, st, army, s, opts = {}) {
     // a lost seat is major news only for a realm of some size (six towns or more before the fall)
     const imp = epochalSeat || epochalFall ? 5 : greatFall || greatSeat ? 4 : fallen || (wasCapital && old.settlementIds.length >= 5) || (s.tier || 0) >= 4 ? 3 : 2;
     const coda = epochalSeat ? (greatestCity ? ' It had been the greatest city in the world.' : ` It had been the seat of the mightiest realm on earth.`) : '';
+    const fam = (st.famous || []).length ? st.famous[st.famous.length - 1] : null;
+    const famed = fam && fam.sid === s.id && fam.end === day ? fam : null;
     chronicle(world, {
-      cat: 'war', imp, text: text + coda, x: s.x, y: s.y, civId: att.id, sid: s.id, icon: 'capture',
+      cat: 'war', imp: famed ? Math.max(imp, 3) : imp, text: (famed ? `So ended ${famed.name}. ` : '') + text + coda, x: s.x, y: s.y, civId: att.id, sid: s.id, icon: 'capture',
       key: gates ? 'town.gates' : fallen ? 'war.conquest' : wasCapital ? 'war.capital' : 'war.capture', ref: war ? { k: 'war', id: war.id } : { k: 'settlement', id: s.id }, ...cause,
       tags: gates ? ['memory'] : fallen ? ['realm-fell'] : wasCapital ? ['capital'] : undefined,
     });
