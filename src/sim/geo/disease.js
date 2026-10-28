@@ -255,8 +255,10 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
   if (cause === 'livestock') lethality *= 0.8;
   if (cause === 'divine') { infectivity = Math.max(infectivity, 1.6) * Math.min(1.6, 0.6 + 0.4 * str); lethality = Math.min(0.6, Math.max(lethality, 0.15) * str); }
   // the magical sicknesses (myth/sickness.js): a dark art's curse, and the burn of overdrawn magic
-  if (cause === 'grave') { infectivity = Math.max(infectivity, 2.3) * Math.min(1.4, 0.8 + 0.2 * str); lethality = Math.min(0.6, (0.3 + 0.15 * rng.next()) * str); }
-  if (cause === 'mana') { infectivity = Math.max(infectivity, 1.5); lethality = Math.max(lethality, 0.12 + 0.1 * rng.next()) * Math.min(1.5, str); }
+  // (a grave-plague is a curse laid on one city: it strikes there hard and spreads weakly; mana-burn
+  // spreads among the magic-touched, its weights by people in geo/health.js)
+  if (cause === 'grave') { infectivity = 1.3 * Math.min(1.4, 0.8 + 0.2 * str); lethality = Math.min(0.6, (0.3 + 0.15 * rng.next()) * str); }
+  if (cause === 'mana') { infectivity = Math.max(infectivity, 1.9); lethality = Math.min(0.5, Math.max(lethality, 0.15 + 0.15 * rng.next()) * Math.min(1.5, str)); }
   // a returning strain meets bodies that half remember it
   if (parent) { infectivity = parent.infectivity * rng.float(0.8, 1.0); lethality = parent.lethality * rng.float(0.35, 0.75); }
   if (finite(opts.lethalityMul) && opts.lethalityMul > 0) lethality = Math.min(0.9, lethality * opts.lethalityMul);
@@ -278,7 +280,7 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
     originSid: s.id,
     startDay: world.time.day, endDay: null, active: true,
     infectivity, lethality,
-    duration: Math.round((2 + rng.next() * 8) * DAYS_PER_YEAR),
+    duration: Math.round((2 + rng.next() * 8) * DAYS_PER_YEAR * (cause === 'grave' ? 0.2 : cause === 'mana' ? 0.4 : 1)),
     deaths: 0,
     color: rgbToHex(nm.color),
     rgb: nm.color.slice(),
@@ -299,7 +301,7 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
   };
   addIndexed(world, 'plagues', p);
   st.outbreaks++;
-  infect(world, s, p, cause === 'divine' || cause === 'grave' ? 0.02 : 0.004);
+  infect(world, s, p, cause === 'grave' ? 0.08 : cause === 'divine' ? 0.02 : 0.004);
   emitFx(world, { type: 'plague', x: s.x, y: s.y, color: p.color, ...(cause === 'divine' || opts.hand ? { src: 'tool' } : {}) });
   if (!opts.quiet) {
     const sym = nm.symptom;
@@ -507,7 +509,9 @@ function sirTick(world, st) {
     const healthF = 1.35 - 0.7 * clamp01(finite(s.health) ? s.health : 0.7);
     // its peoples: their frailty, customs, and whether they have met this sickness (health.js)
     const W = plagueWeights(world, s, p);
-    const beta = p.infectivity * BETA0 * crowdFactor(N) * healthF / Math.max(0.3, m.sanitation) * p.att * (s.siege ? 1.3 : 1) * W.inf * townInf(s);
+    // a grave-plague is a curse laid on its city: fierce there, weak beyond (myth/sickness.js)
+    const focus = p.cause === 'grave' && s.id === p.originSid ? 2.2 : 1;
+    const beta = p.infectivity * BETA0 * crowdFactor(N) * healthF / Math.max(0.3, m.sanitation) * p.att * (s.siege ? 1.3 : 1) * W.inf * townInf(s) * focus;
     const newInf = Math.min(S, beta * S * I);
     const leaving = GAMMA * I;
     const cfr = Math.min(0.9, cfrFor(world, s, p, civ) * W.die);

@@ -223,3 +223,78 @@ Historical worlds are unchanged.
   is kin, about one time in three the land is wounded again, more lightly.
 - **The hand can bring them, through existing powers.** In Mythic worlds Curse Ruler can lay the
   Wasting, and the Plague power can choose a grave-plague or mana-burn.
+
+## As built
+
+All in `sim/myth/sickness.js` (a new system, order 87, Mythic only: its update returns at once
+below mythLevel 2 and every provider is neutral), with hooks into `geo/disease.js` (the plague
+kinds 'grave' and 'mana': their symptoms, names, strength and chronicle lines; no returns of
+them), `geo/health.js` (mana-burn's weights by people, no custom or quarantine against it),
+`bands/kinds/undead.js` (graves dug by other modules, a bound host), `civ/rulers.js` (abdication,
+a wounded ruler's slower death, a murderer's guilt, "a consumption" for the wasting sickness in
+Mythic worlds), `civ/ambitions.js` (plots × 4 against a ruler whose wound is known),
+`civ/treasures.js` (healing cups), `civ/arts.js` (a rare art lost to sickness), `civ/power.js`
+and `civ/court.js` (the clergy's horror at the dark arts), `geo/diplomacy.js` (a `betrayal`
+hook), `geo/terms.js` (aims for the new war causes) and `civ/acts.js` (Curse Ruler's choice);
+the Inspector in `ui/views/sickness.js`, plus a bound host's master in `ui/views/band.js`. New
+ext points: `darkArtRule`, `magicFrailty`, `blameRule`, `reckonRule`. New records:
+`sys.myth.sick` (the raging grave-plague, the dread of each caster, burnt lands, each realm's
+Wasting, counts), `civ.flags.grave`, `ruler.flags.wound` / `guilt`, `plague.by` / `risen` /
+`band`, `band.data.bound`.
+
+- **The grave-plague.** Once a year in its month, a realm that knows Necromancy, under a cruel or
+  mad ruler or one of mercy below 0.3, whose state faith does not tend the sick, weighs its worst
+  war: (−score − 15) / 45, + 0.25 for each of its towns besieged half a year. At 0.3 or more it
+  lays one at 0.3 × despair × (0.6 + 1.6 × its art) (× 1.3 cruel or mad), at most once in 30
+  years, and only while no other rages. Its target is the greatest enemy town it besieges, else
+  the greatest enemy town of tier 2+ within 35 tiles of its seat. The plague: infectivity at
+  least 2.3, lethality 0.3–0.45 × (1 + the art). Once 150 or 3 % of the city have died (a month
+  on), its dead rise as a host (the undead power rule × 1.5) bound to the caster for three years,
+  while its ruler lives and it is at war with anyone: it marches only on its master's enemies'
+  towns, fades a third as fast, and adds half its power to the caster's armies within ten tiles.
+  Then it is an ordinary host. The price: every realm thinks 30 worse of the caster, fading over
+  a century; a casus belli 'dread' for forty years (1.3, 1.7 for a healing faith); a league war
+  ('league', aim humble) of the neighbours of caster or victim who hate it and are free (each
+  0.35 + 0.2 healing faith − opinion/100); stability −0.06 for 25 years; the clergy's anger up to
+  −0.3 fading over thirty years; its towns' grievance +0.12 fading over ten.
+- **Mana-burn.** Strain = 1 − the town's mana / the target the weave, the setting and the smoke
+  set there (mana.js's own relaxation target), 0 on land of almost no magic. Once a year (month
+  6) each town with a mage and strain 0.5+ may break out at 0.002 × ((strain − 0.5)/0.5)² × wild
+  magic × plagueRoom × √(mages/20) (≤ 2), at most once in 25 years world-wide. Infectivity at
+  least 1.5, lethality at least 0.12–0.22 × strength. Each people catches it × magicFrailty
+  (elves 1, dwarves and lizardfolk 0.4, orcs 0.15, men and halflings 0.12) and dies of it ×
+  √magicFrailty, with no custom; no quarantines. Wards (deaths × (1 − ½ wards)) and the healing
+  arts (Moonweaving or Hearth-craft: × 0.8) ease it. When it ends, the land of its first town is
+  burnt (mana and base × 0.5 in the nine cells around it for 25 years; mages follow mana), and
+  each rare art worked in a stricken town is lost at 35 %. The late flare is the weave's: a
+  thinner weave lowers every target. Once the weave is below 0.75, realms of elves, dwarves and
+  lizardfolk think up to 20 × frailty worse of Industrial realms.
+- **The Wasting.** A wound needs 100 years since the last, world-wide (the hand's excepted): a
+  desperate dark realm curses its enemy's leader (5 % × despair a year); a betrayal (2.5 %); a
+  holy city razed (8 %) or a town on a ley node (5 %); a dragon's raid on a seat (2 %) or the
+  dead's (1.5 %). The land begins to fail one to two years later: loss +0.07 a year to 0.5 (×
+  ½ for a kinslayer's), out to 3 + 4 a year tiles (≤ 40), × (1 − 0.6 d/reach, ≥ 0.4) by distance
+  (settlement effect foodYield). A wounded ruler's death hazard is halved. While hidden, the realm
+  blames (re-chosen 12 % a year): its least-liked minority (1.4 if disliked, else 0.7;
+  persecuted, feelings −6 a year), its mages (0.9; research −6 %), its most hated neighbour
+  (1.1; opinion −25, a 'blight' war cause), or its gods (0.5; its faith's fervour −0.04 a year,
+  stability −0.03). A proud or greedy ruler (honour < 0.35, ambition or greed > 0.6) may learn it
+  first (30 % a year from the second year), silencing the seers (research −8 % for three years).
+  Revelation a year: 0.02 + 0.3 × scrying + 0.1 × healers + 0.06 a prophet + 0.05 a sage or hero +
+  0.06 a god of secrets, fate or the harvest (× 0.4 while hidden by the ruler; + 0.08 for an
+  honest ruler's confession from the third year; ≤ 0.6); a ruler who hid it loses 0.2
+  legitimacy. Then the reckoning (weights: step down (mercy + honour)/2 − 0.3, × 2 elected; cure
+  0.15 + 0.5 × max(piety, boldness); endure 0.1 + 0.5 × max(ambition, 1 − mercy)): stepping down
+  happens at 60 % a year; a cure comes from a healing cup held (50 %), lent by a friend (25 %),
+  the healing arts (12 %) or a pilgrimage (6 %), or a war for a neighbour's cup (25 %), and after
+  six years the realm gives up and endures; enduring costs stability −0.05 and legitimacy −0.03 a
+  year; plots × 4 throughout. Healing takes the loss down 0.15 a year. A kin murder or a coup
+  leaves the new ruler's legitimacy 0.12 lower for the reign; a kinslayer, one time in three, is
+  wounded too, the land's loss carried over at 60 %. Healing cups: a third of the elves'
+  treasures of power, and 0.2 % a year for a realm of a healing faith without one (health +0.03).
+- **The hand.** The Plague power has a kind in Mythic worlds (a plague, a grave-plague whose dead
+  rise masterless, mana-burn), chosen on its card; Curse Ruler asks which curse (madness and
+  cruelty, or the Wasting).
+- **Not built:** a fled ruler carrying the wound abroad (rulers driven out leave no court in
+  exile to follow), a seer as a named person, and the factions' own demand that a wounded ruler
+  step down (the plots and the stability loss stand in for it).

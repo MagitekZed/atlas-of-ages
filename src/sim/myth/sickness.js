@@ -64,12 +64,13 @@ import { chronicle } from '../../core/chronicle.js';
 import { registerProvider, firstOf, hasProviders } from '../../core/ext.js';
 import { liveCivs, liveSettlements, settlementsNear, areAtWar } from '../../core/entities.js';
 import { addEffect, removeEffect } from '../../core/effects.js';
+import { cohortTotal, isSet } from '../../core/cohorts.js';
 import { DAYS_PER_YEAR as Y, DAYS_PER_MONTH } from '../../core/constants.js';
 import { dayOfMonth, monthOf } from '../../core/world.js';
 import { temperOf, TP } from '../../core/character.js';
 import { isMythic, fin } from './races.js';
 import { knowsSchool } from './arcana.js';
-import { activeWarList, enemySet, civName, capFirst, capitalOf, listJoin, rateOk } from '../geo/common.js';
+import { activeWarList, enemySet, civName, capFirst, capitalOf, listJoin, rateOk, rateReady } from '../geo/common.js';
 import { rulerShort, theName } from '../civ/prose.js';
 
 let war = null, disease = null, health = null, undead = null;
@@ -85,6 +86,7 @@ try { folk = await import('../geo/folk.js'); } catch (e) { /* no peoples to blam
 try { divine = await import('./divine.js'); } catch (e) { /* no gods' domains */ }
 
 const MONTH_DAY = 21;
+const GRAVE_GAP = 80;        // years between grave-plagues, world-wide
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const idOf = (x) => (typeof x === 'object' && x ? x.id : x);
 
@@ -157,12 +159,13 @@ function graveYear(world, st, civ) {
   if (d.v < 0.3 || !d.w) return;
   const day = world.time.day;
   if (st.dread[civ.id] != null && day - st.dread[civ.id] < 30 * Y) return;   // once a generation at most
+  if (!rateReady(world, 'gravePlague', GRAVE_GAP * Y)) return;
   const nec = fin(civ.mods && civ.mods.necromancy, 0.25);
   const tr = civ.ruler.traits || [];
   const p = 0.3 * d.v * (0.6 + 1.6 * nec) * (tr.includes('cruel') || tr.includes('mad') ? 1.3 : 1);
   if (!world.rng.chance(clamp(p, 0, 0.6))) return;
   const s = graveTarget(world, civ, d.w);
-  if (s) cast(world, st, civ, d.w, s, nec);
+  if (s && rateOk(world, 'gravePlague', GRAVE_GAP * Y)) cast(world, st, civ, d.w, s, nec);
 }
 
 function cast(world, st, civ, w, s, nec) {
@@ -214,7 +217,7 @@ function graveMonth(world, st) {
   if (!p) { st.g = null; return; }
   if (g.risen == null) {
     const months = (world.time.day - g.day) / DAYS_PER_MONTH;
-    if (fin(p.deaths) >= Math.max(150, 0.03 * g.pop) && months >= 1) raise(world, st, g, p);
+    if (fin(p.deaths) >= Math.max(60, 0.03 * g.pop) && months >= 1) raise(world, st, g, p);
     else if (!p.active) st.g = null;   // it burnt out before enough had died
     return;
   }
@@ -244,7 +247,7 @@ function raise(world, st, g, p) {
 
 /** How hard mana-burn falls on each race (the magic-touched hardest). */
 export const MAGIC_FRAIL = { elf: 1, dwarf: 0.4, lizardfolk: 0.4, orc: 0.15, halfling: 0.12, human: 0.12 };
-const BURN = 0.002;          // the yearly chance at full strain, for a town of twenty mages
+const BURN = 0.006;          // the yearly chance at full strain, for a town of twenty mages of the magic-touched
 const BURN_GAP = 25;         // years between outbreaks, world-wide
 const BURN_K = 0.5;          // what is left of a burnt land's magic
 const BURN_YEARS = 25;
@@ -280,12 +283,24 @@ function manaYear(world, st) {
     const sg = strainOf(world, s);
     if (sg < 0.5) continue;
     const x = (sg - 0.5) / 0.5;
-    if (!world.rng.chance(BURN * x * x * wild * room * Math.min(2, Math.sqrt(mages / 20)))) continue;
+    if (!world.rng.chance(BURN * x * x * wild * room * Math.min(2, Math.sqrt(mages / 20)) * touchedOf(world, s))) continue;
     if (!rateOk(world, 'manaBurn', BURN_GAP * Y)) return;
     const p = disease.createPlague(world, s, 'mana', { strength: 0.8 + 0.5 * sg });
     if (p) st.n.mana = (st.n.mana || 0) + 1;
     return;
   }
+}
+
+/** 0..1: how magic-touched a town's people are (its peoples' shares × MAGIC_FRAIL; a mana-burn takes hold only among them). */
+function touchedOf(world, s) {
+  const c = s.cohorts;
+  if (!isSet(c)) return MAGIC_FRAIL[s.race] ?? MAGIC_FRAIL.human;
+  let t = 0, n = 0;
+  for (const r in c) {
+    const k = cohortTotal(c[r]);
+    t += k * (MAGIC_FRAIL[r] ?? MAGIC_FRAIL.human); n += k;
+  }
+  return n > 0 ? t / n : MAGIC_FRAIL[s.race] ?? MAGIC_FRAIL.human;
 }
 
 /** A burnt land: the magic of the nine cells around (x, y) halved, its base too, for a generation. */
@@ -339,7 +354,7 @@ on('plagueEnded', (world, p) => {
 // ---------------------------------------------------------------------------
 // The Wasting
 
-const WOUND_GAP = 100;       // years between wounds, world-wide
+const WOUND_GAP = 150;       // years between wounds, world-wide
 const pron = (r) => (r && r.gender === 'f' ? 'her' : 'his');
 const tellCiv = (world, civ, e) => {
   const cap = capitalOf(world, civ);
@@ -362,6 +377,7 @@ export function woundRuler(world, civ, cause, by = null, opts = {}) {
     kn: 0, bl: null, bk: null, path: null, cy: 0, yrs: 0, gone: null, how: null, cause: null,
   };
   st.n.wast = (st.n.wast || 0) + 1;
+  st.n['w.' + cause] = (st.n['w.' + cause] || 0) + 1;
   const dealer = by != null ? world.civs[by] : null;
   const who = rulerShort(r);
   const text = {
@@ -417,6 +433,8 @@ function healYear(world, st, civ, w) {
   if (w.lv > 0.01) { landYear(world, civ, w); return; }
   for (const sid of civ.settlementIds) removeEffect(world, { kind: 'settlement', id: sid }, 'myth.wasting');
   delete st.wast[civ.id];
+  st.n.wYrs = (st.n.wYrs || 0) + w.yrs;
+  st.n['w.end.' + (w.how || 'gone')] = (st.n['w.end.' + (w.how || 'gone')] || 0) + 1;
   if (w.yrs >= 1) {
     tellCiv(world, civ, { cat: 'myth', imp: 2, key: 'myth.healed', text: pickT(world, [
       `The fields of ${theName(civ)} bore again; the old folk called the years of the blight the Wasted Years, and told their grandchildren why.`,
@@ -631,7 +649,7 @@ on('plagueStarted', (world, p) => {
 
 // an oath broken
 on('betrayal', (world, a, b) => {
-  if (!a || !isMythic(world) || !world.sys.myth || world.sys.myth.v == null || !world.rng.chance(0.025)) return;
+  if (!a || !isMythic(world) || !world.sys.myth || world.sys.myth.v == null || !world.rng.chance(0.012)) return;
   woundRuler(world, a, 'oath', b ? b.id : null);
 });
 // a holy city, or a town on a ley node, razed
@@ -641,7 +659,7 @@ on('townRazed', (world, q) => {
   if (!s || !att) return;
   const holy = world.religions.some((r) => r && r.alive !== false && r.holyCityId === s.id);
   const node = !holy && (world.sites || []).some((x) => x && x.kind === 'node' && Math.abs(x.x - s.x) <= 2 && Math.abs(x.y - s.y) <= 2);
-  if ((holy || node) && world.rng.chance(holy ? 0.08 : 0.05)) woundRuler(world, att, 'desecration', s.civId, { place: holy ? `the holy city of ${s.name}` : `${s.name} on the ley-stones` });
+  if ((holy || node) && world.rng.chance(holy ? 0.05 : 0.03)) woundRuler(world, att, 'desecration', s.civId, { place: holy ? `the holy city of ${s.name}` : `${s.name} on the ley-stones` });
 });
 // a dragon or a host of the dead at the gates of the seat
 on('bandRaid', (world, q) => {
@@ -650,7 +668,7 @@ on('bandRaid', (world, q) => {
   const civ = s ? world.civs[s.civId] : null;
   if (!civ || civ.capitalId !== s.id) return;
   const band = (world.bands || []).find((b) => b && b.id === q.bandId);
-  if (!band || (band.kind !== 'dragon' && band.kind !== 'undead') || !world.rng.chance(band.kind === 'dragon' ? 0.02 : 0.015)) return;
+  if (!band || (band.kind !== 'dragon' && band.kind !== 'undead') || !world.rng.chance(band.kind === 'dragon' ? 0.012 : 0.008)) return;
   woundRuler(world, civ, 'beast', null, { what: band.kind === 'dragon' ? 'a dragon' : 'the walking dead' });
 });
 
