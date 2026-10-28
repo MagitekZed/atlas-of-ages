@@ -80,6 +80,7 @@ import {
 } from './common.js';
 import { bestClaimOn, renounceClaims, hardenClaims, claimOf } from './claims.js';
 import { remember, memoryOf } from './memory.js';
+import { wallOf, wallKind, wallName, wallStand, WALL, BREACH, craftOf, surrenderOf, wallsMonthly, slight, famousSiege } from './siege.js';
 import { coFor, coSync, coShares, coGear, coTake, forcePower, companyShares, mixFor, gearTier, gearQuality, siegeMul, ROLE } from './army.js';
 import { battleExperience, veteransHome, levyXp } from './regiments.js';
 import { groundCode, weatherAt, roleFactor, choosePlan, planBonus, momentOf, momentText, learnPlan, weatherWord, PLANS } from './battlefield.js';
@@ -1182,13 +1183,33 @@ function beginSiege(world, s, army) {
 }
 
 /** Close the registry entry of the siege of s and emit siegeEnded. */
-function endSiege(world, s, outcome) {
+function endSiege(world, s, outcome, how = null) {
   const st = state(world);
   const cur = st.sieges[s.id];
   if (!cur) return false;
   delete st.sieges[s.id];
-  emitHook(world, 'siegeEnded', { sid: s.id, armyId: cur[0], civId: cur[1], outcome, days: Math.max(0, world.time.day - cur[2]) });
+  const days = Math.max(0, world.time.day - cur[2]);
+  const lost = s.siege ? fin0(s.siege.lost) : 0;
+  // the town's own tally (events read it for its epithets), and a siege to remember (siege.js)
+  const h = (s.hist ||= {});
+  h.sieges = (h.sieges | 0) + 1;
+  if (outcome === 'captured' || outcome === 'razed') h.conquered = (h.conquered | 0) + 1;
+  else if (days >= 60) h.held = (h.held | 0) + 1;
+  const fam = famousSiege(world, s, cur[1], s.civId, outcome, how, days, lost);
+  if (fam && outcome !== 'captured' && outcome !== 'razed') famousHeld(world, s, fam);
+  emitHook(world, 'siegeEnded', { sid: s.id, armyId: cur[0], civId: cur[1], outcome, days, ...(how ? { how } : {}), ...(s.siege ? { as: s.siege.as || 0, lost: Math.round(lost) } : {}), ...(fam ? { famous: fam.name } : {}) });
   return true;
+}
+
+/** A famous siege the town survived: held out, or relieved. */
+function famousHeld(world, s, fam) {
+  const att = world.civs[fam.att], def = world.civs[s.civId];
+  if (!att || !def) return;
+  const span = spanPhrase(fam.days);
+  const text = fam.outcome === 'broken'
+    ? `${capFirst(fam.name)} ended after ${span}: an army of ${civName(def)} broke the lines of ${civName(att)}, and ${s.name} was saved.`
+    : `${capFirst(fam.name)} ended after ${span}: ${s.name} held out, and ${civName(att)} marched away.`;
+  chronicle(world, { cat: 'war', imp: 3, text, x: s.x, y: s.y, civId: def.id, sid: s.id, icon: 'walls', key: 'siege.famous', ref: { k: 'settlement', id: s.id }, tags: ['siege', 'famous'] });
 }
 
 /** Sieges that vanished without an explicit end (transfers, harmony, a fallen besieger). */
@@ -1819,7 +1840,10 @@ function siegeTick(world, st, army, idx) {
   // One siege per town: the first army to invest it leads, later arrivals reinforce its lines.
   let lead = s.siege ? idx.byId.get(s.siege.armyId) : null;
   if (!lead || lead.state !== 'sieging' || lead.targetId !== s.id) {
-    s.siege = { armyId: army.id, civId: army.civId, progress: s.siege ? (s.siege.progress || 0) * 0.5 : 0, startDay: s.siege && finite(s.siege.startDay) ? s.siege.startDay : day };
+    // a new lead army keeps the siege's tracks (the breach, the hunger, a mine half dug: siege.js)
+    const was = s.siege && s.siege.civId === army.civId ? s.siege : null;
+    s.siege = { ...(was || {}), armyId: army.id, civId: army.civId, progress: was ? (was.progress || 0) * 0.5 : 0, startDay: s.siege && finite(s.siege.startDay) ? s.siege.startDay : day };
+    delete s.siege.s0;
     lead = army;
     beginSiege(world, s, army);
   }
@@ -1845,34 +1869,155 @@ function siegeTick(world, st, army, idx) {
   const sdef = settlementMods(world, s).defense;
   const hold = (25 + Math.max(0, s.garrison || 0) + Math.max(0, s.population) * 0.05) * md.defense * (isCap ? 1.3 : 1) * Math.max(0.5, 1 + sdef)
     * (holdsArt(def, 'stonebinding') ? 1.3 : 1);   // walls that mend themselves (civ/arts.js)
-  // cannon bring down walls built before them: below a star fort they count for half
-  const guns = s.siege && knowsT(world.civs[s.siege.civId], 'cannon') && !((s.buildings?.walls || 0) >= 4);
-  const fort = (1 + 0.6 * clamp((s.defense || 0) + 4 * sdef, 0, 20) * (guns ? 0.5 : 1)) * (isCap ? 1.4 : 1);
-  // a few months against a stockade, a year or more against the walls of a capital
-  let rate = 0.0004 + 0.0055 * power / (power + hold * fort);
-  if (!(s.food > 0)) rate *= 1.4;                       // starved into surrender
-  if (s.harbor && navy < 1) rate *= 0.7;                // supplied from the sea
-  // what the town remembers of the besieger (memory.js): it holds out against a realm it hates,
-  // and may open its gates to one it remembers kindly when it is cold to its own crown
+  // what the town remembers of the besieger (memory.js): it may open its gates to one it
+  // remembers kindly when it is cold to its own crown
   if (s.mem && s.mem.length) {
     const m = memoryOf(world, s, army.civId);
-    if (m < 0) rate *= Math.max(0.6, 1 + 0.5 * m);
-    else if (m >= 0.3 && (memoryOf(world, s, s.civId) <= -0.2 || s.loyalty < 0.3) && world.rng.chance(0.03 * m / DAYS_PER_MONTH)) {
+    if (m >= 0.3 && (memoryOf(world, s, s.civId) <= -0.2 || s.loyalty < 0.3) && world.rng.chance(0.03 * m / DAYS_PER_MONTH)) {
       st.gates = (st.gates || 0) + 1;
       capture(world, st, army, s, { gates: true });
       return;
     }
   }
-  s.siege.progress = clamp01((s.siege.progress || 0) + rate);
-  s.food = Math.max(0, (s.food || 0) - s.population * 0.006);
-  if (finite(s.garrison)) s.garrison *= 0.997;
+  // the engineers in the lines and the realm's siege knowledge (army.js, tech.js)
+  let eng = 0;
+  for (const a of idx.lines.get(s.id) || [army]) if (a.state === 'sieging' && a.targetId === s.id) eng += coShares(coSync(world, a))[ROLE.ENG] * a.strength;
+  const atk = world.civs[army.civId];
+  const lv = s.buildings?.walls || 0;
+  const techF = Math.pow(clamp(modsOf(world, atk).siege, 0.5, 5), 0.8);
+  const gunsF = knowsT(atk, 'cannon') ? (lv >= 4 ? 1.2 : 4) : 1;
+  const out = siegeStep(world, s, army, { power, navy, hold, def, atk, eng, techF, gunsF });
   if ((day + army.id) % 8 === 0) emitFx(world, { type: 'siege', x: s.x, y: s.y });
-  if (s.siege.progress >= 1) capture(world, st, army, s);
+  if (!out) return;
+  if (out.lift) { clearSiegeBy(world, army, 'lifted'); army.state = 'returning'; army.targetId = null; army.path = null; return; }
+  if (out.repulse) { casualty(world, army, out.repulse, 'assault'); return; }
+  if (out.sally) { casualty(world, army, out.sally, 'sally'); return; }
+  if (out.how) {
+    if (out.how === 'betrayed') st.gates = (st.gates || 0) + 1;
+    capture(world, st, army, s, { how: out.how, gates: out.how === 'betrayed', bought: out.bought, spare: out.spare });
+  }
 }
+
+/**
+ * A day of the siege (siege.js holds the walls and stores): the town eats its food, then its
+ * stores (a harbour is fed from the sea unless the besieger rules it), and starves once both are
+ * gone; the engines wear the walls until a breach opens; a mine is dug where the ground allows.
+ * Once a month: a mine may be found, the garrison may sally, a gate may be opened by a traitor or
+ * bought, a starving town may surrender, and the besieger may storm the breach (or, bold, the
+ * walls). Returns { how } for a capture, { repulse | sally } for losses to take, { lift } when the
+ * besieger gives up, or null.
+ */
+function siegeStep(world, s, army, ctx) {
+  const sg = s.siege, day = world.time.day, rng = world.rng;
+  const { power, navy, hold, def, atk, eng, techF, gunsF } = ctx;
+  const w = wallOf(world, s);
+  const lv = s.buildings?.walls || 0;
+  const kind = wallKind(world, def);
+  const pop = Math.max(1, s.population);
+  if (!finite(sg.s0)) {
+    sg.s0 = army.strength; sg.br = lv ? (w.br ? 1 : 0) : 1; sg.mine = 0; sg.hun = 0; sg.as = 0; sg.lost = 0;
+    sg.m0 = Math.max(0.5, fin0(s.food) / pop + fin0(w.st));
+  }
+  // the town eats: its food, then its stores; fed from the sea while the besieger has no fleet
+  const bySea = s.harbor && navy < 1;
+  s.food = Math.max(0, fin0(s.food) - pop * 0.006);
+  if (bySea) { const g = Math.min(pop * 0.5 / DAYS_PER_MONTH, Math.max(0, s.wealth || 0) * 40); s.food += g; s.wealth = Math.max(0, (s.wealth || 0) - g / 40); }
+  if (s.food < pop * 0.3 && w.st > 0) { const k = Math.min(w.st, 1 / DAYS_PER_MONTH); w.st -= k; s.food += pop * k; }
+  const empty = s.food <= pop * 0.02 && !(w.st > 0);
+  sg.hun = empty ? Math.min(1, fin0(sg.hun) + 1 / 45) : Math.max(0, fin0(sg.hun) - 1 / DAYS_PER_MONTH);
+  if (sg.hun > 0 && finite(s.garrison)) s.garrison *= 1 - 0.004 * sg.hun;
+  else if (finite(s.garrison)) s.garrison *= 0.999;
+  // the engines wear the walls (palisades burn); guns against walls built before them
+  const engF = clamp(Math.sqrt(eng / 150), 0.25, 2.5);
+  if (lv > 0 && !sg.br) {
+    const hill = w.n & 2 ? 1.5 : w.n & 1 ? 1.25 : 1;
+    const res = WALL[lv].res * (kind && kind.res ? kind.res : 1) * (1 + 0.12 * (w.tw || 0)) * hill;
+    const burn = lv === 1 && !(kind && kind.burn === false) ? 1.4 : 1;
+    w.c = Math.max(0, w.c - engF * techF * gunsF * burn / (res * 30));
+    if (w.c < BREACH) { sg.br = 1; w.br = 1; sg.m = 'storm'; siegeLine(world, s, atk, def, 'breach'); }
+  }
+  // a mine, where the ground allows (not through rock or marsh; slower where the sea or a river laps the walls)
+  const craft = craftOf(world, atk);
+  // (sappers dig best; without them the soldiers dig, more slowly)
+  const diggers = eng + 0.015 * army.strength;
+  if (lv > 0 && !sg.br && !(w.n & (2 | 8)) && !(kind && kind.noMine) && diggers >= 30 && craft.mine > 0) {
+    sg.mine = fin0(sg.mine) + Math.sqrt(diggers / 150) * craft.mine * (w.n & (4 | 16) ? 0.6 : 1) / (75 * (1 + 0.25 * (w.tw || 0)));
+    if (sg.mine >= 1) { sg.mine = 0; sg.br = 1; sg.mined = 1; w.br = 1; w.c = Math.min(w.c, 0.3); sg.m = 'storm'; siegeLine(world, s, atk, def, 'mine'); }
+  }
+  const left = fin0(s.food) / pop + fin0(w.st);
+  // how near the town is to falling (the gauge; a realm whose seat is past 0.6 thinks of peace)
+  const Db = hold * (1 + wallStand(world, s, true));
+  sg.progress = clamp01(Math.max(lv && !sg.br ? 0.6 * (1 - w.c) / (1 - BREACH) : 0.6 + 0.35 * power / (power + 2 * Db), 0.6 * fin0(sg.mine),
+    0.6 * (1 - left / Math.max(0.5, fin0(sg.m0, 1))), sg.hun > 0 ? 0.6 + 0.4 * sg.hun : 0));
+  sg.m = sg.br ? 'storm' : sg.mine > 0 ? 'mine' : lv ? 'engines' : 'storm';
+  if ((day + army.id) % DAYS_PER_MONTH !== 0) return null;
+  const days = day - (sg.startDay ?? day);
+  // the besieger gives up when its army has wasted away
+  if (army.strength < 0.35 * sg.s0) { if (days < 540) siegeLine(world, s, atk, def, 'lift', days); return { lift: true }; }
+  // the defenders find the mine (dwarves dig best), or sally to burn the engines
+  if (sg.mine > 0.2 && rng.chance(0.1 * Math.max(0.5, craftOf(world, def).mine))) sg.mine *= 0.3;
+  if (fin0(s.garrison) > 0.25 * army.strength && rng.chance(0.2)) {
+    if (!sg.br) w.c = Math.min(1, w.c + 0.06);
+    sg.mine *= 0.4;
+    s.garrison *= 0.95;
+    return { sally: army.strength * (0.02 + 0.03 * rng.next()) };
+  }
+  // a gate opened by a traitor, or bought: a disloyal town, a garrison of another people or faith,
+  // hunger, and the besieger's gold and cunning
+  let pt = 0.003 * (1 + 4 * Math.max(0, 0.5 - fin0(s.loyalty, 0.5))) * (1 + 2 * sg.hun);
+  if (def && s.race != null && def.race != null && s.race !== def.race) pt *= 1.6;
+  if (def && s.dominantReligion != null && def.stateReligion != null && s.dominantReligion !== def.stateReligion) pt *= 1.4;
+  const ruler = atk && atk.ruler;
+  pt *= 0.6 + 0.8 * (ruler ? skillsOf(ruler, day)[SK.INT] : 0.4);
+  const price = pop * 0.05;
+  const gold = atk && fin0(atk.treasury) > 4 * price;
+  if (gold) pt *= 1.5;
+  if (rng.chance(pt)) {
+    if (gold) atk.treasury -= price;
+    return { how: 'betrayed', bought: gold && rng.chance(0.5) };
+  }
+  // a starving town yields on terms (unless its people never do)
+  const sr = surrenderOf(world, def);
+  if (sg.hun >= 0.3 && sr.mul > 0 && rng.chance(Math.min(0.9, sr.mul * (0.1 + 0.6 * sg.hun)))) return { how: 'surrender', spare: sr.spare };
+  // the storm: the breach (or an open town), or (a bold commander, a long siege) the walls
+  // themselves; first the ladders and the lines take some weeks
+  if (days < (lv ? 28 : 14)) return null;
+  const bold = ruler ? temperOf(ruler, atk)[TP.BOL] : 0.5;
+  const pStorm = sg.br ? (lv ? 0.6 : 0.5) * craft.storm : (0.04 + 0.24 * Math.max(0, bold - 0.5) + (days > 240 ? 0.06 : 0)) * craft.escalade;
+  if (!rng.chance(Math.min(0.95, pStorm))) return null;
+  sg.as = fin0(sg.as) + 1;
+  const D = hold * (1 + wallStand(world, s, Boolean(sg.br))) * (1 - 0.5 * sg.hun);
+  if (rng.chance(power / (power + (sg.br ? 2 : 3.5) * D))) return { how: sg.mined ? 'mined' : 'stormed' };
+  const loss = army.strength * (0.05 + 0.07 * rng.next()) * (sg.br ? 1 : 1.5);
+  sg.lost = fin0(sg.lost) + loss;
+  army.morale = clamp01((army.morale ?? 1) - 0.12);
+  if (finite(s.garrison)) s.garrison *= 0.92;
+  if (loss >= 300) siegeLine(world, s, atk, def, 'repulse', days, loss);
+  return { repulse: loss };
+}
+const fin0 = (v, d = 0) => (Number.isFinite(v) ? v : d);
+
+/** The Chronicle's line for a turn of a siege (rate-limited; only towns of note, or a great breach). */
+function siegeLine(world, s, atk, def, what, days = 0, n = 0) {
+  if (!atk || !def) return;
+  const big = (s.tier || 0) >= 3 || def.capitalId === s.id;
+  if (!big || !rateOk(world, `siege:${what}:${s.id}`, 180)) return;
+  const at = civName(atk), dn = civName(def), wn = wallName(world, s).toLowerCase();
+  const text = what === 'breach'
+    ? hashPick([`The engines of ${at} breached the ${wn} of ${s.name}.`, `A breach was made in the ${wn} of ${s.name}; ${dn} rushed men to hold it.`], s.id, day0(world))
+    : what === 'mine'
+      ? hashPick([`Sappers of ${at} fired a mine beneath the ${wn} of ${s.name}, and a length of the wall came down.`, `The ground gave way under the ${wn} of ${s.name}: the miners of ${at} had dug beneath them.`], s.id, day0(world))
+      : what === 'repulse'
+        ? hashPick([`${capFirst(at)} stormed ${s.name} and was thrown back from the walls, leaving ${fmtCount(n)} dead in the ditch.`, `An assault on ${s.name} failed; ${fmtCount(n)} of ${peopleOf(atk)} fell before its walls.`], s.id, day0(world))
+        : hashPick([`${capFirst(at)} gave up the siege of ${s.name} after ${spanPhrase(days)}, its army wasted.`, `The siege of ${s.name} was lifted: after ${spanPhrase(days)} ${peopleOf(atk)} had too few men left to hold the lines.`], s.id, day0(world));
+  chronicle(world, { cat: 'war', imp: what === 'repulse' && n >= 2000 ? 2 : 1, text, x: s.x, y: s.y, civId: atk.id, sid: s.id, icon: 'siege', key: `siege.${what}`, ref: { k: 'settlement', id: s.id }, tags: ['siege'] });
+}
+const day0 = (world) => world.time.day;
 
 function capture(world, st, army, s, opts = {}) {
   const rng = world.rng;
   const gates = opts.gates === true;   // the town opened its gates (siegeTick): taken without a sack
+  const how = opts.how || (gates ? 'gates' : 'stormed');   // stormed, mined, surrender, betrayed (siegeStep)
   const day = world.time.day;
   const att = world.civs[army.civId];
   const oldId = s.civId;
@@ -1889,8 +2034,8 @@ function capture(world, st, army, s, opts = {}) {
     st.captures++;
     l.captures++;
     emitFx(world, { type: 'capture', x: s.x, y: s.y, civId: att.id });
+    endSiege(world, s, 'captured', 'stormed');
     s.siege = null;
-    endSiege(world, s, 'captured');
     damageSettlement(world, s, { pop: 0.04 + rng.next() * 0.06, wealth: 0.25, food: 0.3, defense: 0.5, cause: 'sack' });
     if (war.active) makePeace(world, st, war, 'defenders');
     army.state = 'returning'; army.targetId = null; army.path = null;
@@ -1916,6 +2061,10 @@ function capture(world, st, army, s, opts = {}) {
   const grievance = rel(world, att.id, oldId).grievance || 0;
   // a merciless ruler burns what they take; a merciful one spares it (core/character.js)
   const mer = att.ruler ? temperOf(att.ruler, att)[TP.MER] : 0.5;
+  // a starving town that yields on terms is spared, unless a merciless victor breaks them (siege.js)
+  const terms = how === 'surrender';
+  const broken = terms && !opts.spare && rng.chance(0.25 * Math.max(0, 0.35 - mer) / 0.35);
+  const spared = gates || (terms && !broken);
   let pRaze = 0.03 + 0.5 * Math.max(0, 0.45 - mer) + (holy ? 0.15 : 0) + (grievance > 60 ? 0.12 : 0) + (eraOf(att) === 0 ? 0.04 : 0);
   if ((s.tier || 0) >= 5 || mer >= 0.75) pRaze *= 0.3;
   // what the town remembers of its taker (memory.js), and whether this is its old realm come back
@@ -1941,7 +2090,7 @@ function capture(world, st, army, s, opts = {}) {
   }
   const r = rel(world, oldId, att.id);
   const cause = g && g.seq != null ? { cause: g.seq } : {};
-  if (!gates && rng.chance(pRaze)) {
+  if (!spared && rng.chance(pRaze)) {
     st.razed++;
     // the towns around remember who razed their neighbour
     for (const t of settlementsNear(world, s.x, s.y, 8)) if (t.id !== s.id && (t.civId === oldId || t.originCivId === s.originCivId)) remember(world, t, att.id, -0.4, 'z');
@@ -1957,44 +2106,56 @@ function capture(world, st, army, s, opts = {}) {
     const re = chronicle(world, { cat: 'war', imp: rimp, text, x: s.x, y: s.y, civId: att.id, sid: s.id, icon: 'raze', key: 'war.razed', ref: war ? { k: 'war', id: war.id } : { k: 'settlement', id: s.id }, ...cause, tags: ['razed'] });
     (s.flags ||= {}).fallSeq = re.seq;   // the razing, for what rises from the ruins later
     if (fig && fig.died == null) fig.deeds = (fig.deeds || []).concat(`razed ${name}`).slice(-12);
+    endSiege(world, s, 'razed', how);
     s.siege = null;
-    endSiege(world, s, 'razed');
     destroySettlement(world, s.id, 'razed');
   } else {
-    if (!gates) damageSettlement(world, s, { pop: 0.06 + rng.next() * 0.12 + (rulerHas(att, 'cruel') ? 0.1 : 0), wealth: 0.35, food: 0.5, buildings: 0.15, defense: 0.6, cause: 'sack' });
-    if (!s.alive) { endSiege(world, s, 'razed'); return; }
+    if (!spared) damageSettlement(world, s, { pop: 0.06 + rng.next() * 0.12 + (rulerHas(att, 'cruel') ? 0.1 : 0), wealth: 0.35, food: 0.5, buildings: 0.15, defense: 0.6, cause: 'sack' });
+    if (!s.alive) { endSiege(world, s, 'razed', how); return; }
     if (g && g.occupied[s.id] == null) g.occupied[s.id] = oldId;
     if (war && !war.captured.includes(s.id)) war.captured.push(s.id);
     r.grievance = Math.min(100, (r.grievance || 0) + 6 + (s.tier || 0) * 2);
     if (wasCapital) { s.flags ||= {}; s.flags.wasCapital = oldId; addRuin(world, old, 0.15, 6); }   // a sacked capital leaves its realm poorer for years (civ/power.js)
-    endSiege(world, s, 'captured');
+    const breached = Boolean(s.siege && s.siege.br) && (s.buildings?.walls || 0) > 0;
+    endSiege(world, s, 'captured', how);
     transferSettlement(world, s.id, att.id, gates ? 'defection' : 'conquest');
     if (war) { rescore(world, war); noteTransfer(world, war, s.id, oldId, att.id, 'cap'); }
     // the town remembers: a sack, its old realm come back for it, or the gates it opened
     if (gates) remember(world, s, att.id, 0.1, 'g');
+    else if (spared) remember(world, s, att.id, -0.15, 's');
     else if (freed) remember(world, s, att.id, 0.4 * (1 - assim) - 0.15, 'f');
     else remember(world, s, att.id, -0.5, 'k');
     if (priorGrudge < 0) s.unrest = Math.max(s.unrest, 0.25 - 0.3 * priorGrudge);
     s.garrison = Math.max(s.garrison || 0, army.strength * 0.15);
     army.strength *= 0.85;   // the garrison stays behind (not a loss)
     const fallen = !old.alive;
-    const text = gates ? gatesText(world, s, att, old, wn, thanks) : fallen
+    // how it fell (siege.js): stormed (through the breach), mined, surrendered on terms (or not), betrayed
+    const span = spanPhrase(siegeDays);
+    const hw = how === 'mined' ? 'was mined and stormed' : how === 'surrender' ? (spared ? 'surrendered on terms, starving' : 'surrendered, starving, and was sacked all the same')
+      : how === 'betrayed' ? (opts.bought ? 'was taken through a gate bought with gold' : 'was betrayed by a gate opened in the night')
+        : breached ? 'was stormed through the breach in its walls' : 'was stormed';
+    const text = how === 'gates' ? gatesText(world, s, att, old, wn, thanks) : fallen
       ? pickOne(world, [
-        `With the fall of ${name}, the last stronghold of ${peopleOf(old)}, ${civName(old)} passed from history into the hands of ${civName(att)}.`,
-        `${capFirst(civName(att))} took ${name} after ${spanPhrase(siegeDays)}, and with it the last of ${civName(old)}.`,
-        `The banners of ${civName(att)} rose over ${name}; nothing was left of ${civName(old)} but its songs.`,
+        `With the fall of ${name}, the last stronghold of ${peopleOf(old)}, which ${hw} after ${span}, ${civName(old)} passed from history into the hands of ${civName(att)}.`,
+        `${capFirst(name)} ${hw} after ${span}, and with it ${civName(att)} took the last of ${civName(old)}.`,
       ])
       : wasCapital
         ? pickOne(world, [
-          `${capFirst(name)}, the capital of ${civName(old)}, fell to ${civName(att)} after ${spanPhrase(siegeDays)} of siege, and its palaces were plundered.`,
-          `The ${civAdj(att)} ${hostWord(army.strength, eraOf(att))}${gName ? ' under ' + gName : ''} breached the walls of ${name} and seized the seat of ${civName(old)}.`,
-          `After ${spanPhrase(siegeDays)} behind its walls, ${name} opened its gates to ${civName(att)}; the court of ${civName(old)} fled into the night.`,
+          `${capFirst(name)}, the capital of ${civName(old)}, ${hw} after ${span} of siege${spared ? '' : ', and its palaces were plundered'}.`,
+          `The ${civAdj(att)} ${hostWord(army.strength, eraOf(att))}${gName ? ' under ' + gName : ''} took ${name}, the seat of ${civName(old)}: it ${hw} after ${span}.`,
         ])
-        : pickOne(world, [
-          `After a siege of ${spanPhrase(siegeDays)}, ${peopleOf(att)} stormed ${name} and put it to the sack.`,
-          `${capFirst(name)} surrendered to ${civName(att)}${gName ? ` and its general ${gName}` : ''} after ${spanPhrase(siegeDays)}, starving behind its walls.`,
-          `${capFirst(civName(att))} captured ${name} from ${civName(old)} in ${wn}.`,
-        ]);
+        : how === 'surrender'
+          ? (spared ? `${capFirst(name)} surrendered to ${civName(att)}${gName ? ` and its general ${gName}` : ''} after ${span}, starving behind its walls; its garrison marched out with its arms.`
+            : `${capFirst(name)} surrendered to ${civName(att)} after ${span}, starving, but ${ruler || 'the victors'} broke the terms and put it to the sack.`)
+          : how === 'betrayed'
+            ? (opts.bought ? `${capFirst(civName(att))} bought a postern gate of ${name} for gold after ${span} of siege, and took the town without a fight.`
+              : `After ${span} of siege, a traitor opened a gate of ${name} to ${civName(att)} in the night.`)
+            : how === 'mined'
+              ? `${capFirst(peopleOf(att))} mined the walls of ${name}, stormed the breach after ${span}, and put the town to the sack.`
+              : pickOne(world, [
+                `After a siege of ${span}, ${peopleOf(att)} stormed ${name}${breached ? ' through the breach in its walls' : ''} and put it to the sack.`,
+                `${capFirst(civName(att))} took ${name} from ${civName(old)} in ${wn}, storming it after ${span}.`,
+              ]);
     // the end of a realm is always worth a line; a great one is historic
     const greatFall = fallen && ((old.peakPopulation || 0) > Math.max(20000, 0.04 * worldPopulation(world)) || (old.peakTerritory || 0) > 400);
     // a major realm's first lost seat in half a century is historic; the seat of the world's
@@ -2009,12 +2170,27 @@ function capture(world, st, army, s, opts = {}) {
     // a lost seat is major news only for a realm of some size (six towns or more before the fall)
     const imp = epochalSeat || epochalFall ? 5 : greatFall || greatSeat ? 4 : fallen || (wasCapital && old.settlementIds.length >= 5) || (s.tier || 0) >= 4 ? 3 : 2;
     const coda = epochalSeat ? (greatestCity ? ' It had been the greatest city in the world.' : ` It had been the seat of the mightiest realm on earth.`) : '';
+    const fam = (st.famous || []).length ? st.famous[st.famous.length - 1] : null;
+    const famed = fam && fam.sid === s.id && fam.end === day ? fam : null;
     chronicle(world, {
-      cat: 'war', imp, text: text + coda, x: s.x, y: s.y, civId: att.id, sid: s.id, icon: 'capture',
+      cat: 'war', imp: famed ? Math.max(imp, 3) : imp, text: (famed ? `So ended ${famed.name}. ` : '') + text + coda, x: s.x, y: s.y, civId: att.id, sid: s.id, icon: 'capture',
       key: gates ? 'town.gates' : fallen ? 'war.conquest' : wasCapital ? 'war.capital' : 'war.capture', ref: war ? { k: 'war', id: war.id } : { k: 'settlement', id: s.id }, ...cause,
       tags: gates ? ['memory'] : fallen ? ['realm-fell'] : wasCapital ? ['capital'] : undefined,
     });
     if (fig && fig.died == null) fig.deeds = (fig.deeds || []).concat(`took ${name}`).slice(-12);
+    // the walls of a town the victor fears are torn down: far from its seat, bitter at a sack, of
+    // another people, or one that held out a year (siege.js; ext 'slightRule')
+    if (s.alive && (s.buildings?.walls || 0) > 0) {
+      const capA = capitalOf(world, att);
+      const far = capA ? clamp01(dist(s.x, s.y, capA.x, capA.y) / 40) : 0.5;
+      let ps = 0.04 + 0.12 * far + (!spared && !freed ? 0.1 : 0) + (s.race != null && att.race != null && s.race !== att.race ? 0.1 : 0) + (siegeDays > DAYS_PER_YEAR ? 0.12 : 0);
+      if (hasProviders('slightRule')) ps *= mulOf('slightRule', world, att, s);
+      if (rng.chance(Math.min(0.5, ps))) {
+        const wn2 = wallName(world, s).toLowerCase();
+        slight(world, s);
+        if ((s.tier || 0) >= 2 && rateOk(world, `slight:${s.id}`, 360)) chronicle(world, { cat: 'war', imp: 1, text: `${capFirst(civName(att))} tore down the ${wn2} of ${name}, so that it could never again hold out against them.`, x: s.x, y: s.y, civId: att.id, sid: s.id, icon: 'siege', key: 'siege.slight', ref: { k: 'settlement', id: s.id }, tags: ['siege'] });
+      }
+    }
   }
   army.state = 'idle'; army.targetId = null; army.path = null;
   army.flags.nextPlan = day + 10;
@@ -2493,6 +2669,7 @@ function monthly(world, st) {
     if (!g.joined) { g.joined = true; callToArms(world, st, war, ctx); }
   }
   weariness(world, st);
+  wallsMonthly(world, civsAtWar(world));   // walls mend or crumble, stores are laid by (siege.js)
   occupation(world);
   peace(world, st);
   declarations(world, st, ctx);

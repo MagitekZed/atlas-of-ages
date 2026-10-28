@@ -11,7 +11,7 @@
 // quake the nearest town or feature); the UI composes "the Siege of X", "Ancient X",
 // "the Peace of X" from the kind. site.data per kind:
 //   battle  { names: [≤ 4 battle names], w: { civId: wins }, big: most dead in one battle }
-//   siege   { o: { captured, razed, lifted, broken }, days: longest }
+//   siege   { o: { captured, razed, lifted, broken }, days: longest, famous?: [[name, day, outcome, how, days]] (≤ 4) }
 //   ruin    { peak, maxTier, buildings, civId, originCivId, wonderIds, cause, fellDay, sid }
 //           (unpinned; a town that falls again where it fell before updates its ruin)
 //   crater  { r, ocean } · eruption { vei } · quake { mag } · plaguepit { pid, frac, sid }
@@ -79,7 +79,10 @@ export const HANDLERS = {
     if (!site || !world.sites.includes(site)) return;
     const o = { ...(site.data?.o || {}) };
     o[q.outcome || 'lifted'] = (o[q.outcome || 'lifted'] | 0) + 1;
-    updateSite(world, site.id, { o, days: Math.max(fin(site.data?.days), Math.round(days)) });
+    // a siege to remember is kept by name on its ground (geo/siege.js famousSiege), at most four
+    const famous = Array.isArray(site.data?.famous) ? site.data.famous.slice() : [];
+    if (q.famous) { famous.push([q.famous, world.time.day, q.outcome, q.how || null, Math.round(days)]); if (famous.length > 4) famous.shift(); }
+    updateSite(world, site.id, { o, days: Math.max(fin(site.data?.days), Math.round(days)), ...(famous.length ? { famous } : {}) });
   },
 
   settlementDestroyed(world, s, cause) {

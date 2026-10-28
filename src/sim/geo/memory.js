@@ -29,7 +29,7 @@ const MIN = 0.03;           // a memory fainter than this is forgotten
 const LOYAL_K = 0.25;       // loyalty from a town's memory of its own crown
 const DEF = { grudge: 40, thanks: 25 };
 
-export const MEM_WHY = { k: 'sacked by', z: 'saw its neighbours razed by', h: 'held out against', r: 'saved by', f: 'freed by', c: 'ceded away by', g: 'opened its gates to' };
+export const MEM_WHY = { k: 'sacked by', z: 'saw its neighbours razed by', h: 'held out against', r: 'saved by', f: 'freed by', c: 'ceded away by', g: 'opened its gates to', s: 'surrendered to' };
 /** Sieges a town holds out this long are remembered (days). */
 export const MEM_DAYS = 180;
 

@@ -28,6 +28,7 @@ const MODULES = [
   ['views/hand', 'UI', () => import('./views/hand.js')],
   ['views/power', 'UI', () => import('./views/power.js')],
   ['views/kin', 'UI', () => import('./views/kin.js')],
+  ['views/siege', 'UI', () => import('./views/siege.js')],
   // WP2 · roaming powers
   ['views/band', 'WP2', () => import('./views/band.js')],
   // WP5 · mythic

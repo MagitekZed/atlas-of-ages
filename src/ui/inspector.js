@@ -147,7 +147,18 @@ function siegeGauge(app, b, s) {
     needle.setAttribute('d', `M0 0L${x.toFixed(2)} ${y.toFixed(2)}`);
     setText(pct, `${Math.round(p * 100)}%`);
   });
-  const sec = section('Siege', h('div.siege', null, svg, h('div.siege-fig', null, pct, h('span.siege-k', { text: 'Done' }))), by, host);
+  // what the besieger presses, and how the walls and the stores stand (sim/geo/siege.js)
+  const sg = () => s.siege || {};
+  const walled = () => (s.buildings?.walls || 0) > 0;
+  const left = () => Math.max(0, (s.food || 0) / Math.max(1, s.population)) + Math.max(0, s.wall?.st || 0);
+  const detail = kv(b, [
+    { k: 'Pressing', v: () => (sg().hun > 0 ? 'Starving the town' : sg().m === 'mine' ? 'A mine under the walls' : sg().m === 'engines' ? 'Engines against the walls' : walled() ? 'Storming the breach' : 'Storming the town'), txt: true },
+    { k: 'The walls', v: () => `${Math.round((s.wall?.c ?? 1) * 100)}%${sg().br ? ', breached' : ''}`, hide: () => !walled() },
+    { k: 'A mine', v: () => `${Math.round((sg().mine || 0) * 100)}% dug`, hide: () => !(sg().mine > 0) },
+    { k: 'Food', v: () => (sg().hun > 0 ? `none: starving (${Math.round(sg().hun * 100)}%)` : `${left().toFixed(1)} months left`), txt: true },
+    { k: 'Assaults', v: () => `${F.int(sg().as || 0)} thrown back, ${F.people(sg().lost || 0)} lost`, txt: true, hide: () => !(sg().as > 0) },
+  ]);
+  const sec = section('Siege', h('div.siege', null, svg, h('div.siege-fig', null, pct, h('span.siege-k', { text: 'Done' }))), by, host, detail);
   b.hide(sec, () => !s.siege);
   return sec;
 }

@@ -322,7 +322,7 @@ export const HANDLERS = {
     if (!s) return;
     const days = fin(q.days);
     const att = world.civs[q.civId];
-    if (days >= 30) noteRecord(world, 'siege.days', days, { label: `the siege of ${s.name}`, ref: { k: 'settlement', id: s.id }, x: s.x, y: s.y, civId: q.civId, place: s.name });
+    if (days >= 30) noteRecord(world, 'siege.days', days, { label: q.famous || `the siege of ${s.name}`, ref: { k: 'settlement', id: s.id }, x: s.x, y: s.y, civId: q.civId, place: s.name });
     if (q.outcome === 'razed' && att) {
       const st = (world.sys.stats ||= {});
       const rz = (st.razed ||= {});

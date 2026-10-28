@@ -177,7 +177,7 @@ const SETTLEMENT_SHAPE = (s) => ({
   hist: s.hist, own: s.own, flags: s.flags, cohorts: s.cohorts,
   project: s.project, farmland: s.farmland, growth: s.growth, capacity: s.capacity,
   foodImport: s.foodImport, emigrants: s.emigrants, taxes: s.taxes, jobs: s.jobs, mem: s.mem,
-  peoples: s.peoples, peoplesPast: s.peoplesPast,
+  peoples: s.peoples, peoplesPast: s.peoplesPast, wall: s.wall,
 });
 const CIV_KEYS = Object.keys(CIV_SHAPE({})), SETTLEMENT_KEYS = Object.keys(SETTLEMENT_SHAPE({}));
 /**
