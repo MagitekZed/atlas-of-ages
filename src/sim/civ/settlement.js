@@ -474,7 +474,8 @@ function socialPhase(world, s, civ, cctx, X) {
   const garRatio = div(s.garrison, pop, 0);
   const grievance = 1.6 * Math.max(0, 0.5 - s.happiness) + 1.1 * Math.max(0, 0.55 - s.loyalty)
     + (s.famine >= 2 ? 0.15 : 0) + (houseRatio > 1.05 ? 0.06 : 0) + Math.max(0, civ.taxRate - 0.15) * 0.8
-    + (s.siege ? 0.08 : 0) + 0.2 * dis + estateGrievance(civ, s);   // (its own estates' anger: power.js)
+    + (s.siege ? 0.08 : 0) + 0.2 * dis + estateGrievance(civ, s)   // (its own estates' anger: power.js)
+    + (hasProviders('townGrievance') ? sumOf('townGrievance', world, s, civ) : 0);   // (its minorities' standing: geo/folk.js)
   const calm = Math.min(0.15, garRatio * 4) + (s.happiness > 0.6 ? 0.05 : 0) + (civ.government === 'dictatorship' ? 0.06 : 0);
   const unrestT = clamp01(grievance - calm + X.sm.unrest);
   s.unrest = clamp01(s.unrest + (unrestT - s.unrest) * (unrestT > s.unrest ? 0.15 : 0.1));

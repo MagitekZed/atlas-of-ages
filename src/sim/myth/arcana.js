@@ -25,6 +25,8 @@ import { BIOME } from '../../core/constants.js';
 import { isMythic, fin, raceRel, bandOf } from './races.js';
 import { BUILDINGS, WONDERS } from './identity.js';
 import { manaCell, setArcaneIds, startMyth } from './mana.js';
+let folk = null;
+try { folk = await import('../geo/folk.js'); } catch (e) { /* no peoples module: the races' fixed table */ }
 
 let civTech = null;
 try { civTech = await import('../civ/tech.js'); } catch (e) { /* civ tech table unavailable: built-in era costs */ }
@@ -300,7 +302,8 @@ function opinion(world, a, b) {
   const A = civOf(world, a), Bc = civOf(world, b);
   if (!A || !Bc || A === Bc) return 0;
   let o = 0;
-  if (A.race && Bc.race) o += raceRel(A.race, Bc.race) * (0.5 + (1 - fin(A.traits?.tolerance, 0.5)));
+  // how A's people feels about B's now (geo/folk.js; the old fixed table without it)
+  if (A.race && Bc.race) o += (folk ? folk.feel(world, 'r:' + A.race, 'r:' + Bc.race) : raceRel(A.race, Bc.race)) * (0.5 + (1 - fin(A.traits?.tolerance, 0.5)));
   const nb = modOf(Bc, 'necromancy');
   if (nb > 0 && modOf(A, 'necromancy') <= 0) o -= 20 * Math.min(1, nb / 0.25);
   return o;

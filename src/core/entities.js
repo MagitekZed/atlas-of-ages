@@ -119,6 +119,10 @@ export function createCiv(world, opts = {}) {
     culture: undefined,     // civ module (ensureCivFields), as the civ is created
     temperLog: undefined,   // temper.js (ensureTemper), as the civ is created
     arcane: undefined,      // Mythic arcana (myth/mana.js), at birth or its first monthly sample
+    folk: undefined,        // its people (geo/folk.js), at its founding or first read
+    minor: undefined,       // its minorities' standings (geo/folk.js), once it has one
+    // who holds power (chunk 7, civ/power.js, laws.js, court.js), from its first months
+    purse: undefined, laws: undefined, est: undefined, estWhy: undefined, court: undefined,
   };
   addIndexed(world, 'civs', civ);
   invalidate(world);
@@ -230,6 +234,7 @@ export function createSettlement(world, civId, x, y, opts = {}) {
     mem: undefined,         // what it remembers of other realms (geo/memory.js), from its first memory
     peoples: undefined, peoplesPast: undefined,
     wall: undefined,        // its walls' condition, towers, moat, stores (geo/siege.js), at the first read
+    folk: undefined,        // a Historical town's mix of peoples (geo/folk.js), at its founding
   };
   addIndexed(world, 'settlements', s);
   // the name set holds exactly the names of every settlement ever founded — what a reload

@@ -61,6 +61,8 @@ import { record, pickT, fill, yearOfDay, theName, rulerName, seasonAt, placePhra
 
 let trade = null;
 try { trade = await import('../geo/trade.js'); } catch (e) { /* no trade module: neighbours alone move people */ }
+let folk = null;
+try { folk = await import('../geo/folk.js'); } catch (e) { /* no peoples module: the races' old fixed feelings */ }
 
 /** Smallest share a people keeps in a town (below it, it is dropped and the rest renormalised). */
 export const PEOPLES_MIN = 0.005;
@@ -399,8 +401,8 @@ function mixArr(world, s) {
 }
 
 /** How welcome race k is in a town whose dominant people is dom, under a realm of tolerance tol. */
-function welcome(k, dom, tol) {
-  const v = 1 + raceRel(RACE_LIST[k], dom) / 40 + 0.3 * (tol - 0.5);
+function welcome(world, k, dom, tol) {
+  const v = 1 + (folk ? folk.feel(world, 'r:' + dom, 'r:' + RACE_LIST[k]) : raceRel(RACE_LIST[k], dom)) / 40 + 0.3 * (tol - 0.5);
   return v < 0.15 ? 0.15 : v > 1.6 ? 1.6 : v;
 }
 
@@ -467,7 +469,7 @@ function townYear(world, pp, s, sc) {
   const cosmo = civ && civ.race === 'human';
   for (let k = 0; k < NR; k++) {
     T[k] += tf * TR[k];
-    if (T[k] > 0) T[k] *= welcome(k, dom, tol) * (cosmo && k !== HUMAN ? COSMO_WELCOME : 1);
+    if (T[k] > 0) T[k] *= welcome(world, k, dom, tol) * (cosmo && k !== HUMAN ? COSMO_WELCOME : 1);
     tsum += T[k];
   }
   let arrived = 0;
@@ -645,7 +647,9 @@ function maybeExpel(world, pp, s, civ) {
   for (const r of RACE_LIST) {
     if (r === ruler) continue;
     const v = p[r];
-    if (v == null || v < EXPEL_MIN_SHARE || v > EXPEL_MAX_SHARE || v <= vs || raceRel(r, ruler) > EXPEL_REL) continue;
+    // the realm must hate them (its people's feelings) or persecute them (its standing for them: geo/folk.js)
+    const hated = folk ? folk.feel(world, 'r:' + ruler, 'r:' + r) <= EXPEL_REL : raceRel(r, ruler) <= EXPEL_REL;
+    if (v == null || v < EXPEL_MIN_SHARE || v > EXPEL_MAX_SHARE || v <= vs || !hated || (folk && !/persecuted|expelled/.test(folk.standingOf(civ, 'r:' + r)))) continue;
     victim = r; vs = v;
   }
   if (!victim) return;
@@ -659,6 +663,17 @@ function maybeExpel(world, pp, s, civ) {
   const odds = Math.min(0.45, (0.08 + 0.6 * (fin(s.unrest, 0) - EXPEL_UNREST)) * (1.3 - tol) * (cruel ? 1.6 : 1));
   if (!world.rng.chance(odds)) return;
   expel(world, pp, s, civ, victim);
+}
+
+// a realm's decree of expulsion (geo/folk.js) drives the race out of each of its towns
+on('expelDecree', (world, s, race) => { expelRace(world, s, race); });
+
+/** A realm drives a race out of a town by decree (geo/folk.js): half of its people there leave. */
+export function expelRace(world, s, victim) {
+  const civ = world.civs[s.civId];
+  if (!civ || !world.sys.myth || !s.peoples || !(s.peoples[victim] > 0)) return false;
+  expel(world, ppState(world.sys.myth), s, civ, victim);
+  return true;
 }
 
 function expel(world, pp, s, civ, victim) {
