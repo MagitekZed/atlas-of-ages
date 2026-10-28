@@ -27,13 +27,16 @@
 // Exports: folkState, peopleKey, peopleName, civPeople, townMix, feel, nudgeFeel, cultDist,
 //          folkDist, realmMix, system
 
-import { on } from '../../core/hooks.js';
+import { on, emit } from '../../core/hooks.js';
 import { registerProvider, firstOf, hasProviders } from '../../core/ext.js';
 import { settlementsNear, liveCivs, liveSettlements } from '../../core/entities.js';
+import { takePeople, addShaped } from '../../core/cohorts.js';
+import { temperOf, TP } from '../../core/character.js';
+import { refreshMods } from '../civ/tech.js';
 import { DAYS_PER_YEAR as DPY, DAYS_PER_MONTH } from '../../core/constants.js';
 import { chronicle } from '../../core/chronicle.js';
 import { routesOf } from './trade.js';
-import { civName, peopleOf, capFirst, hashPick, activeWarList } from './common.js';
+import { civName, peopleOf, capFirst, hashPick, activeWarList, rateOk } from './common.js';
 
 export const FOLK_MIN = 0.005;
 const ASSIM = 1 / 28;                 // a small minority in a town of its own kind: about a third a generation
@@ -311,7 +314,8 @@ const assimMul = (world, civ) => (hasProviders('assimilateRule') ? clamp(fin(fir
 // The year of a realm
 
 function realmYear(world, civ) {
-  if (mythic(world)) return;
+  policyYear(world, civ);
+  if (!civ.alive || mythic(world)) return;
   const id = civFolk(world, civ);
   const P = folkById(world, id);
   if (!P) return;
@@ -364,6 +368,167 @@ function realmYear(world, civ) {
 }
 
 // ---------------------------------------------------------------------------
+// Policy toward minorities
+
+const STAND = new Set(['equal', 'tolerated', 'taxed', 'persecuted', 'expelled']);
+
+/**
+ * Yearly at the realm's month: each minority of the realm (3 % of its people or more) gets a
+ * standing: equal, tolerated (the usual), taxed, persecuted or expelled, by how the ruling people
+ * regards it, the ruler's mercy, piety and greed, the realm's tolerance and faith law, hard times
+ * (a scapegoat), and its numbers (a large minority is courted, or feared where it is hated). A
+ * standing stands fifteen years before it may change (an expulsion needs five years of
+ * persecution first, unless hatred runs very high). Changes are decreed and told; persecution
+ * drives the minority's young away and breeds pogroms in hard times.
+ */
+function policyYear(world, civ) {
+  const ruling = civPeople(world, civ);
+  if (!ruling) return;
+  const mix = realmMix(world, civ);
+  let tot = 0;
+  for (const k in mix) tot += mix[k];
+  if (!(tot > 0)) return;
+  const day = world.time.day;
+  const old = civ.minor || {};
+  const out = {};
+  const tp = civ.ruler ? temperOf(civ.ruler, civ) : [0.5, 0.5, 0.5, 0.5, 0.5, 0.5];
+  const tol = fin(civ.traits?.tolerance, 0.5);
+  const law = civ.laws ? civ.laws.faith : null;
+  const hard = (fin(civ.stability, 0.6) < 0.4 ? 0.15 : 0) + (fin(civ.warWeariness) > 0.5 ? 0.08 : 0);
+  let changed = false;
+  for (const k in mix) {
+    if (k === ruling) continue;
+    const share = mix[k] / tot;
+    if (share < 0.03) continue;
+    const prev = Array.isArray(old[k]) ? old[k] : null;
+    const f = feel(world, ruling, k);
+    const h = -f / 100 * 0.6 + (0.5 - tp[TP.MER]) * 0.9 + (0.5 - tol) * 0.7 + (tp[TP.PIE] - 0.5) * 0.25
+      + (law === 'one' ? 0.15 : law === 'free' ? -0.15 : 0) + hard + (share >= 0.25 ? (f < -20 ? 0.1 : -0.12) : 0);
+    let want = h < -0.35 ? 'equal' : h < 0.35 ? 'tolerated' : h < 0.6 ? (tp[TP.GRE] > 0.5 ? 'taxed' : 'tolerated') : h < 0.95 ? 'persecuted' : 'expelled';
+    // an expulsion needs ten years of persecution first (or hatred past all bounds), and never twice in a lifetime
+    if (want === 'expelled' && ((h < 1.2 && !(prev && prev[0] === 'persecuted' && day - prev[1] >= 10 * DPY)) || (prev && prev[0] === 'expelled'))) want = 'persecuted';
+    if (prev && prev[0] === 'expelled' && day - prev[1] < 60 * DPY) { out[k] = prev; continue; }
+    const own = hasProviders('minorityRule') ? firstOf('minorityRule', world, civ, k) : null;
+    if (STAND.has(own)) want = own;
+    if (prev && prev[0] === want) { out[k] = prev; continue; }
+    if (prev && day - prev[1] < 15 * DPY && want !== 'expelled') { out[k] = prev; continue; }
+    if (!prev && want === 'tolerated') { out[k] = ['tolerated', day]; continue; }
+    out[k] = [want, day];
+    changed = true;
+    decree(world, civ, ruling, k, want, prev ? prev[0] : null, share);
+    if (want === 'expelled') expelAll(world, civ, ruling, k);
+  }
+  // an expulsion is remembered sixty years, even once the people is gone (it is not decreed twice)
+  for (const k in old) if (!out[k] && Array.isArray(old[k]) && old[k][0] === 'expelled' && day - old[k][1] < 60 * DPY) out[k] = old[k];
+  civ.minor = Object.keys(out).length ? out : undefined;
+  if (changed) refreshMods(world, civ);
+  // persecution's year: the young leave, and in hard times a pogrom
+  for (const k in out) if (out[k][0] === 'persecuted' || out[k][0] === 'expelled') persecutionYear(world, civ, ruling, k);
+}
+
+const DECREE = {
+  equal: ['{R} of {C} declared {m} equal under the law, and many of their kin came to live there.', '{C} granted {m} the same rights as {r}.'],
+  tolerated: ['{C} eased the laws against {m}.', '{R} of {C} let {m} be, as before.'],
+  taxed: ['{R} of {C} laid a special tax on {m}.', '{m} of {C} were made to pay a tax of their own, for the right to keep their ways.'],
+  persecuted: ['{R} of {C} turned on {m}: their elders were driven from office and their quarters watched.', 'In {C} {m} were persecuted; their gatherings were forbidden and their goods seized.'],
+};
+function decree(world, civ, ruling, k, want, was, share) {
+  if (want === 'expelled') return;
+  if (want === 'tolerated' && !was) return;
+  if (want === 'persecuted') nudgeFeel(world, k, ruling, -6);
+  else if (want === 'equal') nudgeFeel(world, k, ruling, 6);
+  if (!(share >= 0.05 || fin(civ.population) >= 60000) || !rateOk(world, `decree:${civ.id}:${k}`, 10 * DPY)) return;
+  const R = civ.ruler ? civ.ruler.display || civ.ruler.name : 'The crown';
+  const text = hashPick(DECREE[want], civ.id, world.time.day).replace('{R}', R).replace('{C}', civName(civ)).replace(/\{m\}/g, peopleName(world, k)).replace('{r}', peopleName(world, ruling));
+  chronicle(world, { cat: 'civ', imp: want === 'persecuted' || want === 'equal' ? 2 : 1, text: capFirst(text), civId: civ.id, key: 'folk.standing', ref: { k: 'folk', id: k }, tags: ['people', want] });
+}
+
+/** The nearest town within r of a realm whose people is k (or, failing that, any town of another realm). */
+function refugeFor(world, s, k, r) {
+  let best = null, bd = r * r, any = null, ad = r * r;
+  for (const t of settlementsNear(world, s.x, s.y, r, (t) => t.alive && t.civId !== s.civId)) {
+    const d = (t.x - s.x) ** 2 + (t.y - s.y) ** 2;
+    const c = world.civs[t.civId];
+    if (civPeople(world, c) === k) { if (d < bd) { bd = d; best = t; } } else if (d < ad) { ad = d; any = t; }
+  }
+  return best || any;
+}
+
+/** Move n of people k (Historical) from town s to a refuge; a quarter die on the road. Returns the number arrived. */
+function flee(world, s, k, n) {
+  const m = townFolk(world, s);
+  const id = k.slice(2);
+  if (!m || !(m[id] > 0) || !(n >= 1)) return 0;
+  const took = takePeople(world, s, Math.min(n, fin(s.population) * m[id]), 'all');
+  const left = Math.max(0, m[id] - took / Math.max(1, fin(s.population) + took));
+  m[id] = left;
+  tidy(m, mainOf(m));
+  const dest = refugeFor(world, s, k, 60);
+  if (!dest || !(took > 0)) return 0;
+  const arrive = took * 0.75;
+  addShaped(world, dest, arrive, 'movers', world.civs[dest.civId]);
+  blendInto(world, dest, { [id]: 1 }, arrive);
+  return arrive;
+}
+
+function persecutionYear(world, civ, ruling, k) {
+  const day = world.time.day;
+  for (const sid of (civ.settlementIds || []).slice()) {
+    const s = world.settlements[sid];
+    if (!s || !s.alive) continue;
+    const share = fin(townMix(world, s)[k]);
+    if (share < 0.02) continue;
+    if (!mythic(world)) flee(world, s, k, fin(s.population) * share * 0.05);
+    // a pogrom, in a restless town in hard times (a shaken realm, a hungry town)
+    if (share >= 0.08 && fin(s.unrest) >= 0.5 && (fin(civ.stability, 0.6) < 0.45 || s.famine >= 1) && world.rng.chance(0.04)) {
+      const dead = Math.round(fin(s.population) * share * 0.08);
+      if (dead < 20 || !rateOk(world, `pogrom:${civ.id}`, 15 * DPY)) continue;
+      takePeople(world, s, dead, 'all');
+      if (!mythic(world)) { const m = townFolk(world, s); m[k.slice(2)] *= 0.85; tidy(m, mainOf(m)); }
+      nudgeFeel(world, k, ruling, -6);
+      chronicle(world, { cat: 'civ', imp: 2, x: s.x, y: s.y, sid: s.id, civId: civ.id, key: 'folk.pogrom', ref: { k: 'folk', id: k }, tags: ['people', 'pogrom'], text: hashPick([
+        `A mob fell on ${peopleName(world, k)} of ${s.name}; ${dead.toLocaleString('en')} were killed before the guards of ${civName(civ)} restored order.`,
+        `In ${s.name}, with bread short and tempers high, ${peopleName(world, k)} were blamed and slaughtered in the streets.`,
+      ], s.id, day) });
+    }
+  }
+}
+
+/** An expulsion: a part of the minority leaves every town of the realm for its kin abroad. */
+function expelAll(world, civ, ruling, k) {
+  let n = 0, towns = 0;
+  for (const sid of (civ.settlementIds || []).slice()) {
+    const s = world.settlements[sid];
+    if (!s || !s.alive) continue;
+    const share = fin(townMix(world, s)[k]);
+    if (share < 0.02) continue;
+    towns++;
+    if (mythic(world)) { emit(world, 'expelDecree', s, k.slice(2)); continue; }
+    const before = fin(s.population) * share;
+    flee(world, s, k, before * 0.6);
+    n += before * 0.6;
+  }
+  nudgeFeel(world, k, ruling, -15);
+  if (!towns) return;
+  const R = civ.ruler ? civ.ruler.display || civ.ruler.name : 'The crown';
+  chronicle(world, { cat: 'civ', imp: 3, civId: civ.id, key: 'folk.expelled', ref: { k: 'folk', id: k }, tags: ['people', 'expulsion'], text: hashPick([
+    `${R} of ${civName(civ)} expelled ${peopleName(world, k)} from the realm${n >= 100 ? `: ${Math.round(n).toLocaleString('en')} were driven from ${towns} town${towns > 1 ? 's' : ''}, and many died on the road` : ''}.`,
+    `${capFirst(peopleName(world, k))} were driven out of ${civName(civ)} by decree, leaving their homes in ${towns} town${towns > 1 ? 's' : ''}; their kin abroad would not forget it.`,
+  ], civ.id, world.time.day) });
+}
+
+// a taxed minority's levy fills the crown's coffers
+registerProvider('mods', 'folk', (world, civ) => {
+  if (!civ || !civ.minor) return null;
+  let tax = 0;
+  const mix = realmMix(world, civ);
+  let tot = 0;
+  for (const k in mix) tot += mix[k];
+  for (const k in civ.minor) if (civ.minor[k][0] === 'taxed' && tot > 0) tax += 0.12 * fin(mix[k]) / tot;
+  return tax > 0 ? { taxEfficiency: tax } : null;
+});
+
+// ---------------------------------------------------------------------------
 // The world's year: feelings, and peoples that vanish
 
 function worldYear(world) {
@@ -373,8 +538,8 @@ function worldYear(world) {
   for (const war of activeWarList(world)) {
     const att = war.attackers.map((id) => civPeople(world, world.civs[id])).filter(Boolean);
     const def = war.defenders.map((id) => civPeople(world, world.civs[id])).filter(Boolean);
-    for (const a of new Set(att)) for (const d of new Set(def)) { if (a === d) continue; nudgeFeel(world, d, a, -4); nudgeFeel(world, a, d, -2); }
-    for (const side of [att, def]) { const u = [...new Set(side)]; for (const a of u) for (const b of u) if (a !== b) nudgeFeel(world, a, b, 1.5); }
+    for (const a of new Set(att)) for (const d of new Set(def)) { if (a === d) continue; nudgeFeel(world, d, a, -1.5); nudgeFeel(world, a, d, -0.8); }
+    for (const side of [att, def]) { const u = [...new Set(side)]; for (const a of u) for (const b of u) if (a !== b) nudgeFeel(world, a, b, 0.6); }
   }
   // trade between realms warms their peoples a little
   for (const c of liveCivs(world)) {
@@ -383,7 +548,7 @@ function worldYear(world) {
       const r = c.relations[k], o = world.civs[+k];
       if (!o || !o.alive || !(fin(r.trade) > 0)) continue;
       const pb = civPeople(world, o);
-      if (pa && pb && pa !== pb) nudgeFeel(world, pa, pb, 0.5 * Math.min(1, fin(r.trade) / 25));
+      if (pa && pb && pa !== pb) nudgeFeel(world, pa, pb, 0.3 * Math.min(1, fin(r.trade) / 25));
     }
   }
   // feelings fade toward where they began, at each people's memory
@@ -428,7 +593,7 @@ on('settlementTransferred', (world, s, oldId, newId, cause) => {
   const nu = world.civs[newId], old = world.civs[oldId];
   const pn = civPeople(world, nu), po = civPeople(world, old);
   const mk = mainOf(townMix(world, s));
-  if (mk && pn && mk !== pn && cause === 'conquest') nudgeFeel(world, mk, pn, -4);
+  if (mk && pn && mk !== pn && cause === 'conquest') nudgeFeel(world, mk, pn, -2);
   if (mk && pn && mk === pn && po && po !== pn && (cause === 'conquest' || cause === 'rebellion')) nudgeFeel(world, mk, pn, 4);
   if (mythic(world) || cause !== 'conquest' || !nu) return;
   const id = civFolk(world, nu);
@@ -445,10 +610,10 @@ on('townRazed', (world, q) => {
   const att = q && world.civs[q.att];
   if (!s || !att) return;
   const pa = civPeople(world, att), mk = mainOf(townMix(world, s));
-  if (pa && mk && pa !== mk) nudgeFeel(world, mk, pa, -15);
+  if (pa && mk && pa !== mk) nudgeFeel(world, mk, pa, -10);
 });
 // a royal match warms the two peoples (civ/dynasty.js)
-on('royalMatch', (world, A, B) => { const a = civPeople(world, A), b = civPeople(world, B); if (a && b && a !== b) { nudgeFeel(world, a, b, 3); nudgeFeel(world, b, a, 3); } });
+on('royalMatch', (world, A, B) => { const a = civPeople(world, A), b = civPeople(world, B); if (a && b && a !== b) { nudgeFeel(world, a, b, 1.5); nudgeFeel(world, b, a, 1.5); } });
 
 // realms marry nearer their own kind (civ/dynasty.js matchYearly)
 registerProvider('matchRule', 'folk', (world, A, B) => -0.6 * cultDist(world, A, B));

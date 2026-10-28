@@ -647,7 +647,9 @@ function maybeExpel(world, pp, s, civ) {
   for (const r of RACE_LIST) {
     if (r === ruler) continue;
     const v = p[r];
-    if (v == null || v < EXPEL_MIN_SHARE || v > EXPEL_MAX_SHARE || v <= vs || raceRel(r, ruler) > EXPEL_REL) continue;
+    // the realm must hate them (its people's feelings) or persecute them (its standing for them: geo/folk.js)
+    const hated = folk ? folk.feel(world, 'r:' + ruler, 'r:' + r) <= EXPEL_REL : raceRel(r, ruler) <= EXPEL_REL;
+    if (v == null || v < EXPEL_MIN_SHARE || v > EXPEL_MAX_SHARE || v <= vs || !hated || (folk && !/persecuted|expelled/.test(folk.standingOf(civ, 'r:' + r)))) continue;
     victim = r; vs = v;
   }
   if (!victim) return;
@@ -661,6 +663,17 @@ function maybeExpel(world, pp, s, civ) {
   const odds = Math.min(0.45, (0.08 + 0.6 * (fin(s.unrest, 0) - EXPEL_UNREST)) * (1.3 - tol) * (cruel ? 1.6 : 1));
   if (!world.rng.chance(odds)) return;
   expel(world, pp, s, civ, victim);
+}
+
+// a realm's decree of expulsion (geo/folk.js) drives the race out of each of its towns
+on('expelDecree', (world, s, race) => { expelRace(world, s, race); });
+
+/** A realm drives a race out of a town by decree (geo/folk.js): half of its people there leave. */
+export function expelRace(world, s, victim) {
+  const civ = world.civs[s.civId];
+  if (!civ || !world.sys.myth || !s.peoples || !(s.peoples[victim] > 0)) return false;
+  expel(world, ppState(world.sys.myth), s, civ, victim);
+  return true;
 }
 
 function expel(world, pp, s, civ, victim) {
