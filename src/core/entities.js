@@ -123,6 +123,7 @@ export function createCiv(world, opts = {}) {
     minor: undefined,       // its minorities' standings (geo/folk.js), once it has one
     // who holds power (chunk 7, civ/power.js, laws.js, court.js), from its first months
     purse: undefined, laws: undefined, est: undefined, estWhy: undefined, court: undefined,
+    physic: undefined,      // its physicians' theory of sickness (geo/health.js), at its first year
   };
   addIndexed(world, 'civs', civ);
   invalidate(world);
@@ -235,6 +236,7 @@ export function createSettlement(world, civId, x, y, opts = {}) {
     peoples: undefined, peoplesPast: undefined,
     wall: undefined,        // its walls' condition, towers, moat, stores (geo/siege.js), at the first read
     folk: undefined,        // a Historical town's mix of peoples (geo/folk.js), at its founding
+    sick: undefined,        // how it lives with sickness (geo/health.js), at its first yearly pass
   };
   addIndexed(world, 'settlements', s);
   // the name set holds exactly the names of every settlement ever founded — what a reload

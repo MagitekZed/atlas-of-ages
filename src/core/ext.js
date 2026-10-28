@@ -39,7 +39,7 @@ export const EXT_POINTS = {
   strife: { combine: 'first', sig: "(w, people, civ) → { k: extra deaths a year at a whole town of that people, who: 'youngMen' | 'adults' | 'all' | 34 weights } | null (in-fighting, core/cohorts.js)" },
   peopleRates: { combine: 'first', sig: '(w, people, s|null) → { birth, mortality, life } | null (each people’s age bands in town s, core/cohorts.js)' },
   magicJobs: { combine: 'first', sig: '(w, s, civ) → 4 shares of the working hands (mages, healers, artificers, beast-keepers) | null (sim/civ/jobs.js)' },
-  townHealth: { combine: 'sum', clamp: [-0.1, 0.1], sig: '(w, s, civ) → added to the town’s health' },
+  townHealth: { combine: 'sum', clamp: [-0.3, 0.12], sig: '(w, s, civ) → added to the town’s health' },
   townOutput: { combine: 'mulEach', keys: ['production', 'defense'], clamp: [0.8, 1.25], sig: '(w, s, civ) → {production?, defense?}' },
   researchMul: { combine: 'mul', clamp: [0.8, 1.25], sig: '(w, civ, techId) → × research on that tech' },
   taming: { combine: 'mul', clamp: [0.5, 2], sig: '(w, civ, s) → × the odds that the beast-masters of s bind a beast' },
@@ -92,6 +92,9 @@ export const EXT_POINTS = {
   inventRule: { combine: 'first', sig: '(w, civ, techId) → true | false: whether the realm may invent an uncommon tech alone, instead of its land condition | null (civ/tech.js)' },
   learnRule: { combine: 'mul', clamp: [0.2, 3], sig: '(w, civ) → × the discounts a realm takes from those who know a tech (civ/tech.js)' },
   secretRule: { combine: 'first', sig: '(w, civ, artId) → false to let a rare art spread like common knowledge | null (civ/arts.js)' },
+  // health and sickness (chunk 11, geo/health.js)
+  frailty: { combine: 'mul', clamp: [0.1, 4], sig: '(w, people) → × how readily a people catches a plague and dies of it' },
+  cleanRule: { combine: 'first', sig: "(w, people) → a people's first custom of cleanliness ('bath' | 'rite' | 'wells' | 'hearth' | 'plain' | 'fear') | null" },
   memoryRule: { combine: 'first', sig: '(w, s) → { grudge, thanks } years a town remembers (e-folding) | null (geo/memory.js)' },
   rates: { combine: 'mul', clamp: [0, 5], sig: '(w, key)' },
   vegCap: { combine: 'mul', clamp: [0.2, 1.5], sig: '(w, i)' },

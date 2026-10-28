@@ -736,6 +736,8 @@ export function registerRaceProviders() {
   registerProvider('demography', 'myth', demography);
   registerProvider('lifespan', 'myth', lifespan);
   registerProvider('sickness', 'myth', sickness);
+  // a people's frailty before a plague (geo/health.js): the same nature, for the whole race
+  registerProvider('frailty', 'myth', (world, key) => (isMythic(world) && key && key[0] === 'r' && RACES[key.slice(2)] ? fin(RACES[key.slice(2)].sickness, 1) : 1));
   registerProvider('peopleRates', 'myth', peopleRates);
   registerProvider('strife', 'myth', strife);
   registerProvider('claimRule', 'myth', claimRule);

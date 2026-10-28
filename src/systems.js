@@ -3,7 +3,7 @@
 // this file. Loaders use literal import() paths so a bundler can follow them
 // (tools/build-standalone.mjs). Listed in system order (SPEC §6); the Simulation sorts by
 // `order` anyway: terraform 5, climate 10, weather 15, ecology 20, disasters 25, civ 40,
-// religion 50, disease 55, trade 60, diplomacy 70, war 80, bands 82, events 84, myth 86,
+// religion 50, disease 55, health 56, trade 60, diplomacy 70, war 80, bands 82, events 84, myth 86,
 // hand 99 (an observer: sim/hand.js), stats 100.
 
 const LOADERS = {
@@ -15,6 +15,7 @@ const LOADERS = {
   './sim/civ/index.js': () => import('./sim/civ/index.js'),
   './sim/geo/religion.js': () => import('./sim/geo/religion.js'),
   './sim/geo/disease.js': () => import('./sim/geo/disease.js'),
+  './sim/geo/health.js': () => import('./sim/geo/health.js'),
   './sim/geo/trade.js': () => import('./sim/geo/trade.js'),
   './sim/geo/diplomacy.js': () => import('./sim/geo/diplomacy.js'),
   './sim/geo/folk.js': () => import('./sim/geo/folk.js'),
