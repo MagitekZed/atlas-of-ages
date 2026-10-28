@@ -469,7 +469,8 @@ export function campMonth(world, army) {
   if (!world.rng.chance(pr)) return CAMP;
   fl.cf = { d: world.time.day, k: Math.round((0.6 + 0.8 * world.rng.next()) * 100) / 100, n: 0 };
   const s = army.state === 'sieging' && army.targetId != null ? world.settlements[army.targetId] : null;
-  if (army.strength >= 3000 && rateOk(world, `camp${army.warId ?? 'x'}:${civ.id}`, 2 * DPY)) chronicle(world, {
+  // told for a great host, once a war, and seldom in the world
+  if (army.strength >= 5000 && rateOk(world, `camp${army.warId}:${civ.id}`, 60 * DPY) && rateOk(world, 'campTold', 3 * DPY)) chronicle(world, {
     cat: 'war', imp: 2, icon: 'plague', key: 'health.camp', civId: civ.id, x: army.x, y: army.y, ...(s ? { sid: s.id } : {}), tags: ['army'],
     text: pickOne(world, [
       `Camp fever broke out in ${army.name || 'the host of ' + civName(civ)}${s ? ` before ${s.name}` : ''}; the flux went through the lines.`,
