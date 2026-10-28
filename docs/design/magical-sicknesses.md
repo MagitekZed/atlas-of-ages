@@ -343,7 +343,7 @@ Wasting, counts), `civ.flags.grave`, `ruler.flags.wound` / `guilt`, `plague.by` 
   `bands/hunts.js`, `events/data.js` and `events/ages.js` (the Age of the Dead, never rolled at
   random), `civ/stability.js` (a dark age begun by others)). Every risen host gets a potential
   (an `undeadRisen` hook): its maker's art (a caster's Necromancy + ½ arcana; the hand's
-  virulence above 0.8; 0.1 for a natural rising) × (½ + the mana where it rose) ×
+  virulence above 0.8; 0.12 for a natural rising) × (½ + the mana where it rose) ×
   log10(the dead to hand / 500), ≤ 2 (its own grave and the unrisen graves within 20 tiles). From
   0.25 it has the makings: a ceiling × (1 + 4 × potential, ≤ 5), 1.44 power a death instead of
   0.9, graves within 4 tiles swallowed, and in battle it is worn down (each defeat 10–50 % of its

@@ -44,7 +44,7 @@
 //                     second, lighter Wasting.
 //
 //   The Scourge       Every risen host gets a potential (undeadRisen hook): its maker's art (a
-//                     caster's Necromancy + ½ arcana; the hand's virulence; 0.1 for a natural
+//                     caster's Necromancy + ½ arcana; the hand's virulence; 0.12 for a natural
 //                     rising) × (½ + the mana where it rose) × log10(the dead to hand
 //                     / 500) (its own and the unrisen graves within 20 tiles). From 0.25 it has the
 //                     makings of a scourge: a ceiling × (1 + 4 × potential, ≤ 5) and more power from
@@ -720,7 +720,7 @@ const pickT = (world, arr) => arr[Math.floor(world.rng.next() * arr.length)];
 // ---------------------------------------------------------------------------
 // The Scourge
 
-const NATURAL_ART = 0.1;     // the art of a natural rising (no maker): only a land thick with the dead and magic makes one
+const NATURAL_ART = 0.12;    // the art of a natural rising (no maker): only a land thick with the dead and magic makes one
 const SCOURGE_AT = 0.0074;   // its power as a share of the world's people, to be named (1.85 × an ordinary host's ceiling)
 const DARK_YEARS = 25;       // years named before its darkness can fall
 const DARK_R = 35;           // the reach of its region
