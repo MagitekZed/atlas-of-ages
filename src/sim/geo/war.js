@@ -82,6 +82,7 @@ import { bestClaimOn, renounceClaims, hardenClaims, claimOf } from './claims.js'
 import { remember, memoryOf } from './memory.js';
 import { wallOf, wallKind, wallName, wallStand, WALL, BREACH, craftOf, surrenderOf, wallsMonthly, slight, famousSiege } from './siege.js';
 import { civPeople, townMix, feel } from './folk.js';
+import { campMonth } from './health.js';
 import { coFor, coSync, coShares, coGear, coTake, forcePower, companyShares, mixFor, gearTier, gearQuality, siegeMul, ROLE } from './army.js';
 import { battleExperience, veteransHome, levyXp } from './regiments.js';
 import { groundCode, weatherAt, roleFactor, choosePlan, planBonus, momentOf, momentText, learnPlan, weatherWord, PLANS } from './battlefield.js';
@@ -1440,6 +1441,9 @@ function casualty(world, army, n, src, tally = true) {
     const g = geoOf(world, war);
     g.monthCas[army.civId] = (g.monthCas[army.civId] || 0) + d;
     war.casualties[army.civId] = (war.casualties[army.civId] || 0) + d;
+    // the fever's dead apart (health.js), and the sword's, to weigh them
+    if (src === 'plague') (war.fever ||= {})[army.civId] = (war.fever[army.civId] || 0) + d;
+    else if (src === 'battle') (war.slain ||= {})[army.civId] = (war.slain[army.civId] || 0) + d;
   }
   return d;
 }
@@ -2673,6 +2677,17 @@ function monthly(world, st) {
     if (!g.joined) { g.joined = true; callToArms(world, st, war, ctx); }
   }
   weariness(world, st);
+  // camp fever (health.js): the dead, and the men who slip away home
+  for (const army of world.armies.slice()) {
+    if (hunting(army)) continue;
+    const cf = campMonth(world, army);
+    if (cf.dead > 0) casualty(world, army, cf.dead, 'plague');
+    if (cf.fled >= 1) {
+      const took = casualty(world, army, cf.fled, 'attrition');
+      const home = world.settlements[army.homeId];
+      if (took > 0 && home && home.alive && home.civId === army.civId && !army.flags.merc) returnLevy(world, home, army.flags, took);
+    }
+  }
   wallsMonthly(world, civsAtWar(world));   // walls mend or crumble, stores are laid by (siege.js)
   occupation(world);
   peace(world, st);

@@ -95,7 +95,7 @@ function fireOdds(ctx) {
   if (hasTech(civ, 'masonry')) protect *= 0.8;
   if (hasTech(civ, 'engineering')) protect *= 0.8;
   if (hasTech(civ, 'sanitation')) protect *= 0.6;
-  return 0.003 * TF[s.tier] * crowd * dry * season * wood * protect * settlementMods(world, s).fireRisk * (1 + 0.5 * ctx.heat('crowding'));
+  return 0.003 * TF[s.tier] * crowd * dry * season * wood * protect * settlementMods(world, s).fireRisk * (s.sick && Number.isFinite(s.sick.fr) ? s.sick.fr : 1) * (1 + 0.5 * ctx.heat('crowding'));
 }
 registerEvent({
   id: 'town.great_fire', scale: 'town', minTier: 2, family: 'fire', cat: 'disaster', imp: 2, cooldownYears: 30, chain: ['crowding'],

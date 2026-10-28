@@ -28,7 +28,7 @@
 import { chronicle } from '../../core/chronicle.js';
 import { on } from '../../core/hooks.js';
 import { registerTool } from '../../core/tools.js';
-import { liveSettlements, settlementsNear, nearestSettlement, damageSettlement, addIndexed } from '../../core/entities.js';
+import { liveSettlements, settlementsNear, nearestSettlement, addIndexed } from '../../core/entities.js';
 import { emitFx } from '../../core/world.js';
 import { mulOf, hasProviders } from '../../core/ext.js';
 import { settlementMods } from '../../core/effects.js';
@@ -40,6 +40,7 @@ import {
 } from './common.js';
 import { composeName, possessive, nameWord, terrainAt, isEnglishWord } from '../../core/names.js';
 import { plagueTarget, cureTargets, plaguePreview, curePreview, toolLabel } from './previews.js';
+import { plagueWeights, plagueToll, noteExposed, originPeople, townInf, townCfr } from './health.js';
 
 export const PLAGUE_TICK = 5;          // days between SIR steps
 const TICK_PHASE = 2;
@@ -108,6 +109,7 @@ const PLAGUE_FORMS = [
 const CAUSE_FORMS = {
   livestock: [[3, 'the {Beast} {Sym}'], [2, 'the {Herder} {Sym}'], [1, 'the {Beast} Murrain'], [0.8, 'the {town} Murrain']],
   contact: [[2.5, 'the {civB} {Sym}'], [1.6, 'the {Stranger} {Sym}'], [1.2, 'the {Sym} from {far}']],
+  camp: [[3, "the Soldier's {Sym}"], [2, 'the Camp {Sym}'], [1.5, "the Army {Sym}"], [1, 'the {Sym} of the Lines']],
   divine: [[2.5, '{deityPos} {Wrath}'], [1.5, 'the {Wrath} of {deity}'], [1, 'the Heaven-Sent {Sym}'], [1, "the Gods' {Sym}"]],
 };
 const stems = (n) => n.toLowerCase().split(/[\s'-]+/).filter((w) => w.length > 3 && w !== 'the').map((w) => w.slice(0, 4));
@@ -192,10 +194,18 @@ export function plagueAt(world, s) {
   return p && p.active ? p : null;
 }
 
+/** 0..1: how much room the world has for a new pestilence now (quiet years after a great one, fewer while others rage). */
+export function plagueRoom(world) {
+  const st = state(world);
+  const active = world.plagues.reduce((n, p) => n + (p && p.active ? 1 : 0), 0);
+  if (active >= MAX_ACTIVE) return 0;
+  return quiet(world, st) * (active ? 0.35 : 1) * (world.params.plagueRate ?? 1);
+}
+
 // ---------------------------------------------------------------------------
 // Creation and exposure
 
-const KNOWN_CAUSES = new Set(['crowd', 'livestock', 'contact', 'divine', 'return']);
+const KNOWN_CAUSES = new Set(['crowd', 'livestock', 'contact', 'divine', 'return', 'camp']);
 
 /**
  * Published: start a new plague in settlement s (or its id). Either createPlague(world, s, cause,
@@ -256,6 +266,8 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
     notable: false,
     worldPopAtStart: Math.max(1, worldPop(world)),
     lastNote: world.time.day,
+    op: originPeople(world, s, opts.civB || null),   // whose sickness it is (geo/health.js)
+    byP: {},                                          // { people: [dead, exposed] }
   };
   addIndexed(world, 'plagues', p);
   st.outbreaks++;
@@ -280,6 +292,11 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
       text = pickOne(world, [
         `Strangers from ${ob ? civName(ob) : 'distant lands'} brought ${p.name} to ${s.name}, a sickness its people had never known.`,
         `The first meeting with ${ob ? peopleOf(ob) : 'strangers'} carried ${sym.desc} into ${s.name}; it became known as ${p.name}.`,
+      ]);
+    } else if (cause === 'camp') {
+      text = pickOne(world, [
+        `Soldiers home from the war brought the fever of their camps back to ${s.name}; it became known as ${p.name}.`,
+        `${capName(p.name)} came home to ${s.name} with the army, and spread from the barracks to the town.`,
       ]);
     } else if (cause === 'divine') {
       text = pickOne(world, [
@@ -326,6 +343,7 @@ function immunityTo(s, p) {
 function infect(world, s, p, dose) {
   const immune = immunityTo(s, p);
   s.disease = { pid: p.id, I: Math.min(0.5, Math.max(1e-4, dose)), R: Math.min(0.95, immune) };
+  noteExposed(world, s, p);
   p.hitIds ||= [];
   if (!p.hitIds.includes(s.id)) { p.hitIds.push(s.id); p.hit = p.hitIds.length; }
   if (s.civId != null && !p.civsHit.includes(s.civId)) p.civsHit.push(s.civId);
@@ -416,17 +434,11 @@ function cfrFor(world, s, p, civ) {
   let cfr = p.lethality * (world.params.plagueLethality ?? 1) * m.medicine * (1 - m.plagueResist);
   cfr *= 1.25 - 0.5 * clamp01(finite(s.health) ? s.health : 0.7);
   if (s.famine > 0) cfr *= 1.3;
-  if (healingFaith(world, s)) cfr *= 0.8;
+  cfr *= townCfr(world, s, civ);   // its faith's hospitals, its physicians, nursing monks (health.js)
   cfr *= p.lethalAtt ?? 1;
   return cfr < 0 ? 0 : cfr > 0.9 ? 0.9 : cfr;
 }
 
-function healingFaith(world, s) {
-  const rid = s.dominantReligion;
-  if (rid == null) return false;
-  const r = world.religions[rid];
-  return Boolean(r && r.alive !== false && Array.isArray(r.tenets) && r.tenets.includes('healing'));
-}
 function apocalypticFaith(world, s) {
   const rid = s.dominantReligion;
   if (rid == null) return false;
@@ -435,7 +447,7 @@ function apocalypticFaith(world, s) {
 }
 
 function sirTick(world, st) {
-  const towns = liveSettlements(world).slice(); // damageSettlement may destroy entries
+  const towns = liveSettlements(world).slice(); // a plague toll may destroy entries
   for (const p of world.plagues) if (p.active) { p.towns = 0; p.infected = 0; }
   const spreaders = [];
   for (const s of towns) {
@@ -450,10 +462,12 @@ function sirTick(world, st) {
     let I = finite(d.I) ? d.I : 0, R = finite(d.R) ? d.R : 0;
     const S = Math.max(0, 1 - I - R);
     const healthF = 1.35 - 0.7 * clamp01(finite(s.health) ? s.health : 0.7);
-    const beta = p.infectivity * BETA0 * crowdFactor(N) * healthF / Math.max(0.3, m.sanitation) * p.att * (s.siege ? 1.3 : 1);
+    // its peoples: their frailty, customs, and whether they have met this sickness (health.js)
+    const W = plagueWeights(world, s, p);
+    const beta = p.infectivity * BETA0 * crowdFactor(N) * healthF / Math.max(0.3, m.sanitation) * p.att * (s.siege ? 1.3 : 1) * W.inf * townInf(s);
     const newInf = Math.min(S, beta * S * I);
     const leaving = GAMMA * I;
-    const cfr = cfrFor(world, s, p, civ);
+    const cfr = Math.min(0.9, cfrFor(world, s, p, civ) * W.die);
     const deadFrac = leaving * cfr;
     I = I + newInf - leaving;
     R = R + leaving * (1 - cfr);
@@ -473,7 +487,7 @@ function sirTick(world, st) {
       const tf = (s.flags.plagueLoss || 0) + frac;
       s.flags.plagueLoss = tf;
       if (!p.worst || tf > p.worst.frac) p.worst = { sid: s.id, name: s.name, frac: tf };
-      damageSettlement(world, s, { pop: frac, cause: 'plague' });
+      plagueToll(world, s, p, frac);
     }
     if (!s.alive) continue;
     // panic and misery
