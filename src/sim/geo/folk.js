@@ -177,9 +177,16 @@ export function realmMix(world, civ) {
 // ---------------------------------------------------------------------------
 // Distance and feelings
 
-/** How unlike two Historical peoples are, 0 to 1: kin (one grew out of the other) 0.25, else by tongue. */
+/** How unlike two Historical peoples are, 0 to 1: kin (one grew out of the other) 0.25, else by tongue (cached for good: a people's tongue and kin never change). */
 export function folkDist(world, a, b) {
   if (a === b) return 0;
+  const c = world.cache.folkPair || (world.cache.folkPair = new Map());
+  const key = a < b ? a * 100003 + b : b * 100003 + a;
+  let d = c.get(key);
+  if (d === undefined) { d = folkDistOf(world, a, b); c.set(key, d); }
+  return d;
+}
+function folkDistOf(world, a, b) {
   const A = folkById(world, a), B = folkById(world, b);
   if (!A || !B) return 0.8;
   if (A.from === b || B.from === a || (A.from != null && A.from === B.from)) return 0.25;
@@ -206,11 +213,16 @@ export function cultDist(world, A, B) {
   if (d != null) return d;
   const pa = civPeople(world, A), pb = civPeople(world, B);
   const dp = pa && pb ? keyDist(world, pa, pb) : 0.8;
-  const la = A.language || {}, lb = B.language || {};
-  const sa = new Set([...(la.onsets || []), ...(la.codas || []), ...(la.vowels || [])]), sb = new Set([...(lb.onsets || []), ...(lb.codas || []), ...(lb.vowels || [])]);
-  let both = 0;
-  for (const s of sa) if (sb.has(s)) both++;
-  const dt = 1 - both / Math.max(1, sa.size + sb.size - both);
+  const tc = world.cache.folkTongue || (world.cache.folkTongue = new Map());
+  let dt = tc.get(k);
+  if (dt === undefined) {
+    const la = A.language || {}, lb = B.language || {};
+    const sa = new Set([...(la.onsets || []), ...(la.codas || []), ...(la.vowels || [])]), sb = new Set([...(lb.onsets || []), ...(lb.codas || []), ...(lb.vowels || [])]);
+    let both = 0;
+    for (const s of sa) if (sb.has(s)) both++;
+    dt = 1 - both / Math.max(1, sa.size + sb.size - both);
+    tc.set(k, dt);
+  }
   const fa = A.stateReligion, fb = B.stateReligion;
   const R = world.religions || [];
   const df = fa == null || fb == null ? 0.5 : fa === fb ? 0 : (R[fa]?.parentId === fb || R[fb]?.parentId === fa) ? 0.5 : 1;
@@ -261,11 +273,14 @@ function townYear(world, s) {
   const mainKey = main != null ? 'f:' + main : null;
   // neighbours within 12 tiles and trade partners; each people as welcome as the town's people
   // feel toward it, and the realm's standing for it (policy: phase C)
-  const target = {};
+  const target = {}, wel = {};
   let wsum = 0, links = 0;
   const add = (t, w) => {
     const tm = townFolk(world, t);
-    for (const k in tm) { const wk = w * tm[k] * welcome(world, civ, mainKey, 'f:' + k); target[k] = fin(target[k]) + wk; wsum += wk; }
+    for (const k in tm) {
+      const wk = w * tm[k] * (wel[k] ??= welcome(world, civ, mainKey, 'f:' + k));
+      target[k] = fin(target[k]) + wk; wsum += wk;
+    }
   };
   for (const t of settlementsNear(world, s.x, s.y, 12, (t) => t.alive && t.id !== s.id)) add(t, fin(t.population) / (1 + Math.hypot(t.x - s.x, t.y - s.y)));
   for (const r of routesOf(world, s.id)) {
