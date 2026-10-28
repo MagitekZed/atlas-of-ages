@@ -33,7 +33,7 @@
 
 import { makePerson } from '../../core/names.js';
 import { DAYS_PER_YEAR as DPY } from '../../core/constants.js';
-import { temperOf, TP } from '../../core/character.js';
+import { temperOf, skillsOf, TP, SK } from '../../core/character.js';
 import { firstOf, hasProviders, mulOf } from '../../core/ext.js';
 import { on } from '../../core/hooks.js';
 import { isDynastic } from './data.js';
@@ -253,9 +253,10 @@ function childName(world, civ, kin, g, fa, mo) {
       if (par.g === g) pool.push(par.n);
     }
     for (const h of civ.rulerHistory || []) if (h.gender === g && h.dynasty && h.dynasty === (fa?.h || mo?.h)) pool.push(h.name);
-    // never a living brother's or sister's name
+    // never the name of one living at court, save a parent's own
     const taken = new Set();
-    for (const par of [fa, mo]) for (const id of par ? par.ch : []) { const k = kin.p[id]; if (k && k.d == null) taken.add(k.n); }
+    for (const k of courtOf(world, (fa || mo)?.c ?? civ.id)) taken.add(k.n);
+    for (const par of [fa, mo]) if (par) taken.delete(par.n);
     const free = pool.filter((n) => !taken.has(n));
     if (free.length) return rng.pick(free);
   }
@@ -469,6 +470,17 @@ export function syncSpouse(world, civ, r, me) {
 export function crownKin(world, civ, r) {
   const me = kinOf(world, r.id);
   if (!me) return null;
+  // crowned at another court: the spouse and the children there come too
+  if (me.c !== civ.id) {
+    const from = me.c;
+    const move = (p, depth) => {
+      if (!p || p.c !== from || p.d != null) return;
+      p.c = civ.id;
+      if (depth < 3) for (const id of p.ch || []) move(kinOf(world, id), depth + 1);
+    };
+    for (const id of me.sp || []) { const s = kinOf(world, id); if (alive(s) && s.c === from) s.c = civ.id; }
+    for (const id of me.ch || []) move(kinOf(world, id), 1);
+  }
   me.c = civ.id;
   me.r = civ.id;
   if (me.dep) delete me.dep;
@@ -477,6 +489,68 @@ export function crownKin(world, civ, r) {
   syncSpouse(world, civ, r, me);
   syncHeir(world, civ);
   return me;
+}
+
+// ---------------------------------------------------------------------------
+// Successions
+
+/** A kept person in the shape makeRuler takes (opts.person), with their relation to the holder. */
+export function asPerson(world, civ, holder, p) {
+  if (!p) return null;
+  const sp = spouseOf(world, p);
+  return {
+    id: p.id, name: p.n, gender: p.g, born: p.b, house: p.h || null,
+    relation: (holder && relationWords(world, holder, p)) || (p.g === 'f' ? 'kinswoman' : 'kinsman'),
+    spouse: sp ? { name: sp.n, fromCivId: sp.nb ? civ.id : sp.c, house: sp.h || null, gender: sp.g } : null,
+    ...(p.bas ? { bastard: true } : {}),
+  };
+}
+
+/** Grown, by the person's people's years. */
+export const grownKin = (world, civ, p, at = 16) => ageOf(world, civ, p) >= at;
+
+/**
+ * Who follows the holder by the realm's law: { first, how ('heir' | 'kin' | 'elected'), home,
+ * abroad, rival, bastard, danger }. Under an elective law the great choose the ablest grown
+ * member of the royal blood (of the first six at home). danger multiplies the odds of a crisis:
+ * a child or a legitimised bastard first, a woman first under a law that prefers sons while a
+ * grown man waits behind, and above all an ambitious, unscrupulous grown kinsman close behind.
+ */
+export function pickSuccessor(world, civ, holder) {
+  const line = lineOf(world, civ, holder, { max: 14 });
+  const home = line.filter((p) => p.c === civ.id), abroad = line.filter((p) => p.c !== civ.id);
+  let first = home[0] || null, how = 'heir';
+  if (first && civ.laws && civ.laws.inherit === 'elective') {
+    const day = world.time.day;
+    let best = null, bs = -1;
+    for (const p of home.slice(0, 6)) {
+      if (!grownKin(world, civ, p, 18)) continue;
+      const sk = skillsOf(personView(p), day, lifeOfP(world, civ, p));
+      const sc = sk[SK.WAR] + sk[SK.DIP] + sk[SK.STE] + 0.2 * world.rng.next();
+      if (sc > bs) { bs = sc; best = p; }
+    }
+    if (best) { first = best; how = 'elected'; }
+  }
+  if (first && how === 'heir' && first.f !== holder.id && first.m !== holder.id) how = 'kin';
+  // the danger behind the first in line
+  let danger = 1;
+  if (first) {
+    if (!grownKin(world, civ, first)) danger *= 3;
+    if (first.leg) danger *= 1.8;
+    if (heirRuleOf(world, civ) === 'male' && first.g === 'f' && home.some((p) => p.g === 'm' && p !== first && grownKin(world, civ, p, 18))) danger *= 1.6;
+  }
+  let rival = null, rs = 0.15;
+  const near = home.filter((p) => p !== first).slice(0, 5);
+  const bastard = (holder.ch || []).map((id) => kinOf(world, id)).filter((k) => k && alive(k) && k.bas && !k.leg && !k.dep && k.c === civ.id && grownKin(world, civ, k, 18)).sort((a, b) => a.b - b.b)[0] || null;
+  if (bastard) near.push(bastard);
+  for (const p of near) {
+    if (!grownKin(world, civ, p, 20)) continue;
+    const tp = temperOf(personView(p), civ);
+    const sc = tp[TP.AMB] - tp[TP.HON] + (first && !grownKin(world, civ, first) ? 0.15 : 0);
+    if (sc > rs) { rs = sc; rival = p; }
+  }
+  if (rival) danger *= 1 + 4 * (rs - 0.15);
+  return { first, how, home, abroad, rival, bastard, danger };
 }
 
 // ---------------------------------------------------------------------------
@@ -545,6 +619,19 @@ export function kinYearly(world, civ) {
     if (bastards && p.g === 'm' && !p.nb && age >= 18 && age < 60 && (p.id === r.id || (me.f != null && p.f === me.f && lawful(p)))) {
       const hon = temperOf(p.id === r.id ? r : personView(p), civ)[TP.HON];
       if (hon < 0.5 && rng.chance(0.07 * Math.min(1, (0.5 - hon) / 0.3) / life)) kinBorn(world, civ, null, p, { bas: true });
+    }
+  }
+  // a ruler with no lawful child may make a grown bastard lawful
+  if (bastards && me.ch.length) {
+    const kids = me.ch.map((id) => kinOf(world, id)).filter((k) => alive(k) && !k.dep);
+    const base = kids.find((k) => k.bas && !k.leg && k.c === civ.id && grownKin(world, civ, k, 14));
+    if (base && !kids.some(lawful) && rng.chance(0.12)) {
+      base.leg = 1;
+      touched(kinState(world));
+      record(world, { cat: 'civ', imp: 2, key: 'dynasty.legitimised', civ, ref: rulerRef(civ, r), tags: ['bastard', 'heir'], text: pick(world, [
+        `Without a lawful child, ${rulerName(r)} of ${theName(civ)} declared ${r.gender === 'f' ? 'her' : 'his'} natural ${base.g === 'f' ? 'daughter' : 'son'} ${base.n} legitimate, and heir.`,
+        `${rulerShort(r)} of ${theName(civ)} made the bastard ${base.n} lawful by decree; not all the great of the realm would kneel to ${base.g === 'f' ? 'her' : 'him'}.`,
+      ]) });
     }
   }
   prune(world, civ, me);

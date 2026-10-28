@@ -33,7 +33,7 @@ import { theName, TheName, rulerName, rulerShort, pick, listJoin, seasonWord } f
 import { makeRuler, installRuler, rulerAge, lifeOf, syncRulerDisplay, startDynasty, succession, newDynastyName } from './rulers.js';
 import { roughPower } from './peoples.js';
 import { grantTech, computeEra, refreshMods } from './tech.js';
-import { kinOf, crownKin, marryNoble, syncSpouse, kinSweep, matchKin, relationWords } from './kin.js';
+import { kinOf, crownKin, marryNoble, syncSpouse, kinSweep, matchKin, relationWords, asPerson, kinDied, grownKin } from './kin.js';
 
 const EXILE_CAP = 24, MARRIAGE_CAP = 60;
 const UNION_GAP = 100 * DPY;
@@ -90,14 +90,28 @@ export function startRegency(world, civ, heir, prev) {
   const age = rulerAge(world, civ, heir);
   if (!(age < 16)) { civ.flags.regent = null; return null; }
   const life = lifeOf(world, civ, heir);
-  const kinds = prev?.spouse ? ['mother', 'uncle', 'chancellor', 'general'] : ['uncle', 'chancellor', 'general'];
-  const kind = world.rng.pick(kinds);
-  const name = kind === 'mother' ? prev.spouse.name : makePerson(civ.language, world.rng);
-  const fem = kind === 'mother' ? (prev.spouse.gender ?? 'f') === 'f' : false;
+  // the regent from the family (kin.js): the child's surviving parent at court, else the eldest
+  // grown uncle or aunt of the blood; else a chancellor or a general
+  const child = kinOf(world, heir.id);
+  let rp = null, kind = null;
+  if (child) {
+    for (const id of [child.m, child.f]) { const q = kinOf(world, id); if (q && q.d == null && !q.dep && q.c === civ.id && q.id !== prev?.id) { rp = q; kind = 'mother'; break; } }
+    if (!rp) {
+      const dead = kinOf(world, prev?.id);
+      const sibs = [];
+      for (const id of [dead?.f, dead?.m]) { const par = kinOf(world, id); for (const k of par ? par.ch : []) { const q = kinOf(world, k); if (q && q.id !== dead.id && q.d == null && !q.dep && q.c === civ.id && !q.bas && grownKin(world, civ, q, 20) && !sibs.includes(q)) sibs.push(q); } }
+      sibs.sort((a, b) => (a.g === b.g ? a.b - b.b : a.g === 'm' ? -1 : 1));
+      if (sibs.length && world.rng.chance(0.75)) { rp = sibs[0]; kind = 'uncle'; }
+    }
+  }
+  if (!kind) kind = child ? world.rng.pick(['chancellor', 'chancellor', 'general']) : world.rng.pick(prev?.spouse ? ['mother', 'uncle', 'chancellor', 'general'] : ['uncle', 'chancellor', 'general']);
+  const name = rp ? rp.n : kind === 'mother' ? prev.spouse.name : makePerson(civ.language, world.rng);
+  const fem = rp ? rp.g === 'f' : kind === 'mother' ? (prev.spouse.gender ?? 'f') === 'f' : false;
   civ.flags.regent = {
     // a long-lived people's child is long a child, but no regency outlasts sixteen years
     name, kind, since: world.time.day, until: world.time.day + Math.round(Math.min(16, (16 - age) * life) * DPY), forId: heir.id,
-    title: kind === 'mother' ? (fem ? 'the queen mother' : 'the king father') : kind === 'uncle' ? `${heir.gender === 'f' ? 'her' : 'his'} uncle` : kind === 'chancellor' ? 'the chancellor' : 'the general',
+    title: kind === 'mother' ? (fem ? 'the queen mother' : 'the king father') : kind === 'uncle' ? `${heir.gender === 'f' ? 'her' : 'his'} ${fem ? 'aunt' : 'uncle'}` : kind === 'chancellor' ? 'the chancellor' : 'the general',
+    ...(rp ? { pid: rp.id } : {}),
   };
   const st = world.sys.civ;
   if (st) st.counters.regencies = fin(st.counters.regencies) + 1;
@@ -386,14 +400,17 @@ export function dynastyMonthly(world, civ) {
 }
 
 function regentUsurps(world, civ, child, reg) {
-  const nr = makeRuler(world, civ, { age: [30, 52], inherit: ['ambitious', 'cruel', 'paranoid'], person: { name: reg.name, gender: reg.kind === 'mother' ? 'f' : undefined } });
+  const rp = reg.pid != null ? kinOf(world, reg.pid) : null;
+  const person = rp && rp.d == null ? asPerson(world, civ, null, rp) : { name: reg.name, gender: reg.kind === 'mother' ? 'f' : undefined };
+  const nr = makeRuler(world, civ, { age: [30, 52], inherit: ['ambitious', 'cruel', 'paranoid'], person });
+  if (child && child.id != null) kinDied(world, child.id, 'murdered');
   const keep = reg.kind === 'uncle' || reg.kind === 'mother';
   const st = world.sys.civ;
   if (!keep) {
     const dn = newDynastyName(world, civ, reg.name, { from: 'founder' });
     startDynasty(world, civ, dn, 'usurped by a regent', nr);
     nr.dynasty = dn;
-  } else nr.dynasty = child.dynasty || civ.dynasty;
+  } else nr.dynasty = (rp && rp.h) || child.dynasty || civ.dynasty;
   civ.flags.regent = null;
   installRuler(world, civ, nr, 'deposed', { how: 'usurper' });
   civ.legitimacy = 0.3;

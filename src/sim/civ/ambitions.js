@@ -30,7 +30,7 @@ import { DAYS_PER_YEAR as DPY } from '../../core/constants.js';
 import { fin, record, rateOk, rulerRef } from './state.js';
 import { theName, peopleOf, rulerName, rulerShort, pick } from './prose.js';
 import { rootOf } from './peoples.js';
-import { kinDied, kinSetAside, syncHeir } from './kin.js';
+import { kinOf, lineOf, personView, relationWords, asPerson, grownKin, kinDied, kinSetAside, syncHeir } from './kin.js';
 
 const EPITHET_OF = { avenge: 'the Avenger', unite: 'the Uniter', wonder: 'the Builder', golden: 'the Magnificent' };
 
@@ -182,9 +182,11 @@ on('succession', (world, civ, prev, next) => {
  * succeed against the ruler's intrigue (succession: rulers.js). Returns true when the throne changed
  * hands.
  */
-export function heirPlotYear(world, civ, r, succession) {
+export function heirPlotYear(world, civ, r, succession, seize = null) {
   const h = r && r.heir;
-  if (!h || !h.name || (civ.flags && civ.flags.union)) return false;
+  if (civ.flags && civ.flags.union) return false;
+  if (seize && kinPlotYear(world, civ, r, seize)) return true;
+  if (!h || !h.name) return false;
   const day = world.time.day;
   const age = (day - fin(h.born, day)) / DPY;
   const reign = (day - fin(r.reignStart, day)) / DPY;
@@ -208,6 +210,49 @@ export function heirPlotYear(world, civ, r, succession) {
   r.heir = null;
   syncHeir(world, civ);
   civ.stability = Math.max(0, fin(civ.stability, 0.6) - 0.03);
+  return false;
+}
+
+/**
+ * Yearly: a grown brother, uncle or cousin close behind the heir (the first five at home),
+ * ambitious and without honour, may set their heart on the throne and, after three years, plot
+ * (4 % a year × their intrigue); success crowns them (seize: rulers.js), failure costs them their
+ * head or sends them into exile. Returns true when the throne changed hands.
+ */
+function kinPlotYear(world, civ, r, seize) {
+  const me = kinOf(world, r.id);
+  if (!me) return false;
+  const day = world.time.day;
+  const reign = (day - fin(r.reignStart, day)) / DPY;
+  const heirId = r.heir ? r.heir.id : null;
+  for (const p of lineOf(world, civ, me, { abroad: false, max: 5 })) {
+    if (p.id === heirId || p.f === me.id || p.m === me.id || !grownKin(world, civ, p, 20)) continue;
+    const v = personView(p);
+    if (!p.am) {
+      const tp = temperOf(v, civ);
+      if (reign >= 5 && tp[TP.AMB] >= 0.62 && tp[TP.HON] <= 0.42) p.am = { k: 'throne', t: civ.id, since: day, by: day + Math.round(25 * DPY) };
+      continue;
+    }
+    if (p.am.k !== 'throne' || day - p.am.since < 3 * DPY) continue;
+    if (day > p.am.by) { delete p.am; continue; }
+    const pi = skillsOf(v, day)[SK.INT], ri = skillsOf(r, day)[SK.INT];
+    if (!world.rng.chance(0.04 * (0.5 + pi))) continue;
+    const words = relationWords(world, me, p) || 'kinsman';
+    delete p.am;
+    if (world.rng.chance(Math.max(0.1, Math.min(0.7, 0.3 + 0.4 * (pi - ri))))) {
+      const nr = seize(world, civ, asPerson(world, civ, me, p));
+      record(world, { cat: 'civ', imp: 3, key: 'plot.usurp', civ, ref: rulerRef(civ, nr), tags: ['plot', 'ambition', 'pretender'], text: pick(world, [
+        `${rulerName(r)} of ${theName(civ)} was murdered at the order of ${r.gender === 'f' ? 'her' : 'his'} own ${words}, who took the throne as ${rulerName(nr)}.`,
+        `A plot in the royal house of ${theName(civ)}: ${p.n}, ${words} of ${rulerShort(r)}, struck first and was crowned in ${r.gender === 'f' ? 'her' : 'his'} place.`,
+      ]) });
+      return true;
+    }
+    const dead = world.rng.chance(0.5);
+    if (dead) kinDied(world, p.id, 'executed'); else kinSetAside(world, p.id);
+    record(world, { cat: 'civ', imp: 2, key: 'plot.foiled', civ, ref: rulerRef(civ, r), tags: ['plot'], text: `A plot by ${p.n}, ${words} of ${rulerShort(r)} of ${theName(civ)}, was uncovered; ${p.g === 'f' ? 'she' : 'he'} was ${dead ? 'put to death' : 'sent into exile'}.` });
+    syncHeir(world, civ);
+    return false;
+  }
   return false;
 }
 
