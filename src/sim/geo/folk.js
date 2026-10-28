@@ -404,9 +404,9 @@ function policyYear(world, civ) {
     const f = feel(world, ruling, k);
     const h = -f / 100 * 0.6 + (0.5 - tp[TP.MER]) * 0.9 + (0.5 - tol) * 0.7 + (tp[TP.PIE] - 0.5) * 0.25
       + (law === 'one' ? 0.15 : law === 'free' ? -0.15 : 0) + hard + (share >= 0.25 ? (f < -20 ? 0.1 : -0.12) : 0);
-    let want = h < -0.35 ? 'equal' : h < 0.35 ? 'tolerated' : h < 0.6 ? (tp[TP.GRE] > 0.5 ? 'taxed' : 'tolerated') : h < 0.95 ? 'persecuted' : 'expelled';
+    let want = h < -0.35 ? 'equal' : h < 0.4 ? 'tolerated' : h < 0.75 ? (tp[TP.GRE] > 0.6 ? 'taxed' : 'tolerated') : h < 1.1 ? 'persecuted' : 'expelled';
     // an expulsion needs ten years of persecution first (or hatred past all bounds), and never twice in a lifetime
-    if (want === 'expelled' && ((h < 1.2 && !(prev && prev[0] === 'persecuted' && day - prev[1] >= 10 * DPY)) || (prev && prev[0] === 'expelled'))) want = 'persecuted';
+    if (want === 'expelled' && ((h < 1.35 && !(prev && prev[0] === 'persecuted' && day - prev[1] >= 10 * DPY)) || (prev && prev[0] === 'expelled'))) want = 'persecuted';
     if (prev && prev[0] === 'expelled' && day - prev[1] < 60 * DPY) { out[k] = prev; continue; }
     const own = hasProviders('minorityRule') ? firstOf('minorityRule', world, civ, k) : null;
     if (STAND.has(own)) want = own;

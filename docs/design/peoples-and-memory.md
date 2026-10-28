@@ -213,9 +213,10 @@ drives a race out through `myth/peoples.js` (`expelDecree`). Choices made while 
   expulsion −15, equality +6.
 - **Standings:** harshness = 0.6 × the ruling people's dislike + 0.9 × (0.5 − mercy) + 0.7 ×
   (0.5 − tolerance) + 0.25 × (piety − 0.5), ± 0.15 for the faith law, up to 0.23 in hard times,
-  ± 0.1 for a minority of a quarter or more; equal below −0.35, tolerated to 0.35, taxed to 0.6
-  (a greedy ruler), persecuted to 0.95, expelled beyond — after ten years of persecution (or
-  past 1.2), and never twice in sixty years. A taxed minority adds up to 12 % of its share to
+  ± 0.1 for a minority of a quarter or more; equal below −0.35, tolerated to 0.4, taxed to 0.75
+  (a greedy ruler, greed over 0.6), persecuted to 1.1, expelled beyond — after ten years of persecution (or past
+  1.35), and never twice in sixty years. (The first bars, 0.35 / 0.6 / 0.95, persecuted a fifth
+  to a third of minorities in the early ages.) A taxed minority adds up to 12 % of its share to
   the crown's take. Pogroms need a restless town in a shaken realm or a hungry one, one a realm
   in fifteen years.
 - **Waves** start at a pressure of 0.6 (the worst region reaches 1 only a few years a century),
