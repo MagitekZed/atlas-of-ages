@@ -164,11 +164,14 @@ export function realmMix(world, civ) {
   let r = map.get(civ.id);
   if (r) return r;
   r = {};
+  const myth = mythic(world);
   for (const sid of civ.settlementIds || []) {
     const s = world.settlements[sid];
     if (!s || !s.alive) continue;
-    const m = townMix(world, s), pop = fin(s.population);
-    for (const k in m) r[k] = fin(r[k]) + m[k] * pop;
+    const pop = fin(s.population);
+    if (myth) { const m = townMix(world, s); for (const k in m) r[k] = fin(r[k]) + m[k] * pop; continue; }
+    const m = townFolk(world, s);
+    for (const id in m) { const k = 'f:' + id; r[k] = fin(r[k]) + m[id] * pop; }
   }
   map.set(civ.id, r);
   return r;
@@ -721,9 +724,15 @@ registerProvider('matchRule', 'folk', (world, A, B) => -0.6 * cultDist(world, A,
 // a minority's grievances in its town (civ/settlement.js): taxed or persecuted (phase C)
 registerProvider('townGrievance', 'folk', (world, s, civ) => {
   if (!civ || !civ.minor) return 0;
-  const m = townMix(world, s);
+  const m = mythic(world) ? s.peoples : s.folk;
+  if (!m) return 0;
   let g = 0;
-  for (const k in m) { const st = standingOf(civ, k); if (st === 'taxed') g += 0.06 * m[k]; else if (st === 'persecuted' || st === 'expelled') g += 0.2 * m[k]; }
+  for (const k in civ.minor) {
+    const st = civ.minor[k][0];
+    if (st === 'tolerated' || st === 'equal') continue;
+    const v = fin(m[k.slice(2)]);
+    g += (st === 'taxed' ? 0.06 : 0.2) * v;
+  }
   return g;
 });
 
@@ -737,7 +746,11 @@ export const system = {
   update(world) {
     const day = world.time.day;
     const doy = day % DPY;
-    if (!mythic(world)) for (const s of world.settlements) if (s && s.alive && (s.id * 29) % DPY === doy) townYear(world, s);
+    // the towns due today: id · 29 ≡ day of the year (mod 360), so id ≡ 149 · day (29 · 149 ≡ 1)
+    if (!mythic(world)) {
+      const T = world.settlements;
+      for (let id = (149 * doy) % DPY; id < T.length; id += DPY) { const s = T[id]; if (s && s.alive && s.id === id) townYear(world, s); }
+    }
     if (day % DAYS_PER_MONTH === 5) {
       const mo = Math.floor(day / DAYS_PER_MONTH) % 12;
       for (const civ of liveCivs(world)) if (civ.id % 12 === mo) realmYear(world, civ);
