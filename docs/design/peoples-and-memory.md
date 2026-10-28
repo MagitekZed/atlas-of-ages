@@ -269,3 +269,40 @@ are now cached for good (they never change), and the day's towns are found by th
 
 A Year-900 save from main, 100 years on: 23.85 MB on main, 23.99 MB on the branch (+0.6 %). A
 save from before chunk 7 loads and runs; its towns take their realm's people on first read.
+
+## Deeper old hatreds (2026-10-27, after the results)
+
+Measured on three Mythic worlds at Year 800, the races' old enmities were mild: hostile races
+shared 30 to 55 % fewer towns than chance would give but still lived together often, wars
+followed neighbours more than hatred, and realms mostly tolerated even hated races. The user
+asked for more animosity between certain races, deep but not beyond all mending, so that
+overcoming one is possible and rare.
+
+- **The starting table** (where the races' feelings rest, `myth/races.js RACE_REL`): elves and
+  orcs −60 (−35), dwarves and orcs −55 (−30), halflings and orcs −35 (−18), humans and orcs −30
+  (−12), elves and dwarves −15 (−10), lizardfolk and every other people −20 (−8). (First tried
+  at −70, −65 and −25: elves and dwarves then shared only 15 % of the towns chance would give;
+  softened at the user's word.) Outside this chunk the same table moves a town's loyalty to a
+  crown of a hated race, a mixed realm's drift of tolerance, and the "old enmity" labels.
+- **Hatreds heal, or deepen, over generations.** Where a people's feelings rest moves slowly
+  toward how the two have lived (0.5 % a year of the gap when warmer, 0.2 % when colder, within
+  −100 … +30): a long alliance, trade and wars fought side by side can heal an old hatred; long
+  wars deepen one. A hatred laid down is told ("After generations of peace and common cause …").
+- **Hatred starts wars.** The Mythic "ancient enmity" cause of war now follows the live feelings:
+  a race at −50 or worse toward another may go to war over it (weight 0.45 to 1.05, more for an
+  aggressive realm), with the old named feuds where they exist and plain ones otherwise. A town
+  of a people its taker hates (−50 or worse) is razed more readily (+12 %).
+- **Counted once:** Mythic realms' opinions of each other read the live feelings
+  (`myth/arcana.js`, about × 1 by tolerance) instead of the fixed table, and diplomacy's peoples
+  term (× 0.35) is left to Historical peoples.
+
+**Effect** (three Mythic worlds at Year 800, before → after): elves and orcs share 13 towns,
+42 % of chance (28, 72 %); dwarves and orcs 19, 37 % (40, 53 %); elves and dwarves 16, 92 %
+(30, 110 %); humans and halflings 132, 160 % (67, 87 %). Elves feel −68 to −90 toward orcs,
+dwarves −60 to −96. Of the standings among orc pairs, 5 persecuted, 8 tolerated, 4 taxed, 1
+expelled (3, 18, 2, 2 before). Resting points moved up to ±40 in 800 years: dwarves and elves
+grew more bitter toward the orcs they fought, halflings warmed toward orcs (+22) in one world;
+no old hatred was laid down. Wars of old hatred: 24 in the six Mythic worlds of the twelve by
+Year 1000 (none before). Twelve worlds at Year 1000 against main: Mythic realms +8 %, wars +1 %
+(against this chunk before the change: realms +15 %, wars +11 %); Historical +1 %, −6 %. All
+gates pass.
