@@ -383,15 +383,15 @@ function groundYear(world, s, civ, sk, P, n) {
       sk.sn = home && feverAt(world, home.x, home.y) >= 0.25 ? 0.8 : 0;
     }
   }
-  sk.sn = Math.round(Math.min(1, fin(sk.sn) + (1 - fin(sk.sn)) / 25) * 1e3) / 1e3;
+  sk.sn = Math.round(Math.min(1, fin(sk.sn) + (1 - fin(sk.sn)) / 15) * 1e3) / 1e3;
   if (sk.dr != null && !sk.dd && world.time.day >= sk.dr) drained(world, s, sk);
   let ht = -0.08 * sk.sl, im = (1 + 0.5 * sk.sl) * (sk.b === 't' ? 1.03 : 1);
   if (sk.fv > 0.02) {
     let harm = 0;
     for (let j = 0; j < n; j++) { const b = bearOf(world, WK[j]); WD[j] = WS[j] * b; harm += WD[j]; }
-    harm *= (0.15 + 0.85 * (1 - sk.sn)) * P.fever;
-    ht -= 0.1 * sk.fv * harm + 0.015 * sk.fv;
-    const dead = fin(s.population) * sk.fv * harm * 0.015;
+    harm *= (0.1 + 0.9 * (1 - sk.sn)) * P.fever;
+    ht -= 0.06 * sk.fv * harm + 0.01 * sk.fv;
+    const dead = fin(s.population) * sk.fv * harm * 0.008;
     if (dead >= 1) { WN = n; takeShared(world, s, dead, 'all', 'fever'); }
   }
   return { im, ht };
@@ -837,8 +837,8 @@ export function healthParts(world, s) {
   if (fin(sk.fv) > 0.02) {
     let harm = 0;
     for (let j = 0; j < n; j++) harm += WS[j] * bearOf(world, WK[j]);
-    harm *= (0.15 + 0.85 * (1 - fin(sk.sn))) * P.fever;
-    add('Fever ground', -(0.1 * sk.fv * harm + 0.015 * sk.fv));
+    harm *= (0.1 + 0.9 * (1 - fin(sk.sn))) * P.fever;
+    add('Fever ground', -(0.06 * sk.fv * harm + 0.01 * sk.fv));
   }
   return out.sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
 }
@@ -863,7 +863,7 @@ export function sparedWhy(world, key, p) {
 registerProvider('siteBonus', 'health', (world, civ, i) => {
   const W = world.W;
   const fv = feverAt(world, i % W, Math.floor(i / W));
-  return fv > 0.05 ? -0.2 * fv * bearOf(world, civPeople(world, civ)) : 0;
+  return fv > 0.1 ? -0.06 * fv * bearOf(world, civPeople(world, civ)) : 0;
 });
 
 // the customs of a town's peoples, its physicians (its yearly pass)
