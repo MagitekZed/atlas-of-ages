@@ -253,10 +253,9 @@ function childName(world, civ, kin, g, fa, mo) {
       if (par.g === g) pool.push(par.n);
     }
     for (const h of civ.rulerHistory || []) if (h.gender === g && h.dynasty && h.dynasty === (fa?.h || mo?.h)) pool.push(h.name);
-    // never the name of one living at court, save a parent's own
+    // never the name of another living at court (a son may take his father's, once)
     const taken = new Set();
-    for (const k of courtOf(world, (fa || mo)?.c ?? civ.id)) taken.add(k.n);
-    for (const par of [fa, mo]) if (par) taken.delete(par.n);
+    for (const k of courtOf(world, (fa || mo)?.c ?? civ.id)) if (k !== fa && k !== mo) taken.add(k.n);
     const free = pool.filter((n) => !taken.has(n));
     if (free.length) return rng.pick(free);
   }
@@ -278,13 +277,20 @@ export function kinBorn(world, civ, mo, fa, opts = {}) {
   return k;
 }
 
+/** A name of the realm's tongue that is not `not` (a spouse is never their partner's namesake). */
+function otherName(world, civ, not) {
+  let n = makePerson(civ.language, world.rng);
+  for (let k = 0; k < 3 && n === not; k++) n = makePerson(civ.language, world.rng);
+  return n;
+}
+
 /** A noble of the realm married to p (made now). */
 export function marryNoble(world, civ, p) {
   const age = ageOf(world, civ, p);
   const life = lifeOfP(world, civ, p);
   const gap = p.g === 'm' ? -world.rng.int(0, 8) : world.rng.int(0, 8);
   const sAge = Math.max(15, age + gap);
-  const s = addPerson(world, { n: makePerson(civ.language, world.rng), g: opposite(p.g), b: world.time.day - sAge * life * DPY - world.rng.int(0, 359), h: null, nb: 1, c: p.c, ra: p.ra ?? null });
+  const s = addPerson(world, { n: otherName(world, civ, p.n), g: opposite(p.g), b: world.time.day - sAge * life * DPY - world.rng.int(0, 359), h: null, nb: 1, c: p.c, ra: p.ra ?? null });
   wed(p, s);
   return s;
 }
@@ -566,7 +572,7 @@ function hazard(age, era) {
 }
 /** Chance of a child in a year for a wife of this age. */
 function fertility(age) {
-  return age < 16 || age >= 45 ? 0 : age < 20 ? 0.24 : age < 30 ? 0.3 : age < 35 ? 0.22 : age < 40 ? 0.14 : 0.06;
+  return age < 16 || age >= 45 ? 0 : age < 20 ? 0.2 : age < 30 ? 0.27 : age < 35 ? 0.2 : age < 40 ? 0.12 : 0.05;
 }
 
 /**

@@ -1,6 +1,6 @@
 // The Annals — the Annals tab (key R). Four leaves:
 //   Almanac    every war, plague, faith, eruption, quake, storm, fire, other catastrophe,
-//              great figure, wonder, trade road, dynasty, fallen nation, historic site and
+//              great figure, wonder, trade road, dynasty, treasure, fallen nation, historic site and
 //              roaming band that ever was: searchable, sortable (recent, oldest, toll, length,
 //              size) and filtered (living or ended); every row opens its record
 //   Records    the Hall of Records: the superlatives of this world as cards — holder, value,
@@ -32,7 +32,7 @@ const CATS = [
   ['wars', 'Wars', 'war'], ['plagues', 'Plagues', 'plague'], ['faiths', 'Faiths', 'faith'],
   ['eruptions', 'Eruptions', 'volcano'], ['quakes', 'Quakes', 'quake'], ['storms', 'Storms', 'storm'],
   ['fires', 'Fires', 'wildfire'], ['disasters', 'Other catastrophes', 'flood'], ['figures', 'Great people', 'star'],
-  ['wonders', 'Wonders', 'wonder'], ['routes', 'Trade roads', 'trade'], ['dynasties', 'Dynasties', 'crown'],
+  ['wonders', 'Wonders', 'wonder'], ['routes', 'Trade roads', 'trade'], ['dynasties', 'Dynasties', 'crown'], ['treasures', 'Treasures', 'star'],
   ['fallen', 'Fallen nations', 'nations'], ['sites', 'Ruins and sites', 'ruin'], ['bands', 'Bands', 'army'],
 ];
 const SORTS = [['recent', 'Most recent'], ['oldest', 'Oldest first'], ['toll', 'Greatest toll'], ['long', 'Longest'], ['size', 'Greatest']];
@@ -116,6 +116,12 @@ export function almanacIndex(w) {
       const living = c.alive && dynastyName(c.ruler?.dynasty) === n;
       push({ cat: 'dynasties', icon: 'crown', label: n, sub: `${c.name} · ${F.lifespan(x.start, living ? null : x.end)}`, n: `${x.n} rulers`, toll: 0, size: (living ? day : x.end) - x.start, start: x.start, end: living ? day : x.end, live: living, sel: { kind: 'dynasty', id: `${c.id}:${n}` } });
     }
+  }
+  // named treasures (sim/civ/treasures.js): where each is now
+  for (const t of w.sys?.civ?.art?.t || []) {
+    const at = t.at || {};
+    const holder = at.k === 'civ' ? civ(at.id)?.name : at.k === 'fig' ? 'borne by a hero' : at.k === 'faith' ? 'kept by its faith' : at.k === 'exile' ? 'in exile' : 'lost';
+    push({ cat: 'treasures', icon: 'star', label: F.headName(t.n), sub: `${F.humanize(t.k)} · made Y${yearOf(t.made)}`, n: holder || '—', toll: 0, size: (t.h || []).length, start: t.made, end: day, live: at.k !== 'lost', sel: { kind: 'treasure', id: t.id } });
   }
   for (const c of w.civs) {
     if (!c || c.alive) continue;

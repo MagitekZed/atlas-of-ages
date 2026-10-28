@@ -68,7 +68,9 @@ export function heirOnInstall(world, civ, r) {
     return;
   }
   if (!r.spouse && a >= 20 && world.rng.chance(0.7)) {
-    r.spouse = { name: makePerson(civ.language, world.rng), fromCivId: civ.id, house: null, gender: opposite(r.gender) };
+    let sn = makePerson(civ.language, world.rng);
+    if (sn === r.name) sn = makePerson(civ.language, world.rng);
+    r.spouse = { name: sn, fromCivId: civ.id, house: null, gender: opposite(r.gender) };
   }
   if (!r.heir && a >= 19) {
     const p = Math.min(0.8, (a - 18) / 22);
