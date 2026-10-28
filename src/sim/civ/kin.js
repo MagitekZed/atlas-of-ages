@@ -637,6 +637,31 @@ export function kinYearly(world, civ) {
   prune(world, civ, me);
   syncSpouse(world, civ, r, me);
   syncHeir(world, civ);
+  lineClaims(world, civ, me);
+}
+
+/**
+ * Claims from the line: a realm whose people stand in this realm's line from abroad holds a
+ * claim on its crown, the stronger the fewer heirs it has at home (0.65 with none, 0.45 with
+ * one, 0.38 with two; less for the second and third abroad). Raised each year while it holds
+ * (the world's yearly fade, dynasty.js, takes it down once it no longer does).
+ */
+function lineClaims(world, civ, me) {
+  const line = lineOf(world, civ, me, { max: 14 });
+  let homeN = 0;
+  for (const p of line) if (p.c === civ.id) homeN++;
+  let k = 0;
+  const done = new Set();
+  for (const p of line) {
+    if (p.c === civ.id || done.has(p.c)) continue;
+    const A = world.civs[p.c];
+    if (!A || !A.alive || A.id === civ.id) continue;
+    done.add(A.id);
+    const v = Math.round((0.25 + 0.4 / (1 + homeN) - 0.05 * k) * 1000) / 1000;
+    A.claims ||= {};
+    if (v > fin(A.claims[civ.id])) A.claims[civ.id] = v;
+    if (++k >= 3) break;
+  }
 }
 
 /** Blood steps from the ruler (f, m, ch), up to KEEP_DEPTH. Map id → depth. */

@@ -25,7 +25,7 @@ import { createCiv, transferSettlement, addOpinion, rel, areAtWar, startWar, liv
 import { on } from '../../core/hooks.js';
 import { makePerson } from '../../core/names.js';
 import { emitFx } from '../../core/world.js';
-import { registerProvider } from '../../core/ext.js';
+import { registerProvider, firstOf, hasProviders } from '../../core/ext.js';
 import { DAYS_PER_YEAR as DPY } from '../../core/constants.js';
 import { isDynastic, GOVERNMENTS } from './data.js';
 import { fin, record, rulerRef } from './state.js';
@@ -33,7 +33,7 @@ import { theName, TheName, rulerName, rulerShort, pick, listJoin, seasonWord } f
 import { makeRuler, installRuler, rulerAge, lifeOf, syncRulerDisplay, startDynasty, succession, newDynastyName } from './rulers.js';
 import { roughPower } from './peoples.js';
 import { grantTech, computeEra, refreshMods } from './tech.js';
-import { kinOf, crownKin, marryNoble, syncSpouse, kinSweep, matchKin, relationWords, asPerson, kinDied, grownKin } from './kin.js';
+import { kinOf, crownKin, marryNoble, syncSpouse, kinSweep, matchKin, relationWords, asPerson, kinDied, grownKin, lineOf, courtOf } from './kin.js';
 
 const EXILE_CAP = 24, MARRIAGE_CAP = 60;
 const UNION_GAP = 100 * DPY;
@@ -141,27 +141,48 @@ export function unionPartner(world, civ, senior = false) {
  */
 export function unionSuccession(world, civ, prev, cause, died, base) {
   if (!isDynastic(civ.government) || prev.heir || civ.flags.heirSecured || civ.flags.union) return null;
+  // a house with its family on record: its line decides, abroad too (rulers.js, kin.js)
+  if (kinOf(world, prev.id)) return null;
   const day = world.time.day;
   if (day - fin(civ.flags.lastUnionDay, -1e9) < UNION_GAP) return null;
   const myPow = Math.max(1, roughPower(world, civ));
   let best = null, bs = 0;
   for (const c of liveCivs(world)) {
-    if (c.id === civ.id || !c.ruler || !isDynastic(c.government) || c.flags?.union) continue;
+    if (c.id === civ.id || !canJoin(world, civ, c)) continue;
     const claim = fin(c.claims?.[civ.id], 0);
-    if (claim < 0.5 || areAtWar(world, c.id, civ.id)) continue;
-    if (day - fin(c.flags?.lastUnionDay, -1e9) < UNION_GAP) continue;
+    if (claim < 0.5) continue;
     const pow = roughPower(world, c);
     if (pow < 0.6 * myPow) continue;
     const sc = claim * Math.min(3, pow / myPow);
     if (sc > bs) { bs = sc; best = c; }
   }
   if (!best || !world.rng.chance(0.6)) return null;
+  return joinCrowns(world, civ, best, prev, cause, base, (capB) => [
+    `${died} with no heir of ${prev.gender === 'f' ? 'her' : 'his'} body; by right of an old marriage the crown passed to ${rulerName(best.ruler)} of ${theName(best)}, and the two realms were joined under one ruler.`,
+    `${died}, and the throne fell to ${rulerShort(best.ruler)} of ${theName(best)}, whose claim by marriage none could match; from ${capB ? capB.name : 'abroad'} one ruler now governed both crowns.`,
+  ]);
+}
+
+/** Can civ's crown pass to the ruler of realm c in a personal union now? */
+export function canJoin(world, civ, c) {
+  const day = world.time.day;
+  if (!c || !c.alive || c.id === civ.id || !c.ruler || !isDynastic(c.government) || c.flags?.union || civ.flags?.union) return false;
+  if (areAtWar(world, c.id, civ.id)) return false;
+  return day - fin(civ.flags.lastUnionDay, -1e9) >= UNION_GAP && day - fin(c.flags?.lastUnionDay, -1e9) >= UNION_GAP;
+}
+
+/**
+ * The crown of civ passes to the ruler of realm `best`: one person, two crowns (a personal union,
+ * which merges or breaks apart when the shared ruler is gone). texts(capB) → the lines to tell it.
+ */
+export function joinCrowns(world, civ, best, prev, cause, base, texts, relation = 'kinsman by marriage') {
+  const day = world.time.day;
   const shared = makeRuler(world, civ, { person: { name: best.ruler.name, born: best.ruler.born, gender: best.ruler.gender }, dynasty: best.ruler.dynasty || best.dynasty });
   shared.id = best.ruler.id;                         // one person, two crowns
   shared.traits = (best.ruler.traits || []).slice();
   shared.epithet = best.ruler.epithet || null;
   if (best.ruler.gloss) shared.gloss = best.ruler.gloss;
-  shared.relation = 'kinsman by marriage';
+  shared.relation = relation;
   shared.flags = { ...(best.ruler.flags || {}), union: true };
   if (shared.dynasty) startDynasty(world, civ, shared.dynasty, 'union', shared);
   installRuler(world, civ, shared, cause, { how: 'union' });
@@ -172,17 +193,14 @@ export function unionSuccession(world, civ, prev, cause, died, base) {
   best.flags.union = { withCivId: civ.id, since: day, senior: true };
   civ.flags.lastUnionDay = day; best.flags.lastUnionDay = day;
   civ.legitimacy = Math.max(0.45, fin(civ.legitimacy) * 0.8);
-  delete best.claims[civ.id];
+  if (best.claims) delete best.claims[civ.id];
   addOpinion(world, civ.id, best.id, 20);
   const st = world.sys.civ;
   if (st) st.counters.personalUnions = fin(st.counters.personalUnions) + 1;
   const capB = world.settlements[best.capitalId];
   const e = record(world, {
     ...base, imp: 3, key: base.cat === 'divine' ? 'divine.smite_ruler' : 'succession.union', tags: ['union'],
-    text: pick(world, [
-      `${died} with no heir of ${prev.gender === 'f' ? 'her' : 'his'} body; by right of an old marriage the crown passed to ${rulerName(best.ruler)} of ${theName(best)}, and the two realms were joined under one ruler.`,
-      `${died}, and the throne fell to ${rulerShort(best.ruler)} of ${theName(best)}, whose claim by marriage none could match; from ${capB ? capB.name : 'abroad'} one ruler now governed both crowns.`,
-    ]),
+    text: pick(world, texts(capB)),
   });
   const cap = world.settlements[civ.capitalId];
   if (cap && capB) emitFx(world, { type: 'thread', x: capB.x, y: capB.y, x2: cap.x, y2: cap.y, tone: 'marriage' });
@@ -262,10 +280,12 @@ function resolveUnion(world, senior, junior, prev, since) {
     ]) });
     return;
   }
-  // the junior crown goes its own way under a prince of its own
-  const r = makeRuler(world, junior, { age: [24, 50] });
+  // the junior crown goes its own way under a prince of its own: one of its old house if any
+  // lives at its court (kin.js), else a new one
+  const own = courtOf(world, junior.id).filter((p) => !p.nb && !p.dep && (!p.bas || p.leg) && grownKin(world, junior, p, 18)).sort((a, b) => a.b - b.b)[0] || null;
+  const r = makeRuler(world, junior, { age: [24, 50], ...(own ? { person: asPerson(world, junior, null, own), dynasty: own.h || null } : {}) });
   if (isDynastic(junior.government)) {
-    r.dynasty = junior.dynasty && junior.dynasty !== senior.dynasty ? junior.dynasty : null;
+    r.dynasty = own && own.h ? own.h : junior.dynasty && junior.dynasty !== senior.dynasty ? junior.dynasty : null;
     if (!r.dynasty) { const name = newDynastyName(world, junior, r.name, { from: 'founder' }); startDynasty(world, junior, name, 'union ended', r); r.dynasty = name; }
   }
   installRuler(world, junior, r, 'union ended', { how: 'restoration' });
@@ -305,7 +325,8 @@ export function arrangeMarriage(world, a, b, opts = {}) {
   if (wedKin && groomSide.cadet) { groomSide.name = wedKin.groom.n; groomSide.rel = relationWords(world, kinOf(world, A.ruler.id), wedKin.groom); }
   const bride = { name: wedKin ? wedKin.bride.n : makePerson(B.language, world.rng), fromCivId: B.id, house: B.dynasty || null, gender: opposite(groomSide.gender) };
   if (!groomSide.cadet) groomSide.spouse = bride;
-  for (const [x, y, v] of [[A, B, 0.35], [B, A, 0.2]]) {
+  // the claims a match leaves come from the line once the families are on record (kin.js lineClaims)
+  if (!wedKin) for (const [x, y, v] of [[A, B, 0.35], [B, A, 0.2]]) {
     x.claims ||= {};
     x.claims[y.id] = Math.min(1, fin(x.claims[y.id], 0) + v);
   }
@@ -346,6 +367,38 @@ export function arrangeMarriage(world, a, b, opts = {}) {
   });
   if (capA && capB) emitFx(world, { type: 'thread', x: capA.x, y: capA.y, x2: capB.x, y2: capB.y, tone: 'marriage', ...(opts.divine ? { src: 'tool' } : {}) });
   return { ok: true, entry, seq: entry.seq, a: A.id, b: B.id, betrothal: young, message: `${TheName(A)} and ${theName(B)} are bound by ${young ? 'a betrothal' : 'marriage'}.` };
+}
+
+/**
+ * Yearly at the realm's month: a royal house with a prince or princess to wed (or an unwed ruler)
+ * may seek a match abroad (6 % a year): among the royal houses it knows and does not hate, at
+ * peace, by goodwill, a shared faith, alliance and standing; another people rarely (ext
+ * 'matchRule' may forbid or favour a pair). Returns the match or null.
+ */
+export function matchYearly(world, civ) {
+  if (!civ.ruler || !isDynastic(civ.government) || civ.flags.union) return null;
+  if (!world.rng.chance(0.06)) return null;
+  const me = kinOf(world, civ.ruler.id);
+  if (!me) return null;
+  const ready = !civ.ruler.spouse || courtOf(world, civ.id).some((p) => !p.nb && !p.dep && (!p.bas || p.leg) && !p.sp.some((id) => kinOf(world, id)?.d == null) && grownKin(world, civ, p, 16) && !grownKin(world, civ, p, 36));
+  if (!ready) return null;
+  let best = null, bs = 0;
+  for (const k in civ.relations || {}) {
+    const o = world.civs[+k];
+    const q = civ.relations[k];
+    if (!o || !o.alive || o.id === civ.id || !o.ruler || !isDynastic(o.government) || fin(q?.opinion) < 5) continue;
+    if (!marriageCheck(world, civ, o).ok) continue;
+    let sc = fin(q.opinion) / 50 + world.rng.next() * 0.5;
+    if (civ.stateReligion != null && civ.stateReligion === o.stateReligion) sc += 0.5;
+    if ((civ.allies || []).includes(o.id)) sc += 0.3;
+    if ((civ.race ?? null) !== (o.race ?? null)) sc -= 0.8;
+    if (hasProviders('matchRule')) { const m = firstOf('matchRule', world, civ, o); if (m === false) continue; if (Number.isFinite(m)) sc += m; }
+    sc += 0.2 * Math.min(2, roughPower(world, o) / Math.max(1, roughPower(world, civ)));
+    if (sc > bs) { bs = sc; best = o; }
+  }
+  if (!best || bs < 0.6) return null;
+  const res = arrangeMarriage(world, civ, best);
+  return res && res.ok ? res : null;
 }
 
 /** "of the House of Arkel", "of House Arkel", "of the Arkel dynasty", else "of the Kingdom of X". */
@@ -485,6 +538,13 @@ function restoration(world, ex, cands) {
   civ.flags.restored = old.id;
   civ.flags.independence = world.time.day;
   civ.stability = 0.6; civ.legitimacy = 0.6;
+  // the exiled court's own comes home to be crowned (kin.js): the fallen ruler, else their heir
+  const kr = old.ruler ? kinOf(world, old.ruler.id) : null;
+  const back = kr && kr.d == null && !kr.dep ? kr : kr ? lineOf(world, old, kr, { abroad: false, max: 1 })[0] || null : null;
+  if (back && civ.ruler) {
+    const r = makeRuler(world, civ, { person: asPerson(world, civ, kr, back), dynasty: ex.dynasty || back.h || null });
+    installRuler(world, civ, r, null);
+  }
   if (ex.dynasty && civ.ruler) {
     startDynasty(world, civ, ex.dynasty, 'restored', civ.ruler);
     civ.ruler.dynasty = ex.dynasty;

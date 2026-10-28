@@ -66,6 +66,12 @@ export const EXT_POINTS = {
   estates: { combine: 'first', sig: '(w, civ) → { names: [5], rights?: [5 deltas], unfree?: bool } | null (a people\'s own estates)' },
   lawStart: { combine: 'first', sig: '(w, civ) → partial { inherit, faith, bond, land } | null (the laws a realm starts with)' },
   factions: { combine: 'first', sig: '(w, civ) → [faction keys] | null (the factions a court may hold)' },
+  // dynasties (chunk 9, civ/kin.js)
+  heirRule: { combine: 'first', sig: "(w, civ) → 'male' (sons before daughters) | 'equal' (the eldest child) | 'strong' (the strongest grown child) | null" },
+  houseRule: { combine: 'first', sig: "(w, civ) → 'father' | 'mother' (whose house a child belongs to) | null" },
+  royalBirths: { combine: 'mul', clamp: [0.1, 3], sig: '(w, civ) → × how often a royal couple has a child' },
+  bastardRule: { combine: 'first', sig: '(w, civ) → false for a people without bastards as a class | null' },
+  matchRule: { combine: 'first', sig: '(w, civ, other) → false (no match) | a number added to the match\'s appeal | null' },
   armyPay: { combine: 'mul', clamp: [0.25, 4], sig: '(w, civ) → × a soldier’s pay (geo/raising.js)' },
   armyMix: { combine: 'first', sig: '(w, civ) → 7 shares (spears, blades, bows, light horse, heavy horse, engineers, war beasts) | null (geo/army.js)' },
   claimRule: { combine: 'first', sig: '(w, civ) → { tau, foundedTau } years a lost town is claimed (e-folding) | null (geo/claims.js)' },

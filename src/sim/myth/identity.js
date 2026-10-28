@@ -507,6 +507,16 @@ const LAW_START = {
   lizardfolk: { inherit: 'elective', bond: 'slave', faith: 'one' },
 };
 registerProvider('lawStart', 'myth', (world, civ) => (isMythic(world) && civ && civ.race && LAW_START[civ.race]) || null);
+
+// Each people's royal families (civ/kin.js): halflings share alike among sons and daughters, an
+// orc warlord's strongest grown child takes the warband, a lizardfolk hatchling belongs to its
+// egg-mother's brood (and a brood knows no bastards); elves bear few children.
+const HEIR_RULE = { halfling: 'equal', orc: 'strong', lizardfolk: 'equal', elf: 'equal' };
+const royalOf = (world, civ) => (isMythic(world) && civ && civ.race ? civ.race : null);
+registerProvider('heirRule', 'myth', (world, civ) => HEIR_RULE[royalOf(world, civ)] || null);
+registerProvider('houseRule', 'myth', (world, civ) => (royalOf(world, civ) === 'lizardfolk' ? 'mother' : null));
+registerProvider('bastardRule', 'myth', (world, civ) => (royalOf(world, civ) === 'lizardfolk' ? false : null));
+registerProvider('royalBirths', 'myth', (world, civ) => (royalOf(world, civ) === 'elf' ? 0.5 : 1));
 registerProvider('archStyle', 'myth', archStyle);
 
 // ---------------------------------------------------------------------------

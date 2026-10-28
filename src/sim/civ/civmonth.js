@@ -22,7 +22,7 @@ import { figuresMonthly } from './culture.js';
 import { fin, div, record, rateOk, ensureCivFields, civCache, atWarSet } from './state.js';
 import { theName, TheName, pick } from './prose.js';
 import { buildingVec, BV, townMods } from './settlement.js';
-import { dynastyMonthly } from './dynasty.js';
+import { dynastyMonthly, matchYearly } from './dynasty.js';
 import { temperMonthly, temperYearly } from './temper.js';
 import { purseMonthly, purseYearly, maybeDebase, estatesYearly } from './power.js';
 import { lawsYearly, partitionMonthly } from './laws.js';
@@ -273,7 +273,8 @@ export function monthlyCiv(world, civ) {
   temperMonthly(world, civ, agg);
   if (civ.id % 12 === month) {
     temperYearly(world, civ, agg);
-    kinYearly(world, civ);   // the royal family's year (kin.js)
+    kinYearly(world, civ);   // the royal family's year (kin.js), and a match abroad
+    matchYearly(world, civ);
     // who holds power (chunk 7): the purse, the laws, the estates, the court, the risings
     purseYearly(world, civ); lawsYearly(world, civ); estatesYearly(world, civ, agg); courtYearly(world, civ, agg);
     if (risingsYearly(world, civ) || !civ.alive) return;
