@@ -176,3 +176,17 @@ C. Policy toward minorities: standings, taxes, persecution, pogroms, expulsions.
 D. Waves of migration.
 E. Interface.
 F. Gates, the twelve worlds, speed and save size.
+
+## Decisions (2026-10-27)
+
+- **Historical peoples by origin, and new ones form.** Each people that emerges is a people;
+  realms that split keep it; a realm long cut off from its kin (about three centuries, far away,
+  with its own seat) may become a people of its own ("the Varni, of Tian stock").
+- **Assimilation in about three generations:** a small minority in a big town of a close people
+  is mostly absorbed in about three generations; distant, large, clustered or persecuted
+  minorities hold on for centuries.
+- **Policy: varied, sometimes cruel.** Most realms tolerate; some tax or persecute, mostly under
+  cruel or pious rulers, between peoples who hate each other, or in hard times; expulsions and
+  pogroms are rare but remembered; some realms grant equality and draw migrants.
+- **Great migrations: a few per world per millennium,** damped so they reshape a frontier
+  without swamping realms.
