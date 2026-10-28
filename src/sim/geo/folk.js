@@ -152,12 +152,12 @@ function seedTown(world, s, from = null) {
   s.folk = tidy(m, id != null ? String(id) : mainOf(m));
 }
 
-/** The realm's mix, by people: { key: people } (cached per month). */
+/** The realm's mix, by people: { key: people } (cached for the day: mixes move daily, and a reloaded world must read what a running one does). */
 export function realmMix(world, civ) {
   const c = world.cache.folkRealm;
-  const mo = Math.floor(world.time.day / DAYS_PER_MONTH);
-  let map = c && c.mo === mo ? c.m : null;
-  if (!map) { map = new Map(); world.cache.folkRealm = { mo, m: map }; }
+  const day = world.time.day;
+  let map = c && c.day === day ? c.m : null;
+  if (!map) { map = new Map(); world.cache.folkRealm = { day, m: map }; }
   let r = map.get(civ.id);
   if (r) return r;
   r = {};
@@ -191,13 +191,13 @@ const keyDist = (world, a, b) => (a === b ? 0 : a[0] === 'f' && b[0] === 'f' ? f
 
 /**
  * How alike two realms are, 0 to 1 (0 the same): their peoples (0.35), tongues (0.25), faiths
- * (0.2) and customs (0.2). Cached for the year.
+ * (0.2) and customs (0.2). Cached for the day.
  */
 export function cultDist(world, A, B) {
   if (!A || !B || A.id === B.id) return 0;
-  const yr = Math.floor(world.time.day / DPY);
+  const day = world.time.day;
   let c = world.cache.folkDist;
-  if (!c || c.yr !== yr) c = world.cache.folkDist = { yr, m: new Map() };
+  if (!c || c.day !== day) c = world.cache.folkDist = { day, m: new Map() };
   const k = A.id < B.id ? A.id * 100003 + B.id : B.id * 100003 + A.id;
   let d = c.m.get(k);
   if (d != null) return d;
