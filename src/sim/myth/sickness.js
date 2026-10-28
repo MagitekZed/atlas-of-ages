@@ -44,8 +44,8 @@
 //                     second, lighter Wasting.
 //
 //   The Scourge       Every risen host gets a potential (undeadRisen hook): its maker's art (a
-//                     caster's Necromancy + ½ arcana; the hand's virulence; the land's own magic
-//                     for a natural rising) × (½ + the mana where it rose) × log10(the dead to hand
+//                     caster's Necromancy + ½ arcana; the hand's virulence; 0.1 for a natural
+//                     rising) × (½ + the mana where it rose) × log10(the dead to hand
 //                     / 500) (its own and the unrisen graves within 20 tiles). From 0.25 it has the
 //                     makings of a scourge: a ceiling × (1 + 4 × potential, ≤ 5) and more power from
 //                     each death (bands/kinds/undead.js). At 0.74 % of the world's people, six towns
@@ -720,6 +720,7 @@ const pickT = (world, arr) => arr[Math.floor(world.rng.next() * arr.length)];
 // ---------------------------------------------------------------------------
 // The Scourge
 
+const NATURAL_ART = 0.1;     // the art of a natural rising (no maker): only a land thick with the dead and magic makes one
 const SCOURGE_AT = 0.0074;   // its power as a share of the world's people, to be named (1.85 × an ordinary host's ceiling)
 const DARK_YEARS = 25;       // years named before its darkness can fall
 const DARK_R = 35;           // the reach of its region
@@ -737,7 +738,7 @@ function potentialOf(world, site, art) {
 
 on('undeadRisen', (world, band, site, opts) => {
   if (!band || !site || !isMythic(world) || !world.sys.myth || world.sys.myth.v == null) return;
-  const pot = potentialOf(world, site, Number.isFinite(opts && opts.art) ? opts.art : 0.15);
+  const pot = potentialOf(world, site, Number.isFinite(opts && opts.art) ? opts.art : NATURAL_ART);
   if (pot < 0.25) return;
   band.data.sc = { pot: Math.round(pot * 100) / 100, cm: 1 + 4 * Math.min(1, pot), n: 0, born: world.time.day };
   const st = state(world);
