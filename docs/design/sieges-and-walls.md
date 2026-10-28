@@ -161,3 +161,22 @@ B. Siegecraft: the methods, the endings, the capture lines.
 C. Famous sieges.
 D. Interface.
 E. Gates, the twelve worlds, speed and save size.
+
+## Decisions (2026-10-27)
+
+- **Siege lengths: more spread, a longer longest, not all longer.** A rich, well-fortified town
+  with full stores can hold out far longer than today (two or three years for a great walled
+  city fed from the sea); a town with little laid by collapses faster than today. So a town's
+  stores become a real number: months of food laid by (more with a granary, more in a rich town,
+  more in a capital or a town that has seen war coming), eaten through in the siege; the walls'
+  strength sets how long engines and assaults take; together they spread sieges out from weeks
+  to years.
+- **A starving town that surrenders is spared the sack:** no sack or razing, its garrison marches
+  out, and it remembers its conqueror less bitterly; a cruel conqueror may still break the terms
+  now and then.
+- **Slighting: sometimes.** A conqueror may tear down the walls of a town it fears (far from its
+  seat, disloyal, of another people, or one that cost it a long siege); most walls are kept.
+- **Mythic peoples, each their own:** dwarves build walls that mend, mine best and hold to the
+  last; elves grow thorn-walls that regrow and never burn, and starve a town rather than storm
+  it; orcs build stake-walls, storm and never surrender; lizardfolk build causeways and marsh
+  moats that defeat mines; halflings build hedge-banks, surrender readily and are spared.
