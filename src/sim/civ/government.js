@@ -69,8 +69,10 @@ export function targetTax(world, civ, atWar) {
   // a greedy or hard ruler taxes more (core/character.js)
   if (civ.ruler) { const tp = temperOf(civ.ruler, civ); t += 0.08 * (tp[TP.GRE] - 0.5) + 0.04 * Math.max(0, 0.45 - tp[TP.MER]); }
   if (atWar) t += 0.04;
+  if (civ.court && civ.court.cut > world.time.day) t -= 0.03;   // a tax cut granted to the guilds or a rising (court.js)
   if (civ.treasury < 0) t += 0.05;
-  else if (civ.treasury > 200 + civ.population * 0.05) t -= 0.03;
+  // a crown that has its reserve (power.js: years of income × its thrift) asks no more than it needs
+  else if (civ.treasury > Math.max(200, 0.75 * 12 * fin(civ.income) * fin(civ.purse?.ry, 4))) t -= 0.03;
   return Math.max(0.02, Math.min(0.45, t));
 }
 

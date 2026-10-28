@@ -24,6 +24,7 @@ import { splitCiv, roughPower, rootOf } from './peoples.js';
 import { borderNeighbours, borderLength } from './territory.js';
 import { fin, div, record, rateOk } from './state.js';
 import { theName, TheName, peopleOf, rulerName, listJoin, pick } from './prose.js';
+import { addRuin, estatesStability } from './power.js';
 
 const sfOf = (world) => Math.max(0.3, fin(world.params.stabilityFactor, 1));
 
@@ -53,6 +54,8 @@ export function updateStability(world, civ, agg) {
     losses: -0.03 * Math.min(3, fin(civ.flags.losses)) / sf,
     size: -0.02 * Math.log2(Math.max(1, agg.n / 12)) / sf,
     diversity: -0.1 * fin(agg.diversity) / sf,
+    // the estates: each one's loyalty against content, weighed by its power (power.js, chunk 7)
+    estates: estatesStability(civ) / sf,
     // from the Medieval age on, a realm holding a large share of the world's towns breeds
     // rivals, rebels and pretenders (earlier ages have collapse and conquest enough)
     hegemony: -0.5 * Math.max(0, Math.min(1, (fin(civ.tech?.era, 0) - 3) / 2))
@@ -202,6 +205,7 @@ export function revolt(world, civ, s, opts = {}) {
     ] } : null,
   });
   if (!res) return false;
+  addRuin(world, civ, 0.08 + 0.2 * share, 8);   // trade fled, fields untended, taxes uncollected (power.js)
   civ.flags.losses = fin(civ.flags.losses) + cluster.length;
   civ.flags.lastRebelDay = day;
   if (res.war) civ.flags.lastIndepWarDay = day;
@@ -421,6 +425,7 @@ export function revolutionCheck(world, civ) {
     });
     if (res) {
       civ.flags.lastCivilWarDay = world.time.day;
+      addRuin(world, civ, 0.25, 12);   // a civil war leaves years of ruin behind (power.js)
       tail = ` Loyalists of the old order held out in ${world.settlements[res.civ.capitalId]?.name || cap?.name || 'the provinces'}, and ${res.war ? res.war.name.replace(/^The /, 'the ') : 'civil war'} began.`;
     }
   }

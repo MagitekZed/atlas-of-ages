@@ -504,7 +504,9 @@ on('warEnded', (world, war) => {
   if (war.cause === 'civil war' && /Succession/.test(war.name || '') && rebel.ruler) {
     const claimant = rebel.ruler;
     for (const sid of rebel.settlementIds.slice()) transferSettlement(world, sid, parent.id, 'reunification');
-    const crowned = { ...claimant, deeds: { ...(claimant.deeds || {}) }, traits: (claimant.traits || []).slice() };
+    // a full copy: the fallen rebel realm keeps its own record of the claimant (skills, temperament
+    // and body are arrays that grow and change with the crowned ruler)
+    const crowned = JSON.parse(JSON.stringify(claimant));
     installRuler(world, parent, crowned, 'deposed', { how: 'civil war' });
     if (crowned.dynasty) parent.dynasty = crowned.dynasty;
     syncRulerDisplay(crowned);

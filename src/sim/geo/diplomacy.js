@@ -526,6 +526,13 @@ export function ally(a, b) {
   if (!a.allies.includes(b.id)) a.allies.push(b.id);
   if (!b.allies.includes(a.id)) b.allies.push(a.id);
 }
+// a realm divided between heirs (civ/laws.js): the two crowns of one house begin as allies
+on('realmPartition', (world, a, b) => {
+  if (!a || !b || !a.alive || !b.alive) return;
+  addTreaty(world, a.id, b.id, 'alliance');
+  ally(a, b);
+});
+
 /** Unbind two allies (both lists). */
 export function unally(a, b) {
   if (a.allies) a.allies = a.allies.filter((x) => x !== b.id);

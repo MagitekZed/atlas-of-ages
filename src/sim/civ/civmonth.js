@@ -24,6 +24,9 @@ import { theName, TheName, pick } from './prose.js';
 import { buildingVec, BV, townMods } from './settlement.js';
 import { dynastyMonthly } from './dynasty.js';
 import { temperMonthly, temperYearly } from './temper.js';
+import { purseMonthly, purseYearly, maybeDebase, estatesYearly } from './power.js';
+import { lawsYearly, partitionMonthly } from './laws.js';
+import { courtYearly, risingsYearly } from './court.js';
 
 /** Σ army strength per civ this month (built once per month from world.armies). */
 export function armyStrength(world, civId) {
@@ -228,11 +231,14 @@ export function monthlyCiv(world, civ) {
   // treasury
   // a skilled steward gets more of the taxes to the treasury (core/character.js): × 0.9 to 1.1
   const steward = civ.ruler && Array.isArray(civ.ruler.sk) ? 0.9 + 0.2 * civ.ruler.sk[2] : 1;
-  const income = fin(civ.flags.taxAcc) * steward;
+  // corruption, ruin and a debased coin take their share of the taxes; the court spends its own
+  // (power.js, chunk 7)
+  const purse = purseMonthly(world, civ, fin(civ.flags.taxAcc) * steward, civ.treasury);
+  const income = purse.income;
   civ.flags.taxAcc = 0;
   // the realm's own running costs, and what its armies, regiments and garrisons cost (ext 'upkeep', geo/raising.js)
   const expenses = income * 0.35 * (1 + 0.5 * fin(civ.flags.overext)) + 0.02 * agg.n * (1 + 0.3 * fin(civ.tech?.era))
-    + (hasProviders('upkeep') ? sumOf('upkeep', world, civ) : 0);
+    + (hasProviders('upkeep') ? sumOf('upkeep', world, civ) : 0) + purse.court;
   civ.income = income;
   civ.expenses = expenses;
   civ.treasury = fin(civ.treasury) + income - expenses;
@@ -249,6 +255,7 @@ export function monthlyCiv(world, civ) {
   }
   civ.taxRate = fin(civ.taxRate, 0.08) + (targetTax(world, civ, agg.atWar) - fin(civ.taxRate, 0.08)) * 0.05;
   spendSurplus(world, civ, agg, income);
+  maybeDebase(world, civ, income);
 
   urbanDrift(world, civ, agg);
   shareFood(world, civ, agg);
@@ -258,11 +265,17 @@ export function monthlyCiv(world, civ) {
   if (!civ.alive) return;
   dynastyMonthly(world, civ, agg);
   if (!civ.alive) return;
+  partitionMonthly(world, civ);   // a realm divided between heirs by its law (laws.js)
   figuresMonthly(world, civ, agg);
   ageTick(world, civ);
   // temperament: tallied monthly, drifts once a year at the people's own month (temper.js)
   temperMonthly(world, civ, agg);
-  if (civ.id % 12 === month) temperYearly(world, civ, agg);
+  if (civ.id % 12 === month) {
+    temperYearly(world, civ, agg);
+    // who holds power (chunk 7): the purse, the laws, the estates, the court, the risings
+    purseYearly(world, civ); lawsYearly(world, civ); estatesYearly(world, civ, agg); courtYearly(world, civ, agg);
+    if (risingsYearly(world, civ) || !civ.alive) return;
+  }
   civ.prestige = fin(civ.prestige) * 0.9995;
 
   if (month === 4) { rebellionCheck(world, civ); if (!civ.alive) return; }
