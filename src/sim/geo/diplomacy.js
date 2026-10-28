@@ -347,7 +347,7 @@ function targetOpinion(world, a, b, r, ctx) {
   }
   // their peoples' feelings, and how alike the two realms are (folk.js)
   const peA = civPeople(world, a), peB = civPeople(world, b);
-  if (peA && peB && peA !== peB) T += 0.35 * feel(world, peA, peB);
+  if (peA && peB && peA !== peB && peA[0] === 'f') T += 0.35 * feel(world, peA, peB);   // (a Mythic race's: myth/arcana.js opinion)
   T += 12 * (0.45 - cultDist(world, a, b));
   // commerce
   T += 22 * (1 - Math.exp(-(r.trade || 0) / 25));

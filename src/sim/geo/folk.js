@@ -48,6 +48,7 @@ export function folkState(world) {
   const st = world.sys.civ;
   if (!st) return null;
   if (!st.folk || !Array.isArray(st.folk.p)) st.folk = { p: [], fe: {}, waves: [], v: 0 };
+  if (!st.folk.bs || typeof st.folk.bs !== 'object') st.folk.bs = {};
   return st.folk;
 }
 const touch = (F) => { F.v = fin(F.v) + 1; };
@@ -239,11 +240,16 @@ export function cultDist(world, A, B) {
 
 // a Mythic world's races start from their old fixed table (myth/races.js 'kinRule'); Historical
 // peoples from kinship and distance
-function baseFeel(world, a, b) {
+function originFeel(world, a, b) {
   if (a === b) return 10;
   if (hasProviders('kinRule')) { const v = firstOf('kinRule', world, a, b); if (Number.isFinite(v)) return v; }
   if (a[0] === 'f' && b[0] === 'f') { const d = keyDist(world, a, b); return d <= 0.25 ? 15 : Math.round(6 - 15 * d); }
   return 0;
+}
+/** Where how a regards b rests: where it began, moved by generations of history (bs: below). */
+function baseFeel(world, a, b) {
+  const F = folkState(world);
+  return clamp(originFeel(world, a, b) + fin(F && F.bs[a + '>' + b]), -100, 30);
 }
 /** How people a regards people b, −100 to 100. */
 export function feel(world, a, b) {
@@ -569,10 +575,23 @@ function worldYear(world) {
       if (pa && pb && pa !== pb) nudgeFeel(world, pa, pb, 0.3 * Math.min(1, fin(r.trade) / 25));
     }
   }
-  // feelings fade toward where they began, at each people's memory
+  // feelings fade toward where they rest, at each people's memory; and where they rest moves,
+  // slowly, toward how the two have lived: generations of alliance, trade and shared wars can heal
+  // an old hatred (rarely: the hated seldom ally), and long wars deepen one a little
   for (const k of Object.keys(F.fe)) {
     const [a, b] = k.split('>');
-    const base = baseFeel(world, a, b), v = F.fe[k];
+    const v = F.fe[k];
+    const was = baseFeel(world, a, b), origin = originFeel(world, a, b);
+    const d = v - was;
+    const sh = clamp(fin(F.bs[k]) + (d > 0 ? 0.005 : 0.002) * d, -100 - origin, 30 - origin);
+    if (Math.abs(sh) < 0.05) delete F.bs[k]; else F.bs[k] = Math.round(sh * 100) / 100;
+    const base = baseFeel(world, a, b);
+    if (origin <= -30 && was <= -10 && base > -10 && rateOk(world, `reconcile:${k}`, 300 * DPY)) {
+      chronicle(world, { cat: 'civ', imp: 3, key: 'folk.reconciled', ref: { k: 'folk', id: a }, tags: ['people'], text: hashPick([
+        `After generations of peace and common cause, ${peopleName(world, a)} had laid down their old hatred of ${peopleName(world, b)}.`,
+        `The old enmity was done: ${peopleName(world, a)} no longer counted ${peopleName(world, b)} their enemies.`,
+      ], day, k.length) });
+    }
     const mem = memOf(world, a);
     const tau = v < base ? mem.grudge : mem.thanks;
     const nv = base + (v - base) * Math.exp(-1 / Math.max(1, tau));

@@ -692,10 +692,11 @@ export const RACE_REL = (() => {
   const t = {};
   const set = (a, b, v) => { (t[a] ||= {})[b] = v; (t[b] ||= {})[a] = v; };
   for (const a of RACE_LIST) for (const b of RACE_LIST) set(a, b, a === b ? 10 : 0);
-  set('elf', 'orc', -35); set('dwarf', 'orc', -30); set('elf', 'dwarf', -10);
+  // the old hatreds run deep (they are where every people's feelings return to, geo/folk.js)
+  set('elf', 'orc', -70); set('dwarf', 'orc', -65); set('elf', 'dwarf', -25);
   set('human', 'halfling', 12); set('dwarf', 'halfling', 8); set('elf', 'halfling', 6);
-  set('human', 'orc', -12); set('halfling', 'orc', -18);
-  for (const r of RACE_LIST) if (r !== 'lizardfolk') set('lizardfolk', r, -8);
+  set('human', 'orc', -30); set('halfling', 'orc', -35);
+  for (const r of RACE_LIST) if (r !== 'lizardfolk') set('lizardfolk', r, -20);
   set('orc', 'orc', -5);
   return t;
 })();

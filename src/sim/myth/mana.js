@@ -21,6 +21,8 @@ import { createNoise2D, hash2i } from '../../core/rng.js';
 import { WATER, BIOMES, DAYS_PER_YEAR } from '../../core/constants.js';
 import { isMythic, fin, RACES, setManaReader } from './races.js';
 import { generateLey, rasterAll, leyRng } from './ley.js';
+let folk = null;
+try { folk = await import('../geo/folk.js'); } catch (e) { /* no peoples module: the old enmities alone */ }
 
 export const RELAX = 0.04;
 const VEGMAX = Float32Array.from(BIOMES, (b) => b.vegMax);
@@ -415,6 +417,7 @@ const ENMITY_NAMES = {
   'dwarf|elf': ['The War of Leaf and Stone', 'The Quarrel of the Mountain and the Wood', 'The Old Grudge of the {A} and the {B}'],
   'halfling|orc': ['The War of the Burned Shires', 'The Harrowing of {b}', 'halfling:The Trampling of the {B} Fields'],
 };
+const HATRED_NAMES = ['The War of Old Hatred', 'The Hatred of the {A} and the {B}', 'The Long Grudge of the {A} and the {B}'];
 const EMBLEMS = {
   human: ['Sword', 'Crown', 'Plough', 'Banner', 'Torch', 'Wheel'],
   elf: ['Leaf', 'Root', 'Bough', 'Bow', 'Star', 'Thorn', 'Willow'],
@@ -475,10 +478,15 @@ function casusBelli(world, a, b) {
       (out ||= []).push({ cb: 'witchstone', w: 0.35 + 0.35 * fin(best.site.data?.power, 0.8), name: nodeWarName(a, b, best.site), siteId: best.site.id });
     }
   }
-  // an ancient enmity between peoples
+  // an ancient enmity between peoples: a people that hates another (−50 or worse, geo/folk.js)
+  // goes to war over it, the more readily the deeper the hatred; the old named feuds otherwise
+  // need an aggressive realm
   if (a.race && b.race && a.race !== b.race) {
-    const pool = ENMITY_NAMES[enmityKey(a.race, b.race)];
-    if (pool && fin(a.traits?.aggression, 0.5) >= 0.55) (out ||= []).push({ cb: 'enmity', w: 0.45, name: enmityName(world, a, b, pool) });
+    const pool = ENMITY_NAMES[enmityKey(a.race, b.race)] || HATRED_NAMES;
+    const f = folk ? folk.feel(world, 'r:' + a.race, 'r:' + b.race) : 0;
+    const aggr = fin(a.traits?.aggression, 0.5) >= 0.55;
+    if (f <= -50) (out ||= []).push({ cb: 'enmity', w: 0.45 + 0.6 * Math.min(1, (-f - 50) / 50) + (aggr ? 0.15 : 0), name: enmityName(world, a, b, pool) });
+    else if (ENMITY_NAMES[enmityKey(a.race, b.race)] && aggr) (out ||= []).push({ cb: 'enmity', w: 0.45, name: enmityName(world, a, b, pool) });
   }
   return out;
 }

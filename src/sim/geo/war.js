@@ -81,6 +81,7 @@ import {
 import { bestClaimOn, renounceClaims, hardenClaims, claimOf } from './claims.js';
 import { remember, memoryOf } from './memory.js';
 import { wallOf, wallKind, wallName, wallStand, WALL, BREACH, craftOf, surrenderOf, wallsMonthly, slight, famousSiege } from './siege.js';
+import { civPeople, townMix, feel } from './folk.js';
 import { coFor, coSync, coShares, coGear, coTake, forcePower, companyShares, mixFor, gearTier, gearQuality, siegeMul, ROLE } from './army.js';
 import { battleExperience, veteransHome, levyXp } from './regiments.js';
 import { groundCode, weatherAt, roleFactor, choosePlan, planBonus, momentOf, momentText, learnPlan, weatherWord, PLANS } from './battlefield.js';
@@ -2066,6 +2067,8 @@ function capture(world, st, army, s, opts = {}) {
   const broken = terms && !opts.spare && rng.chance(0.25 * Math.max(0, 0.35 - mer) / 0.35);
   const spared = gates || (terms && !broken);
   let pRaze = 0.03 + 0.5 * Math.max(0, 0.45 - mer) + (holy ? 0.15 : 0) + (grievance > 60 ? 0.12 : 0) + (eraOf(att) === 0 ? 0.04 : 0);
+  // a town of a people the victors hate (−50 or worse: geo/folk.js) is razed more readily
+  { const pa = civPeople(world, att), m = townMix(world, s); let mk = null, mv = 0; for (const k in m) if (m[k] > mv) { mv = m[k]; mk = k; } if (pa && mk && mk !== pa && feel(world, pa, mk) <= -50) pRaze += 0.12; }
   if ((s.tier || 0) >= 5 || mer >= 0.75) pRaze *= 0.3;
   // what the town remembers of its taker (memory.js), and whether this is its old realm come back
   const priorGrudge = Math.min(0, memoryOf(world, s, att.id));
