@@ -24,6 +24,7 @@
 // Exports: system, civPower(world, civ), addTribute, setVassal, releaseVassal, betrayal,
 //          govFamily, refreshTension, addTreaty(world, a, b, kind), ally, unally
 
+import { civPeople, feel, cultDist } from './folk.js';
 import { chronicle } from '../../core/chronicle.js';
 import { on } from '../../core/hooks.js';
 import { registerTool } from '../../core/tools.js';
@@ -344,6 +345,10 @@ function targetOpinion(world, a, b, r, ctx) {
       T -= h;
     }
   }
+  // their peoples' feelings, and how alike the two realms are (folk.js)
+  const peA = civPeople(world, a), peB = civPeople(world, b);
+  if (peA && peB && peA !== peB) T += 0.35 * feel(world, peA, peB);
+  T += 12 * (0.45 - cultDist(world, a, b));
   // commerce
   T += 22 * (1 - Math.exp(-(r.trade || 0) / 25));
   // treaties

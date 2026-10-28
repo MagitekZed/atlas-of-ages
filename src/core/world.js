@@ -163,7 +163,7 @@ const CIV_SHAPE = (c) => ({
   relations: c.relations, allies: c.allies, vassalOf: c.vassalOf, stateReligion: c.stateReligion, goldenAge: c.goldenAge,
   darkAge: c.darkAge, population: c.population, territory: c.territory, wealth: c.wealth, peakPopulation: c.peakPopulation,
   peakTerritory: c.peakTerritory, effects: c.effects, effectsV: c.effectsV, style: c.style, claims: c.claims, landClaims: c.landClaims, forces: c.forces, flags: c.flags,
-  culture: c.culture, temperLog: c.temperLog, arcane: c.arcane,
+  culture: c.culture, temperLog: c.temperLog, arcane: c.arcane, folk: c.folk, minor: c.minor,
 });
 const SETTLEMENT_SHAPE = (s) => ({
   id: s.id, name: s.name, civId: s.civId, originCivId: s.originCivId, alive: s.alive, x: s.x, y: s.y, i: s.i,
@@ -177,7 +177,7 @@ const SETTLEMENT_SHAPE = (s) => ({
   hist: s.hist, own: s.own, flags: s.flags, cohorts: s.cohorts,
   project: s.project, farmland: s.farmland, growth: s.growth, capacity: s.capacity,
   foodImport: s.foodImport, emigrants: s.emigrants, taxes: s.taxes, jobs: s.jobs, mem: s.mem,
-  peoples: s.peoples, peoplesPast: s.peoplesPast, wall: s.wall,
+  peoples: s.peoples, peoplesPast: s.peoplesPast, wall: s.wall, folk: s.folk,
 });
 const CIV_KEYS = Object.keys(CIV_SHAPE({})), SETTLEMENT_KEYS = Object.keys(SETTLEMENT_SHAPE({}));
 /**

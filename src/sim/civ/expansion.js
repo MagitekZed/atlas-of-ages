@@ -14,6 +14,7 @@
 import { WATER, BIOMES, TIERS, DAYS_PER_YEAR } from '../../core/constants.js';
 import { createCiv, createSettlement, killCiv, settlementsNear, civSettlements, liveCivs } from '../../core/entities.js';
 import { emitFx, yearOf } from '../../core/world.js';
+import { emit } from '../../core/hooks.js';
 import { clamp, smoothstep } from '../../core/util.js';
 import { sliceLike, takePeople, addShaped, shapedSlice } from '../../core/cohorts.js';
 import { habitGrid } from './land.js';
@@ -353,6 +354,7 @@ export function foundSettlement(world, civ, x, y, pop, opts = {}) {
   const s = createSettlement(world, civ.id, x, y, { population: pop, food: pop * 4, name: townName(world, civ, i0), cohorts: opts.cohorts });
   if (!s) return null;
   const from = opts.from || null;
+  if (from) emit(world, 'settled', s, from);   // the settlers carry their town's peoples (geo/folk.js)
   s.housing = pop * 1.6;
   s.health = from ? Math.max(0.6, fin(from.health, 0.75)) : 0.75;
   s.happiness = 0.62; s.loyalty = 0.78;
@@ -477,7 +479,7 @@ export function routeMigrants(world, s, civ, n) {
     const sc = Math.min(6, stock) - d / 8 - hr * 2;
     if (sc > bs) { bs = sc; best = t; }
   }
-  if (best) { addShaped(world, best, n * 0.85, 'movers', civ); return n * 0.85; }
+  if (best) { addShaped(world, best, n * 0.85, 'movers', civ); emit(world, 'migrants', s, best, n * 0.85); return n * 0.85; }
   if (n >= 50 && world.rng.chance(0.35 * fin(world.params.migration, 1))) {
     const site = findSite(world, s, civ, { minHabit: 0.18, spacing: MIN_SPACING });
     if (site) { foundSettlement(world, civ, site.x, site.y, n * 0.75, { from: s, refugees: true, cohorts: shapedSlice(world, n, 'movers', civ) }); return n * 0.75; }

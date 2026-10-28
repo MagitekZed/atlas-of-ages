@@ -76,6 +76,12 @@ export const EXT_POINTS = {
   siegeCraft: { combine: 'first', sig: '(w, civ) → { storm?, escalade?, mine? } multipliers | null (how a people besieges)' },
   surrenderRule: { combine: 'first', sig: '(w, civ) → { mul (0 never, 2 readily), spare? } | null (when a starving town yields)' },
   slightRule: { combine: 'mul', clamp: [0, 4], sig: '(w, civ, s) → × the chance a conqueror tears down a taken town\'s walls' },
+  // peoples and memory (chunk 8, geo/folk.js)
+  townGrievance: { combine: 'sum', clamp: [0, 2], sig: '(w, s, civ) → added to a town\'s grievances (its unrest)' },
+  kinRule: { combine: 'first', sig: '(w, peopleA, peopleB) → how a regards b at the start (−100…100) | null' },
+  assimilateRule: { combine: 'first', sig: '(w, civ) → × how fast minorities take on the main people\'s ways | null' },
+  minorityRule: { combine: 'first', sig: '(w, civ, people) → a standing (equal, tolerated, taxed, persecuted, expelled) | null' },
+  migrateRule: { combine: 'first', sig: '(w, region) → × a region\'s migration pressure | null' },
   matchRule: { combine: 'first', sig: '(w, civ, other) → false (no match) | a number added to the match\'s appeal | null' },
   armyPay: { combine: 'mul', clamp: [0.25, 4], sig: '(w, civ) → × a soldier’s pay (geo/raising.js)' },
   armyMix: { combine: 'first', sig: '(w, civ) → 7 shares (spears, blades, bows, light horse, heavy horse, engineers, war beasts) | null (geo/army.js)' },

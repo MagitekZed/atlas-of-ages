@@ -740,6 +740,8 @@ export function registerRaceProviders() {
   registerProvider('claimRule', 'myth', claimRule);
   registerProvider('armyMix', 'myth', armyMix);
   registerProvider('memoryRule', 'myth', memoryRule);
+  // the races' feelings start from the old fixed table (geo/folk.js)
+  registerProvider('kinRule', 'myth', (world, a, b) => (isMythic(world) && a && b && a[0] === 'r' && b[0] === 'r' ? raceRel(a.slice(2), b.slice(2)) : null));
   registerProvider('mods', 'myth', raceMods);
   registerProvider('loyalty', 'myth', loyalty);
 }

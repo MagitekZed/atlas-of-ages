@@ -17,6 +17,7 @@ const LOADERS = {
   './sim/geo/disease.js': () => import('./sim/geo/disease.js'),
   './sim/geo/trade.js': () => import('./sim/geo/trade.js'),
   './sim/geo/diplomacy.js': () => import('./sim/geo/diplomacy.js'),
+  './sim/geo/folk.js': () => import('./sim/geo/folk.js'),
   './sim/geo/war.js': () => import('./sim/geo/war.js'),
   './sim/bands/index.js': () => import('./sim/bands/index.js'),
   './sim/events/index.js': () => import('./sim/events/index.js'),

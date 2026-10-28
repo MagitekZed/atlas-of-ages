@@ -2108,6 +2108,7 @@ function capture(world, st, army, s, opts = {}) {
     if (fig && fig.died == null) fig.deeds = (fig.deeds || []).concat(`razed ${name}`).slice(-12);
     endSiege(world, s, 'razed', how);
     s.siege = null;
+    emitHook(world, 'townRazed', { sid: s.id, att: att.id });   // its people's hatred (geo/folk.js)
     destroySettlement(world, s.id, 'razed');
   } else {
     if (!spared) damageSettlement(world, s, { pop: 0.06 + rng.next() * 0.12 + (rulerHas(att, 'cruel') ? 0.1 : 0), wealth: 0.35, food: 0.5, buildings: 0.15, defense: 0.6, cause: 'sack' });

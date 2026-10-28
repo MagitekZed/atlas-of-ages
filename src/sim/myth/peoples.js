@@ -61,6 +61,8 @@ import { record, pickT, fill, yearOfDay, theName, rulerName, seasonAt, placePhra
 
 let trade = null;
 try { trade = await import('../geo/trade.js'); } catch (e) { /* no trade module: neighbours alone move people */ }
+let folk = null;
+try { folk = await import('../geo/folk.js'); } catch (e) { /* no peoples module: the races' old fixed feelings */ }
 
 /** Smallest share a people keeps in a town (below it, it is dropped and the rest renormalised). */
 export const PEOPLES_MIN = 0.005;
@@ -399,8 +401,8 @@ function mixArr(world, s) {
 }
 
 /** How welcome race k is in a town whose dominant people is dom, under a realm of tolerance tol. */
-function welcome(k, dom, tol) {
-  const v = 1 + raceRel(RACE_LIST[k], dom) / 40 + 0.3 * (tol - 0.5);
+function welcome(world, k, dom, tol) {
+  const v = 1 + (folk ? folk.feel(world, 'r:' + dom, 'r:' + RACE_LIST[k]) : raceRel(RACE_LIST[k], dom)) / 40 + 0.3 * (tol - 0.5);
   return v < 0.15 ? 0.15 : v > 1.6 ? 1.6 : v;
 }
 
@@ -467,7 +469,7 @@ function townYear(world, pp, s, sc) {
   const cosmo = civ && civ.race === 'human';
   for (let k = 0; k < NR; k++) {
     T[k] += tf * TR[k];
-    if (T[k] > 0) T[k] *= welcome(k, dom, tol) * (cosmo && k !== HUMAN ? COSMO_WELCOME : 1);
+    if (T[k] > 0) T[k] *= welcome(world, k, dom, tol) * (cosmo && k !== HUMAN ? COSMO_WELCOME : 1);
     tsum += T[k];
   }
   let arrived = 0;

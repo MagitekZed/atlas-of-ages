@@ -22,7 +22,7 @@
 // restoration) and allied (realms sharing a crown).
 
 import { createCiv, transferSettlement, addOpinion, rel, areAtWar, startWar, liveCivs } from '../../core/entities.js';
-import { on } from '../../core/hooks.js';
+import { on, emit } from '../../core/hooks.js';
 import { makePerson } from '../../core/names.js';
 import { emitFx } from '../../core/world.js';
 import { registerProvider, firstOf, hasProviders } from '../../core/ext.js';
@@ -336,6 +336,7 @@ export function arrangeMarriage(world, a, b, opts = {}) {
   }
   // a routine match (matchYearly) warms the two courts only a little: royal weddings were common
   addOpinion(world, A.id, B.id, opts.divine ? 30 : opts.routine ? 5 : 15);
+  emit(world, 'royalMatch', A, B);   // the two peoples warm a little (geo/folk.js)
   for (const [x, y] of [[A, B], [B, A]]) { const r = rel(world, x.id, y.id); r.trust = Math.min(1, fin(r.trust, 0.5) + (opts.routine ? 0.03 : 0.1)); }
   const st = world.sys.civ;
   if (st) {
