@@ -374,40 +374,50 @@ Wasting, counts), `civ.flags.grave`, `ruler.flags.wound` / `guilt`, `plague.by` 
 
 ## Results
 
-Twelve Mythic worlds (medium, plus one small) against main to Year 1000, and the six Historical
-and Legendary worlds of the usual matrix. Two mains that differ only in one chronicle line's
-draw (chunk 11's last commit) drift apart by Year 1000 by ±10–15 % in realms and 17–83 % in
-plague deaths, so that is the noise floor for a Mythic comparison.
+Final code, twelve Mythic worlds (medium, plus one small) against main to Year 1000, and the
+Historical and Legendary worlds of the usual matrix. Two mains that differ only in one chronicle
+line's draw (chunk 11's last commit) drift apart by Year 1000 by ±10–15 % in realms and 17–83 %
+in plague deaths, so that is the noise floor for a Mythic comparison.
 
 | Mythic, 12 worlds | Year 500 | Year 1000 |
 |---|---|---|
-| Population | +4 % | +2 % |
-| Realms | +10 % | −4 % |
-| Towns | +3 % | +3 % |
+| Population | +4 % | +5 % |
+| Realms | +10 % | −1 % |
+| Towns | +3 % | +2 % |
 | Wars | +6 % | −1 % |
-| Plague dead | +252 % (one world's grave-plagues) | +4 % |
+| Plague dead | +252 % (one world's grave-plagues) | −3 % |
 
 - **Historical and Legendary worlds are identical to main** at Years 500 and 1000 (every sampled
   field but the timing), and the determinism check passes.
 - **The ages:** the leading realm reaches the Classical Age by Year 1000 in 9 of 12 Mythic worlds
   (main 7).
-- **The Wasting:** 22 wounds in 12 worlds (0–3 a world): a beast's wound 10, a broken oath 8, a
-  desecration 2, a necromancer's curse 2. Of the 20 that ended, 7 by the great of the realm
-  deposing the ruler, 4 by illness, 4 by a cure, 2 by stepping down, 2 of old age, 1 by murder;
-  about eight years each on average. In the forced cases the arc runs wound, failing harvests,
+- **The Wasting:** 22 wounds in 12 worlds (0–4 a world): a broken oath 10, a beast's wound 9, a
+  desecration 2, a necromancer's curse 1. Of the 20 that ended: 9 by the great of the realm
+  deposing the ruler, 3 by illness, 3 by a cure, 2 by stepping down, 2 of old age, 1 by murder;
+  about ten years each on average. In the forced cases the arc runs wound, failing harvests,
   blame (the gods, a neighbour, the mages, a minority), revelation (often a confession), a
   reckoning and the healing.
-- **Mana-burn:** 30 outbreaks in 12 worlds (0–6 a world, 2.5 on average), all in the later
+- **Mana-burn:** 30 outbreaks in 12 worlds (0–10 a world, 2.5 on average), all in the later
   centuries as mages multiply; from a handful of dead to 4,500 in an elven city, and burnt land
   around each first town.
 - **The grave-plague:** necromancy stays rare. One world of twelve had a dark realm desperate
-  enough, and it laid three (80 years apart): 48,000, 51,000 and 19,000 dead, each raising a host;
-  no league formed there (earlier runs had one). Forced on a town at Year 300 it kills 4–14 % of
-  its city, reaches four to six towns and is over within the year, and its dead rise.
-- **Speed:** the new system costs 0.33 ms per sim-year in a Mythic world (budget 0.5); timeab on
-  Year-900 saves of main: Historical +0.2 % (the same simulation), Mythic −3.0 % (the histories
+  enough, and it laid three, 80 years apart, each raising a host; two leagues formed against it.
+  Two stayed near their cities (48,000 and 3,600 dead); the third, in a crowded late world,
+  spread far and killed 362,000 (about 7 % of that world). Forced on a town at Year 300 it kills
+  4–14 % of its city, reaches four to six towns and is over within the year.
+- **The Scourge:** 18 hosts had the makings (almost all natural risings), and none grew enough
+  to be named in these twelve worlds; with natural risings a little stronger (art 0.15) three
+  worlds in twelve had one, with 0.12 none, so the final 0.135 sits near the edge, rarer than one
+  world in ten in this sample. Forced (the hand's grave-plague at full virulence near old graves,
+  Year 500), two worlds of six raised one. In one (before the last tuning) the Scourge of Thaa
+  was named the year it rose, four realms swore an alliance, it killed some 74,000 over 25 years
+  while companies of heroes died against it, the darkness fell on four realms, and two years
+  later a company of five heroes destroyed it; the land began to heal the next year. In the
+  other the alliance's hunts ground it down within a year.
+- **Speed:** the new system costs 0.42 ms per sim-year in a Mythic world (budget 0.5); timeab on
+  Year-900 saves of main: Historical 0.0 % (the same simulation), Mythic −2.8 % (the histories
   diverge).
-- **Save size:** the new state is about 130 bytes at Year 900.
+- **Save size:** the new state is a few hundred bytes (about 130 at Year 900 without a Scourge).
 - **Gates:** all nine pass (npm test, trial-myth, cohort, keyframe, hand, hand-myth, three
   300-year Mythic trials); 19 systems load.
 
@@ -415,11 +425,17 @@ plague deaths, so that is the noise floor for a Mythic comparison.
 
 - The first grave-plague was an ordinary plague with a curse's name: four of them killed 0.8 to
   1.4 million each in one world. A curse has to be laid on a city: fierce there, weak beyond,
-  and short.
+  and short. In a crowded late world one can still spread far.
 - Mana-burn broke out in human towns with mages, where nobody could catch it. Its outbreaks now
   start where the magic-touched live.
 - A hidden cause could stay hidden for half a century, and some Wastings ran 40–55 years with
   nothing happening. Suspicion now grows with the years, and the great of a realm depose a ruler
   who will not go; deposition became the commonest ending.
+- A host felled like a beast (hit points) could never become a Scourge: the first hunt killed it.
+  Worn down by power, it can survive long enough to grow, and the threatened realms must keep
+  sending armies.
+- The Scourge's frequency turns on how much potential natural risings get: between art 0.12 and
+  0.15 it goes from none in twelve worlds to three. The necromancer's art, not the setting,
+  should be what makes one likely.
 - Chunk 11's final calibration runs were made before its last commit (which changed a chronicle
   line's draw), so they were not main's numbers; main was rerun for this comparison.
