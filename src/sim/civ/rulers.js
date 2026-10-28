@@ -182,7 +182,7 @@ export function makeRuler(world, civ, opts = {}) {
     born = world.time.day - Math.round(age * DAYS_PER_YEAR) - world.rng.int(0, 359);
   }
   const r = {
-    id: st ? st.nextPersonId++ : 0,
+    id: p && p.id != null ? p.id : st ? st.nextPersonId++ : 0,
     name, title: '', epithet: null, regnal: 1,
     born,
     reignStart: world.time.day,

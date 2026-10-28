@@ -25,6 +25,7 @@ import { firstOf, hasProviders } from '../../core/ext.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
 import { claimedTowns } from './claims.js';
 import { faithOf } from './religion.js';
+import { kinDied, syncHeir } from '../civ/kin.js';
 import { civName, capFirst, capitalOf, listJoin, hashPick, rateOk, finite } from './common.js';
 
 export const AIM_KINDS = new Set(['towns', 'crown', 'faith', 'tribute', 'subjugate', 'free', 'debt', 'humble', 'hold']);
@@ -213,7 +214,11 @@ export function killHostage(world, civId, atId, war = null) {
   hs.splice(k, 1);
   const a = world.civs[civId], b = world.civs[atId];
   if (!a || !b) return h;
-  if (a.ruler && a.ruler.heir && a.ruler.heir.name === h.name) a.ruler.heir = null;
+  if (a.ruler && a.ruler.heir && a.ruler.heir.name === h.name) {
+    if (a.ruler.heir.id != null) kinDied(world, a.ruler.heir.id, 'executed');
+    a.ruler.heir = null;
+    syncHeir(world, a);
+  }
   const r = rel(world, civId, atId);
   r.grievance = Math.min(100, (r.grievance || 0) + 40);
   addOpinion(world, civId, atId, -30);

@@ -30,6 +30,7 @@ import { DAYS_PER_YEAR as DPY } from '../../core/constants.js';
 import { fin, record, rateOk, rulerRef } from './state.js';
 import { theName, peopleOf, rulerName, rulerShort, pick } from './prose.js';
 import { rootOf } from './peoples.js';
+import { kinDied, kinSetAside, syncHeir } from './kin.js';
 
 const EPITHET_OF = { avenge: 'the Avenger', unite: 'the Uniter', wonder: 'the Builder', golden: 'the Magnificent' };
 
@@ -203,7 +204,9 @@ export function heirPlotYear(world, civ, r, succession) {
   }
   const fate = world.rng.chance(0.5) ? 'put to death' : 'sent into exile';
   record(world, { cat: 'civ', imp: 2, key: 'plot.foiled', civ, ref: rulerRef(civ, r), tags: ['plot'], text: `A plot by ${h.name}, heir of ${theName(civ)}, against ${rulerShort(r)} was uncovered; the heir was ${fate}.` });
+  if (h.id != null) { if (fate === 'put to death') kinDied(world, h.id, 'executed'); else kinSetAside(world, h.id); }
   r.heir = null;
+  syncHeir(world, civ);
   civ.stability = Math.max(0, fin(civ.stability, 0.6) - 0.03);
   return false;
 }
