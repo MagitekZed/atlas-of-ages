@@ -561,6 +561,7 @@ function worldYear(world) {
     if (Math.abs(nv - base) < 1) delete F.fe[k]; else F.fe[k] = Math.round(nv * 100) / 100;
   }
   if (mythic(world)) return;
+  migrationYear(world);
   // the peoples' numbers; a people gone from the world is told
   const tot = new Map();
   for (const s of liveSettlements(world)) { const m = townFolk(world, s); for (const id in m) tot.set(+id, fin(tot.get(+id)) + m[id] * fin(s.population)); }
@@ -576,6 +577,90 @@ function worldYear(world) {
     ], P.id, day), key: 'folk.absorbed', ref: { k: 'folk', id: 'f:' + P.id }, tags: ['people'] });
   }
   touch(F);
+}
+
+// ---------------------------------------------------------------------------
+// Waves of migration (Historical; a Mythic world's races move by their own mixing and the hordes)
+
+const REGION = 16;
+/**
+ * Yearly: every block of the map with towns has a pressure: crowding (people against housing),
+ * hunger, the devastation of war, and towns under siege (ext 'migrateRule' scales it). From the
+ * worst region, if high enough, a part of its people (5–15 %) may set out for the nearby region
+ * that presses least and holds towns: they settle among its people (a diaspora), resented at
+ * first. At most one wave a region a century and one a world in thirty years: a few a millennium.
+ */
+function migrationYear(world) {
+  const F = folkState(world);
+  const day = world.time.day;
+  const last = F.waves.length ? F.waves[F.waves.length - 1].day : -1e9;
+  if (day - last < 30 * DPY) return;
+  const R = new Map();
+  const f = world.f;
+  for (const s of liveSettlements(world)) {
+    const key = ((s.x / REGION) | 0) + ',' + ((s.y / REGION) | 0);
+    let r = R.get(key);
+    if (!r) R.set(key, (r = { key, rx: (s.x / REGION) | 0, ry: (s.y / REGION) | 0, pop: 0, house: 0, hungry: 0, ruin: 0, siege: 0, towns: [] }));
+    const pop = fin(s.population);
+    r.pop += pop; r.house += Math.max(1, fin(s.housing, pop)); r.towns.push(s);
+    if (s.famine >= 1) r.hungry += pop;
+    if (s.siege) r.siege += pop;
+    r.ruin += pop * fin(f.devastation && f.devastation[s.i]);
+  }
+  const press = (r) => {
+    let p = 2 * Math.max(0, r.pop / r.house - 0.9) + 1.5 * r.hungry / r.pop + r.ruin / r.pop + 0.8 * r.siege / r.pop;
+    if (hasProviders('migrateRule')) p *= clamp(fin(firstOf('migrateRule', world, r), 1), 0, 4);
+    return p;
+  };
+  let src = null, sp = 0;
+  for (const r of R.values()) {
+    if (r.pop < 20000) continue;
+    const p = press(r);
+    if (p > sp && !F.waves.some((w) => w.from === r.key && day - w.day < 100 * DPY)) { sp = p; src = r; }
+  }
+  if (!src || sp < 0.6 || !world.rng.chance(Math.min(0.4, 0.08 * (sp - 0.4) * fin(world.params.migration, 1)))) return;
+  let dst = null, dp = Infinity;
+  for (const r of R.values()) {
+    if (r === src || Math.abs(r.rx - src.rx) > 3 || Math.abs(r.ry - src.ry) > 3) continue;
+    const p = press(r) + 0.15 * Math.hypot(r.rx - src.rx, r.ry - src.ry);
+    if (p < dp) { dp = p; dst = r; }
+  }
+  if (!dst || dp > sp * 0.6) return;
+  // who leaves: a share of every town of the region, the young first
+  const frac = 0.05 + 0.1 * world.rng.next();
+  const mix = {};
+  let n = 0;
+  for (const s of src.towns) {
+    const took = takePeople(world, s, fin(s.population) * frac, 'movers');
+    if (!(took > 0)) continue;
+    n += took;
+    const m = townFolk(world, s);
+    for (const k in m) mix[k] = fin(mix[k]) + m[k] * took;
+  }
+  if (!(n >= 500)) return;
+  for (const k in mix) mix[k] /= n;
+  const people = mainOf(mix);
+  const arrive = n * 0.85;
+  const totDst = dst.towns.reduce((a, t) => a + fin(t.population), 0);
+  for (const t of dst.towns) {
+    const part = arrive * fin(t.population) / Math.max(1, totDst);
+    addShaped(world, t, part, 'movers', world.civs[t.civId]);
+    blendInto(world, t, mix, part);
+    t.unrest = Math.min(1, fin(t.unrest) + 0.1);
+    const mk = mainOf(townFolk(world, t));
+    if (mk && people && mk !== people) nudgeFeel(world, 'f:' + mk, 'f:' + people, -2);
+  }
+  const why = src.hungry / src.pop > 0.2 ? 'hunger' : src.ruin / src.pop > 0.3 ? 'war' : src.siege / src.pop > 0.2 ? 'war' : 'crowding';
+  F.waves.push({ day, from: src.key, to: dst.key, people: people != null ? 'f:' + people : null, n: Math.round(n), why });
+  if (F.waves.length > 50) F.waves.shift();
+  const big = dst.towns.slice().sort((a, b) => b.population - a.population).slice(0, 3);
+  const P = folkById(world, +people);
+  const home = src.towns.slice().sort((a, b) => b.population - a.population)[0];
+  const WHY = { hunger: 'Driven by hunger', war: 'Fleeing the wars', crowding: 'Too many for their land' };
+  chronicle(world, { cat: 'civ', imp: 3, x: big[0] ? big[0].x : null, y: big[0] ? big[0].y : null, sid: big[0] ? big[0].id : null, key: 'folk.wave', ref: people != null ? { k: 'folk', id: 'f:' + people } : null, tags: ['people', 'migration'], text: hashPick([
+    `${WHY[why]}, some ${Math.round(n).toLocaleString('en')} ${P ? P.name : 'people'} left the country around ${home ? home.name : 'their homes'} and settled among the towns of ${big.map((t) => t.name).join(', ')}.`,
+    `A great migration: ${Math.round(n).toLocaleString('en')} ${P ? P.name : 'people'} set out from the lands of ${home ? home.name : 'their fathers'}, ${why === 'hunger' ? 'fleeing famine' : why === 'war' ? 'fleeing war' : 'with too little land to feed them'}, and came to ${big.map((t) => t.name).join(', ')}.`,
+  ], src.rx * 97 + src.ry, day) });
 }
 
 // ---------------------------------------------------------------------------
