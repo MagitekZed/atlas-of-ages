@@ -109,6 +109,7 @@ const PLAGUE_FORMS = [
 const CAUSE_FORMS = {
   livestock: [[3, 'the {Beast} {Sym}'], [2, 'the {Herder} {Sym}'], [1, 'the {Beast} Murrain'], [0.8, 'the {town} Murrain']],
   contact: [[2.5, 'the {civB} {Sym}'], [1.6, 'the {Stranger} {Sym}'], [1.2, 'the {Sym} from {far}']],
+  camp: [[3, "the Soldier's {Sym}"], [2, 'the Camp {Sym}'], [1.5, "the Army {Sym}"], [1, 'the {Sym} of the Lines']],
   divine: [[2.5, '{deityPos} {Wrath}'], [1.5, 'the {Wrath} of {deity}'], [1, 'the Heaven-Sent {Sym}'], [1, "the Gods' {Sym}"]],
 };
 const stems = (n) => n.toLowerCase().split(/[\s'-]+/).filter((w) => w.length > 3 && w !== 'the').map((w) => w.slice(0, 4));
@@ -193,10 +194,18 @@ export function plagueAt(world, s) {
   return p && p.active ? p : null;
 }
 
+/** 0..1: how much room the world has for a new pestilence now (quiet years after a great one, fewer while others rage). */
+export function plagueRoom(world) {
+  const st = state(world);
+  const active = world.plagues.reduce((n, p) => n + (p && p.active ? 1 : 0), 0);
+  if (active >= MAX_ACTIVE) return 0;
+  return quiet(world, st) * (active ? 0.35 : 1) * (world.params.plagueRate ?? 1);
+}
+
 // ---------------------------------------------------------------------------
 // Creation and exposure
 
-const KNOWN_CAUSES = new Set(['crowd', 'livestock', 'contact', 'divine', 'return']);
+const KNOWN_CAUSES = new Set(['crowd', 'livestock', 'contact', 'divine', 'return', 'camp']);
 
 /**
  * Published: start a new plague in settlement s (or its id). Either createPlague(world, s, cause,
@@ -283,6 +292,11 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
       text = pickOne(world, [
         `Strangers from ${ob ? civName(ob) : 'distant lands'} brought ${p.name} to ${s.name}, a sickness its people had never known.`,
         `The first meeting with ${ob ? peopleOf(ob) : 'strangers'} carried ${sym.desc} into ${s.name}; it became known as ${p.name}.`,
+      ]);
+    } else if (cause === 'camp') {
+      text = pickOne(world, [
+        `Soldiers home from the war brought the fever of their camps back to ${s.name}; it became known as ${p.name}.`,
+        `${capName(p.name)} came home to ${s.name} with the army, and spread from the barracks to the town.`,
       ]);
     } else if (cause === 'divine') {
       text = pickOne(world, [

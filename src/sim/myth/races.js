@@ -737,6 +737,8 @@ export function registerRaceProviders() {
   registerProvider('lifespan', 'myth', lifespan);
   registerProvider('sickness', 'myth', sickness);
   // a people's frailty before a plague (geo/health.js): the same nature, for the whole race
+  // fever ground (geo/health.js): lizardfolk are its natives, elves bear it half as hard
+  registerProvider('feverRule', 'myth', (world, key) => (!isMythic(world) || !key ? 1 : key === 'r:lizardfolk' ? 0 : key === 'r:elf' ? 0.5 : 1));
   registerProvider('frailty', 'myth', (world, key) => (isMythic(world) && key && key[0] === 'r' && RACES[key.slice(2)] ? fin(RACES[key.slice(2)].sickness, 1) : 1));
   registerProvider('peopleRates', 'myth', peopleRates);
   registerProvider('strife', 'myth', strife);

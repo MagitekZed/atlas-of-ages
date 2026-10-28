@@ -8,9 +8,16 @@
 //     c   its custom of cleanliness (CUSTOMS)
 //     k   the peoples whose sicknesses it has met (≤ KNOWN_MAX, the newest last)
 //     sh  the day it shut its bathhouses in fear of a plague
-//   s.sick = { im, ht } on each live town, rewritten on its yearly pass:
-//     im  × how readily sickness spreads in the town for how it lives (1 for now)
-//     ht  added to its health (ext townHealth): its peoples' customs
+//   s.sick = { im, ht, sl, b, fr, fv, sn, dr? } on each live town, written on its yearly pass:
+//     im  × how readily sickness spreads in the town for how it lives (its faith, physicians,
+//         slums, a holy city's crowds)
+//     ht  added to its health (ext townHealth): its peoples' customs, physicians, slums, fever
+//     sl  its slums (0..1), following overcrowding; b  what it is built of ('t' timber, 'm' mud
+//         brick, 's' stone); fr  × its fire risk (events/decks/town.js)
+//     fv  the fever of its ground (0..1: marsh, hot wet forest, a hot river), sn  how seasoned
+//         its people are to it (0..1), dr  the day its marshes are drained (then fv × 0.25)
+//   civ.physic  its physicians' theory (PHYSIC)
+//   army.flags.cf = { d, k, n }  camp fever: since, how hard, the men it has cost
 //   plague.op   the people whose sickness it is (a contact plague: the strangers'); plague.byP
 //               { [people]: [dead, exposed] }, the six with the most dead kept when it ends
 //
@@ -27,8 +34,8 @@
 // months shut gates (quarantines), send nursing monks, flagellants and pilgrims.
 //
 // Exports: healthState, peopleRec, peekRec, frailOf, virginOf, plagueWeights, plagueToll,
-//          noteExposed, originPeople, townInf, townCfr, teachingOf, physicKey, physicOf, CUSTOMS,
-//          TEACH, PHYSIC, system
+//          noteExposed, originPeople, townInf, townCfr, teachingOf, physicKey, physicOf, feverAt,
+//          campMonth, CUSTOMS, TEACH, PHYSIC, BUILD_WORD, system
 
 import { on } from '../../core/hooks.js';
 import { chronicle } from '../../core/chronicle.js';
@@ -37,13 +44,14 @@ import { liveSettlements, liveCivs, damageSettlement, settlementsNear } from '..
 import { takePeople, takeOfPeople, isSet, cohortTotal } from '../../core/cohorts.js';
 import { addEffect, getEffect } from '../../core/effects.js';
 import { makePerson } from '../../core/names.js';
-import { DAYS_PER_YEAR as DPY, DAYS_PER_MONTH } from '../../core/constants.js';
+import { DAYS_PER_YEAR as DPY, DAYS_PER_MONTH, BIOME, WATER } from '../../core/constants.js';
+import { seasonAt } from '../../core/world.js';
 import { hasTech } from '../civ/tech.js';
-import { civPeople, folkById, peopleName, FOLK_MIN } from './folk.js';
+import { civPeople, folkById, peopleName } from './folk.js';
 import { routesOf } from './trade.js';
-import { expose } from './disease.js';
+import { expose, createPlague, plagueRoom } from './disease.js';
 import { boostFervor } from './religion.js';
-import { hashPick, pickOne, rateOk, civName, capFirst } from './common.js';
+import { hashPick, pickOne, rateOk, civName, capFirst, modsOf } from './common.js';
 
 const fin = (v, d = 0) => (Number.isFinite(v) ? v : d);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -51,7 +59,7 @@ const mythic = (world) => fin(world.params && world.params.mythLevel) >= 2;
 
 const H_MAX = 0.4;              // the most hardiness old plagues leave
 const H_FADE = 0.985;           // a year: about half gone in fifty years
-const H_CITY = 0.12;            // the floor for a people living wholly in great cities
+const H_CITY = 0.12;            // what a great city's crowds harden its peoples toward, year by year
 const KNOWN_MAX = 16;
 const VIRGIN_NEAR = 0.12, VIRGIN_SPAN = 0.25;   // homelands this far apart (× the map's diagonal) meet as strangers
 
@@ -147,7 +155,7 @@ export function originPeople(world, s, civB = null) {
   const m = s.folk;
   let best = null, bs = -1;
   if (m) for (const k in m) if (m[k] > bs) { bs = m[k]; best = k; }
-  return best != null ? 'f:' + best : civPeople(world, world.civs[s.civId]);
+  return best != null ? fkey(best) : civPeople(world, world.civs[s.civId]);
 }
 
 /** × how readily sickness spreads in town s for how it lives (its yearly pass). */
@@ -156,8 +164,11 @@ export const townInf = (s) => (s.sick && Number.isFinite(s.sick.im) ? s.sick.im 
 // ---------------------------------------------------------------------------
 // A plague town's peoples
 
-const WK = [], WD = [], WS = [];   // scratch for the town being stepped: its peoples, each one's weight of the dead, its share
+const WK = [], WD = [], WS = [], WI = [];   // scratch for the town being stepped: its peoples, each one's weight of the dead, its share, its id in the mix
 let WN = 0;
+const FKEY = [], RKEY = {};   // people keys, made once ('f:12', 'r:elf')
+const fkey = (id) => FKEY[id] || (FKEY[id] = 'f:' + id);
+const rkey = (r) => RKEY[r] || (RKEY[r] = 'r:' + r);
 const OUT = { inf: 1, die: 1 };
 
 /** Each people's share of town s: its own table (Mythic), else the mix (Historical). Fills WK / WS; returns the count. */
@@ -167,12 +178,12 @@ function sharesOf(world, s) {
     const c = s.cohorts;
     if (isSet(c)) {
       const tot = Math.max(1, fin(s.population));
-      for (const r in c) { const n = cohortTotal(c[r]); if (n > 0) { WK[WN] = 'r:' + r; WS[WN] = n / tot; WN++; } }
-    } else if (s.race) { WK[0] = 'r:' + s.race; WS[0] = 1; WN = 1; }
+      for (const r in c) { const n = cohortTotal(c[r]); if (n > 0) { WK[WN] = rkey(r); WI[WN] = r; WS[WN] = n / tot; WN++; } }
+    } else if (s.race) { WK[0] = rkey(s.race); WI[0] = s.race; WS[0] = 1; WN = 1; }
     return WN;
   }
   const m = s.folk;
-  if (m) for (const id in m) if (m[id] > 0) { WK[WN] = 'f:' + id; WS[WN] = m[id]; WN++; }
+  if (m) for (const id in m) { const v = m[id]; if (v > 0) { WK[WN] = fkey(id); WI[WN] = id; WS[WN] = v; WN++; } }
   return WN;
 }
 
@@ -216,7 +227,7 @@ export function plagueToll(world, s, p, frac) {
     dead = 0;
     for (let j = 0; j < WN; j++) {
       const key = WK[j];
-      const got = takeOfPeople(world, s, key.slice(2), n * WD[j] / W, 'frail');
+      const got = takeOfPeople(world, s, WI[j], n * WD[j] / W, 'frail');
       dead += got;
       const b = (by[key] ||= [0, 0]);
       b[0] += got;
@@ -226,21 +237,43 @@ export function plagueToll(world, s, p, frac) {
   } else {
     dead = damageSettlement(world, s, { pop: frac, cause: 'plague' });
     const m = s.folk;
-    if (m && dead > 0 && s.alive) {
-      const left = Math.max(1, N - dead);
-      let sum = 0, main = null, ms = -1;
-      for (let j = 0; j < WN; j++) {
-        const id = WK[j].slice(2), d = dead * WD[j] / W;
-        const b = (by[WK[j]] ||= [0, 0]);
-        b[0] += d;
-        m[id] = Math.max(0, (fin(m[id]) * N - d) / left);
-      }
-      for (const id in m) if (m[id] > ms) { ms = m[id]; main = id; }
-      for (const id in m) if (!(m[id] >= FOLK_MIN) && id !== main) { m[main] = fin(m[main]) + fin(m[id]); delete m[id]; }
-      for (const id in m) sum += m[id];
-      if (sum > 0) for (const id in m) m[id] = Math.round(m[id] / sum * 1e4) / 1e4;
-    }
+    if (m && dead > 0 && s.alive) shiftMix(m, N, dead, W, by);
   }
+  return dead;
+}
+
+/**
+ * A Historical town's mix after `dead` of its N people died, shared by WD (total W); the shares
+ * stay summing to 1 (a people fallen below the floor is folded in at the peoples' yearly pass).
+ */
+function shiftMix(m, N, dead, W, by) {
+  const left = Math.max(1, N - dead);
+  let sum = 0;
+  for (let j = 0; j < WN; j++) {
+    const d = dead * WD[j] / W;
+    if (by) { const b = (by[WK[j]] ||= [0, 0]); b[0] += d; }
+    const v = Math.max(0, (WS[j] * N - d) / left);
+    WS[j] = v; sum += v;
+  }
+  if (sum > 0) for (let j = 0; j < WN; j++) m[WI[j]] = Math.round(WS[j] / sum * 1e4) / 1e4;
+}
+
+/** n of town s's people die of a sickness, shared by its peoples as WD weighs them (Mythic: their own tables). Returns the number taken. */
+function takeShared(world, s, n, profile, cause) {
+  const N = s.population;
+  if (!(n > 0) || !(N > 0)) return 0;
+  let W = 0;
+  for (let j = 0; j < WN; j++) W += WD[j];
+  if (!(W > 0)) return damageSettlement(world, s, { pop: n / N, cause });
+  if (mythic(world) && isSet(s.cohorts)) {
+    let dead = 0;
+    for (let j = 0; j < WN; j++) dead += takeOfPeople(world, s, WI[j], n * WD[j] / W, profile);
+    if (n - dead > 0.01) dead += takePeople(world, s, n - dead, profile);
+    damageSettlement(world, s, { pop: 0, cause });
+    return dead;
+  }
+  const dead = damageSettlement(world, s, { pop: n / N, cause });
+  if (s.folk && dead > 0 && s.alive) shiftMix(s.folk, N, dead, W, null);
   return dead;
 }
 
@@ -293,6 +326,169 @@ function shutBaths(world, key, r, p, f) {
 }
 
 // ---------------------------------------------------------------------------
+// Fever country, housing
+
+/** The fever of the ground around tile (x, y), 0..1: marsh, hot wet forest and a hot river, by the heat. */
+export function feverAt(world, x, y) {
+  const f = world.f, W = world.W, H = world.H;
+  const cx = clamp(Math.round(x), 0, W - 1), cy = clamp(Math.round(y), 0, H - 1);
+  let v = 0, river = false;
+  for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+    const xx = cx + dx, yy = cy + dy;
+    if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
+    const j = yy * W + xx;
+    if (f.water[j] !== WATER.LAND) continue;
+    const b = f.biome[j];
+    if (b === BIOME.WETLAND) v += 1; else if (b === BIOME.TROPICAL_FOREST || b === BIOME.RAINFOREST) v += 0.5;
+    if (f.river && f.river[j]) river = true;
+  }
+  const heat = clamp((fin(f.temp[cy * W + cx], 10) - 4) / 16, 0.15, 1);
+  return clamp((v / 9 * 1.2 + (river ? 0.12 : 0)) * heat, 0, 1);
+}
+/** × how hard fever ground is on a people (ext feverRule: lizardfolk bear it, elves half). */
+const bearOf = (world, key) => (key && hasProviders('feverRule') ? mulOf('feverRule', world, key) : 1);
+
+/** A town's first material, by its land and people: timber in the woods, mud brick on the plains and in the dry lands, stone in the hills. */
+function buildOf(world, s, civ) {
+  const x = hasProviders('buildRule') ? firstOf('buildRule', world, s, civ) : null;
+  if (x === 't' || x === 'm' || x === 's') return x;
+  const f = world.f, b = f.biome[s.i];
+  if (fin(f.elevation[s.i]) >= 0.62) return 's';
+  if (b === BIOME.HOT_DESERT || b === BIOME.COLD_DESERT || b === BIOME.SHRUBLAND || b === BIOME.SAVANNA || b === BIOME.STEPPE) return 'm';
+  return 't';
+}
+const FIRE = { t: 1.2, m: 0.8, s: 0.55 };
+export const BUILD_WORD = { t: 'timber', m: 'mud brick', s: 'stone' };
+
+/** Fever and housing for town s's year: updates sk (slums, material, fever, seasoning); returns { im, ht } terms. */
+function groundYear(world, s, civ, sk, P, n) {
+  // slums follow crowding in a great town (its people against its housing, which a town keeps
+  // below about 0.8 by sending its young away), and clear slowly (sewers clear them faster)
+  const N = fin(s.population);
+  const ratio = N / Math.max(1, fin(s.housing, N));
+  const want = N > 3000 ? clamp((ratio - 0.7) * 5, 0, 0.6) * clamp(Math.log10(N / 3000) / 1.5, 0, 1) : 0;
+  const sl = fin(sk.sl);
+  sk.sl = Math.round((sl + (want - sl) * (want > sl ? 0.3 : 0.08 * (s.buildings && s.buildings.sewers ? 2.5 : 1))) * 1e4) / 1e4;
+  // what it is built of: stone in the great cities of a later age, and after a great fire
+  if (!sk.b) sk.b = buildOf(world, s, civ);
+  if (sk.b !== 's' && ((s.traits && s.traits.includes('rebuilt in stone')) || ((s.tier || 0) >= 4 && fin(civ && civ.tech && civ.tech.era) >= 3 && world.rng.chance(0.02)))) sk.b = 's';
+  sk.fr = FIRE[sk.b] || 1;
+  // fever ground: read again every century and when its marshes are drained
+  if (sk.fv == null || (world.time.day - fin(s.foundedDay)) % (100 * DPY) < DPY) {
+    sk.fv = Math.round(feverAt(world, s.x, s.y) * (sk.dd ? 0.25 : 1) * 1e3) / 1e3;
+    if (sk.sn == null) {
+      // a people born on fever ground arrives seasoned to it
+      const own = originPeople(world, s);
+      const home = homeOf(world, own);
+      sk.sn = home && feverAt(world, home.x, home.y) >= 0.25 ? 0.8 : 0;
+    }
+  }
+  sk.sn = Math.round(Math.min(1, fin(sk.sn) + (1 - fin(sk.sn)) / 25) * 1e3) / 1e3;
+  if (sk.dr != null && !sk.dd && world.time.day >= sk.dr) drained(world, s, sk);
+  let ht = -0.08 * sk.sl, im = (1 + 0.5 * sk.sl) * (sk.b === 't' ? 1.03 : 1);
+  if (sk.fv > 0.02) {
+    let harm = 0;
+    for (let j = 0; j < n; j++) { const b = bearOf(world, WK[j]); WD[j] = WS[j] * b; harm += WD[j]; }
+    harm *= (0.15 + 0.85 * (1 - sk.sn)) * P.fever;
+    ht -= 0.15 * sk.fv * harm + 0.02 * sk.fv;
+    const dead = fin(s.population) * sk.fv * harm * 0.03;
+    if (dead >= 1) { WN = n; takeShared(world, s, dead, 'all', 'fever'); }
+  }
+  return { im, ht };
+}
+
+/** The marshes around town s are drained: the fever falls to a quarter, and fields take its place. */
+function drained(world, s, sk) {
+  sk.dd = 1;
+  sk.fv = Math.round(fin(sk.fv) * 0.25 * 1e3) / 1e3;
+  addEffect(world, { kind: 'settlement', id: s.id }, { k: 'drained', until: -1, m: { foodYield: 1.1 }, label: 'Drained marshes' });
+  chronicle(world, {
+    cat: 'disease', imp: 2, icon: 'cure', key: 'health.drained', civId: s.civId, sid: s.id, x: s.x, y: s.y, tags: ['work'],
+    text: pickOne(world, [
+      `The marshes around ${s.name} were drained at last; where the fever had bred, there were fields.`,
+      `After years of dykes and ditches the fens of ${s.name} ran dry, and the ague that had haunted the town went with them.`,
+    ]),
+  });
+}
+
+/** A realm of the newer theories, with the craft and the coin, may drain its worst fever ground. */
+function drainYear(world, civ) {
+  if (!physicOf(world, civ).drain || !hasTech(civ, 'engineering')) return;
+  let best = null, bv = 0;
+  for (const id of civ.settlementIds || []) {
+    const s = world.settlements[id];
+    const sk = s && s.alive && s.sick;
+    if (!sk || sk.dr != null || (s.tier || 0) < 2 || !(sk.fv >= 0.3)) continue;
+    const v = sk.fv * fin(s.population);
+    if (v > bv) { bv = v; best = s; }
+  }
+  if (!best) return;
+  const cost = 6 * Math.max(1, fin(civ.income));
+  if (!(fin(civ.treasury) > 1.5 * cost) || !world.rng.chance(0.05)) return;
+  civ.treasury -= cost;
+  best.sick.dr = world.time.day + 8 * DPY;
+}
+
+// ---------------------------------------------------------------------------
+// Camp fever
+
+const CAMP = { dead: 0, fled: 0 };
+/**
+ * Camp fever, once a month for an army in the field (war.js monthly): { dead, fled } this month
+ * (the fled walk home). It comes with months in the field (little in a season's war), a siege's
+ * lines, the size of the host, hunger, summer and fever ground, less with the army's people's
+ * custom and its physicians; it runs a few months, and a great host may carry it home as a plague.
+ */
+export function campMonth(world, army) {
+  CAMP.dead = 0; CAMP.fled = 0;
+  const fl = army.flags;
+  const civ = world.civs[army.civId];
+  if (!fl) return CAMP;
+  if (!civ || army.naval || !(army.strength >= 50)) { if (fl.cf) delete fl.cf; return CAMP; }
+  const P = physicOf(world, civ);
+  const cf = fl.cf;
+  if (cf) {
+    const loss = army.strength * 0.08 * fin(cf.k, 1) * P.cfr * clamp(fin(modsOf(world, civ).medicine, 1), 0.2, 1.5);
+    CAMP.dead = loss * 0.8; CAMP.fled = loss * 0.2;
+    cf.n = Math.round(fin(cf.n) + loss);
+    army.morale = clamp(fin(army.morale, 1) - 0.04, 0.05, 1.2);
+    if (world.rng.chance(0.3)) { delete fl.cf; if (cf.n >= 1000 && army.strength >= 2500 && !fl.cfh) carryHome(world, army, civ, cf); }
+    return CAMP;
+  }
+  const months = (world.time.day - fin(army.createdDay, world.time.day)) / DAYS_PER_MONTH;
+  if (months < 2 || army.warId == null) return CAMP;   // a host in the field, at war
+  const key = civPeople(world, civ);
+  const r = key ? peekRec(world, key) : null;
+  const fv = feverAt(world, army.x, army.y) * bearOf(world, key) * P.fever;
+  const pr = 0.015 * clamp(months / 12, 0.1, 3) * clamp(Math.pow(army.strength / 2000, 0.35), 0.5, 2)
+    * (army.state === 'sieging' ? 2 : 1) * (fin(army.supply, 1) < 0.5 ? 1.5 : 1) * (seasonAt(world, army.y) === 2 ? 1.3 : 1)
+    * (1 + 2 * fv) * (CUSTOMS[r ? r.c : 'plain'] || CUSTOMS.plain).inf * P.inf
+    * (hasProviders('campRule') ? mulOf('campRule', world, army, civ) : 1);
+  if (!world.rng.chance(pr)) return CAMP;
+  fl.cf = { d: world.time.day, k: Math.round((0.6 + 0.8 * world.rng.next()) * 100) / 100, n: 0 };
+  const s = army.state === 'sieging' && army.targetId != null ? world.settlements[army.targetId] : null;
+  if (army.strength >= 3000 && rateOk(world, `camp${army.warId ?? 'x'}:${civ.id}`, 2 * DPY)) chronicle(world, {
+    cat: 'war', imp: 2, icon: 'plague', key: 'health.camp', civId: civ.id, x: army.x, y: army.y, ...(s ? { sid: s.id } : {}), tags: ['army'],
+    text: pickOne(world, [
+      `Camp fever broke out in ${army.name || 'the host of ' + civName(civ)}${s ? ` before ${s.name}` : ''}; the flux went through the lines.`,
+      `${capFirst(army.name || 'the host of ' + civName(civ))} began to sicken in its camps${s ? ` around ${s.name}` : ''}, and the dead were buried by the hundred.`,
+    ]),
+  });
+  return CAMP;
+}
+
+/** A great host's fever, carried home: a named plague in its home town. */
+function carryHome(world, army, civ, cf) {
+  // rarely: a great host's fever, in a world with room for a new pestilence
+  if (!(world.params.plagueRate > 0) || !world.rng.chance(0.06 * Math.min(1, plagueRoom(world))) || !rateOk(world, 'campPlague', 60 * DPY)) return;
+  const home = world.settlements[army.homeId];
+  const s = home && home.alive && home.civId === civ.id ? home : null;
+  if (!s || s.disease) return;
+  army.flags.cfh = 1;
+  createPlague(world, s, 'camp', { lethalityMul: 1 });
+}
+
+// ---------------------------------------------------------------------------
 // The yearly passes
 
 /** A town's year: what its peoples' customs add to its health; its peoples learn each other's sicknesses, and its trading partners'. */
@@ -303,42 +499,44 @@ function townYear(world, s) {
     const r = peopleRec(world, WK[j]);
     ht += WS[j] * (CUSTOMS[r.c] || CUSTOMS.plain).hp;
   }
-  const keys = WK.slice(0, n), sh = WS.slice(0, n);
-  for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) if (sh[a] >= 0.02 && sh[b] >= 0.02) learn(world, keys[a], keys[b]);
-  const own = originPeople(world, s);
+  // peoples of one town learn each other's sicknesses; a great city's crowds harden its peoples
+  const city = (s.tier || 0) >= 4;
+  for (let a = 0; a < n; a++) {
+    const sa = WS[a];
+    if (city) { const r = peopleRec(world, WK[a]); if (r.h < H_CITY) r.h += (H_CITY - r.h) * 0.05 * sa; }
+    if (sa < 0.02) continue;
+    for (let b = a + 1; b < n; b++) if (WS[b] >= 0.02) learn(world, WK[a], WK[b]);
+  }
+  // and its trading partners' realms
+  const civ0 = world.civs[s.civId];
+  const own = civ0 ? civPeople(world, civ0) : null;
   if (own) for (const r of routesOf(world, s.id)) {
     const t = world.settlements[r.aId === s.id ? r.bId : r.aId];
-    if (t && t.alive) learn(world, own, originPeople(world, t));
+    const tc = t && t.alive ? world.civs[t.civId] : null;
+    if (tc && tc !== civ0) learn(world, own, civPeople(world, tc));
   }
-  // how the town lives: its faith's rites, its physicians, the crowds at a holy city
+  // how the town lives: its faith's rites, its physicians, the crowds at a holy city, its slums,
+  // what it is built of, its fever ground
   const civ = world.civs[s.civId];
   const P = physicOf(world, civ);
   let im = P.inf * (teachingOf(world, s.dominantReligion) === 'purity' ? 0.9 : 1);
   if (s.dominantReligion != null && world.religions[s.dominantReligion]?.holyCityId === s.id) im *= 1.1;
   ht += P.ht;
   const sk = s.sick && typeof s.sick === 'object' ? s.sick : (s.sick = {});
-  sk.im = Math.round(im * 1e4) / 1e4;
-  sk.ht = Math.round(ht * 1e4) / 1e4;
+  const g = groundYear(world, s, civ, sk, P, n);
+  if (!s.alive) return;
+  sk.im = Math.round(im * g.im * 1e4) / 1e4;
+  sk.ht = Math.round((ht + g.ht) * 1e4) / 1e4;
 }
 
-/** The world's year: hardiness fades, down to a floor for the peoples of great cities. */
+/** The world's year: hardiness fades (the great cities harden their peoples on their own passes); a vanished people is forgotten. */
 function worldYear(world) {
   const H = healthState(world);
-  const tot = {}, urb = {};
-  for (const s of liveSettlements(world)) {
-    const n = sharesOf(world, s), N = fin(s.population);
-    for (let j = 0; j < n; j++) {
-      const k = WK[j], v = WS[j] * N;
-      tot[k] = fin(tot[k]) + v;
-      if ((s.tier || 0) >= 4) urb[k] = fin(urb[k]) + v;
-    }
-  }
   for (const key of Object.keys(H.p)) {
     const r = H.p[key];
-    const floor = tot[key] > 0 ? H_CITY * fin(urb[key]) / tot[key] : 0;
-    r.h = Math.round(Math.max(r.h * H_FADE, floor) * 1e4) / 1e4;
-    // a vanished people is forgotten (its kin keep its name in what they know until it falls off)
-    if (!(tot[key] > 0) && key[0] === 'f') { const P = folkById(world, +key.slice(2)); if (!P || P.gone != null) delete H.p[key]; }
+    r.h = Math.round(r.h * H_FADE * 1e4) / 1e4;
+    // (its kin keep its name in what they know until it falls off)
+    if (key[0] === 'f') { const P = folkById(world, +key.slice(2)); if (!P || P.gone != null) delete H.p[key]; }
   }
 }
 
@@ -463,6 +661,7 @@ function realmYear(world, civ) {
     }
   }
   if (nu && nu !== cur) adopt(world, civ, nu, had ? cur : null);
+  drainYear(world, civ);
   // customs: a reformer of the newer theories cleans a city; a faith of purity brings its rites
   const key = civPeople(world, civ);
   if (!key) return;
@@ -599,8 +798,18 @@ on('plagueEnded', (world, p) => {
   }
 });
 
+// a conqueror's settlers and soldiers are newcomers to fever ground
+on('settlementTransferred', (world, s) => { if (s && s.sick && s.sick.fv > 0.1) s.sick.sn = Math.round(fin(s.sick.sn) * 0.85 * 1e3) / 1e3; });
+
 // ---------------------------------------------------------------------------
 // Providers
+
+// settlers shun fever ground they cannot bear (civ/expansion.js)
+registerProvider('siteBonus', 'health', (world, civ, i) => {
+  const W = world.W;
+  const fv = feverAt(world, i % W, Math.floor(i / W));
+  return fv > 0.05 ? -0.3 * fv * bearOf(world, civPeople(world, civ)) : 0;
+});
 
 // the customs of a town's peoples, its physicians (its yearly pass)
 registerProvider('townHealth', 'health', (world, s) => (s && s.sick ? fin(s.sick.ht) : 0));
