@@ -246,10 +246,11 @@ Wasting, counts), `civ.flags.grave`, `ruler.flags.wound` / `guilt`, `plague.by` 
   mad ruler or one of mercy below 0.3, whose state faith does not tend the sick, weighs its worst
   war: (−score − 15) / 45, + 0.25 for each of its towns besieged half a year. At 0.3 or more it
   lays one at 0.3 × despair × (0.6 + 1.6 × its art) (× 1.3 cruel or mad), at most once in 30
-  years, and only while no other rages. Its target is the greatest enemy town it besieges, else
-  the greatest enemy town of tier 2+ within 35 tiles of its seat. The plague: infectivity at
-  least 2.3, lethality 0.3–0.45 × (1 + the art). Once 150 or 3 % of the city have died (a month
-  on), its dead rise as a host (the undead power rule × 1.5) bound to the caster for three years,
+  years a realm and 80 years in the world, and only while no other rages. Its target is the
+  greatest enemy town it besieges, else the greatest enemy town of tier 2+ within 35 tiles of its
+  seat. The plague is a curse on that city: infectivity 1.3 (× 2.2 in the city itself), lethality
+  0.3–0.45 × (1 + the art), 8 % of the city sick at once, and a fifth of a plague's usual time
+  before it fades. Once 60 or 3 % of the city have died (a month on), its dead rise as a host (the undead power rule × 1.5) bound to the caster for three years,
   while its ruler lives and it is at war with anyone: it marches only on its master's enemies'
   towns, fades a third as fast, and adds half its power to the caster's armies within ten tiles.
   Then it is an ordinary host. The price: every realm thinks 30 worse of the caster, fading over
@@ -259,9 +260,10 @@ Wasting, counts), `civ.flags.grave`, `ruler.flags.wound` / `guilt`, `plague.by` 
   −0.3 fading over thirty years; its towns' grievance +0.12 fading over ten.
 - **Mana-burn.** Strain = 1 − the town's mana / the target the weave, the setting and the smoke
   set there (mana.js's own relaxation target), 0 on land of almost no magic. Once a year (month
-  6) each town with a mage and strain 0.5+ may break out at 0.002 × ((strain − 0.5)/0.5)² × wild
-  magic × plagueRoom × √(mages/20) (≤ 2), at most once in 25 years world-wide. Infectivity at
-  least 1.5, lethality at least 0.12–0.22 × strength. Each people catches it × magicFrailty
+  6) each town with a mage and strain 0.5+ may break out at 0.009 × ((strain − 0.5)/0.5)² × wild
+  magic × plagueRoom × √(mages/20) (≤ 2) × how magic-touched its people are (their shares ×
+  magicFrailty), at most once in 25 years world-wide. Infectivity at least 1.9, lethality at
+  least 0.15–0.3 × strength (≤ 0.5), two-fifths of a plague's usual time. Each people catches it × magicFrailty
   (elves 1, dwarves and lizardfolk 0.4, orcs 0.15, men and halflings 0.12) and dies of it ×
   √magicFrailty, with no custom; no quarantines. Wards (deaths × (1 − ½ wards)) and the healing
   arts (Moonweaving or Hearth-craft: × 0.8) ease it. When it ends, the land of its first town is
@@ -269,18 +271,18 @@ Wasting, counts), `civ.flags.grave`, `ruler.flags.wound` / `guilt`, `plague.by` 
   each rare art worked in a stricken town is lost at 35 %. The late flare is the weave's: a
   thinner weave lowers every target. Once the weave is below 0.75, realms of elves, dwarves and
   lizardfolk think up to 20 × frailty worse of Industrial realms.
-- **The Wasting.** A wound needs 100 years since the last, world-wide (the hand's excepted): a
-  desperate dark realm curses its enemy's leader (5 % × despair a year); a betrayal (2.5 %); a
-  holy city razed (8 %) or a town on a ley node (5 %); a dragon's raid on a seat (2 %) or the
-  dead's (1.5 %). The land begins to fail one to two years later: loss +0.07 a year to 0.5 (×
+- **The Wasting.** A wound needs 150 years since the last, world-wide (the hand's excepted): a
+  desperate dark realm curses its enemy's leader (5 % × despair a year); a betrayal (1.2 %); a
+  holy city razed (5 %) or a town on a ley node (3 %); a dragon's raid on a seat (1.2 %) or the
+  dead's (0.8 %). The land begins to fail one to two years later: loss +0.07 a year to 0.5 (×
   ½ for a kinslayer's), out to 3 + 4 a year tiles (≤ 40), × (1 − 0.6 d/reach, ≥ 0.4) by distance
-  (settlement effect foodYield). A wounded ruler's death hazard is halved. While hidden, the realm
+  (settlement effect foodYield). A wounded ruler's death hazard is × 0.8. While hidden, the realm
   blames (re-chosen 12 % a year): its least-liked minority (1.4 if disliked, else 0.7;
   persecuted, feelings −6 a year), its mages (0.9; research −6 %), its most hated neighbour
   (1.1; opinion −25, a 'blight' war cause), or its gods (0.5; its faith's fervour −0.04 a year,
   stability −0.03). A proud or greedy ruler (honour < 0.35, ambition or greed > 0.6) may learn it
   first (30 % a year from the second year), silencing the seers (research −8 % for three years).
-  Revelation a year: 0.02 + 0.3 × scrying + 0.1 × healers + 0.06 a prophet + 0.05 a sage or hero +
+  Revelation a year: 0.03 + 0.01 a year of the blight (to 15) + 0.3 × scrying + 0.1 × healers + 0.06 a prophet + 0.05 a sage or hero +
   0.06 a god of secrets, fate or the harvest (× 0.4 while hidden by the ruler; + 0.08 for an
   honest ruler's confession from the third year; ≤ 0.6); a ruler who hid it loses 0.2
   legitimacy. Then the reckoning (weights: step down (mercy + honour)/2 − 0.3, × 2 elected; cure
@@ -288,7 +290,8 @@ Wasting, counts), `civ.flags.grave`, `ruler.flags.wound` / `guilt`, `plague.by` 
   happens at 60 % a year; a cure comes from a healing cup held (50 %), lent by a friend (25 %),
   the healing arts (12 %) or a pilgrimage (6 %), or a war for a neighbour's cup (25 %), and after
   six years the realm gives up and endures; enduring costs stability −0.05 and legitimacy −0.03 a
-  year; plots × 4 throughout. Healing takes the loss down 0.15 a year. A kin murder or a coup
+  year, and the great of the realm depose the ruler (a coup) at 0.05 + 0.02 a year known (≤ 0.3);
+  plots × 4 throughout. Healing takes the loss down 0.15 a year. A kin murder or a coup
   leaves the new ruler's legitimacy 0.12 lower for the reign; a kinslayer, one time in three, is
   wounded too, the land's loss carried over at 60 %. Healing cups: a third of the elves'
   treasures of power, and 0.2 % a year for a realm of a healing faith without one (health +0.03).
@@ -298,3 +301,55 @@ Wasting, counts), `civ.flags.grave`, `ruler.flags.wound` / `guilt`, `plague.by` 
 - **Not built:** a fled ruler carrying the wound abroad (rulers driven out leave no court in
   exile to follow), a seer as a named person, and the factions' own demand that a wounded ruler
   step down (the plots and the stability loss stand in for it).
+
+## Results
+
+Twelve Mythic worlds (medium, plus one small) against main to Year 1000, and the six Historical
+and Legendary worlds of the usual matrix. Two mains that differ only in one chronicle line's
+draw (chunk 11's last commit) drift apart by Year 1000 by ±10–15 % in realms and 17–83 % in
+plague deaths, so that is the noise floor for a Mythic comparison.
+
+| Mythic, 12 worlds | Year 500 | Year 1000 |
+|---|---|---|
+| Population | +4 % | +2 % |
+| Realms | +10 % | −4 % |
+| Towns | +3 % | +3 % |
+| Wars | +6 % | −1 % |
+| Plague dead | +252 % (one world's grave-plagues) | +4 % |
+
+- **Historical and Legendary worlds are identical to main** at Years 500 and 1000 (every sampled
+  field but the timing), and the determinism check passes.
+- **The ages:** the leading realm reaches the Classical Age by Year 1000 in 9 of 12 Mythic worlds
+  (main 7).
+- **The Wasting:** 22 wounds in 12 worlds (0–3 a world): a beast's wound 10, a broken oath 8, a
+  desecration 2, a necromancer's curse 2. Of the 20 that ended, 7 by the great of the realm
+  deposing the ruler, 4 by illness, 4 by a cure, 2 by stepping down, 2 of old age, 1 by murder;
+  about eight years each on average. In the forced cases the arc runs wound, failing harvests,
+  blame (the gods, a neighbour, the mages, a minority), revelation (often a confession), a
+  reckoning and the healing.
+- **Mana-burn:** 30 outbreaks in 12 worlds (0–6 a world, 2.5 on average), all in the later
+  centuries as mages multiply; from a handful of dead to 4,500 in an elven city, and burnt land
+  around each first town.
+- **The grave-plague:** necromancy stays rare. One world of twelve had a dark realm desperate
+  enough, and it laid three (80 years apart): 48,000, 51,000 and 19,000 dead, each raising a host;
+  no league formed there (earlier runs had one). Forced on a town at Year 300 it kills 4–14 % of
+  its city, reaches four to six towns and is over within the year, and its dead rise.
+- **Speed:** the new system costs 0.33 ms per sim-year in a Mythic world (budget 0.5); timeab on
+  Year-900 saves of main: Historical +0.2 % (the same simulation), Mythic −3.0 % (the histories
+  diverge).
+- **Save size:** the new state is about 130 bytes at Year 900.
+- **Gates:** all nine pass (npm test, trial-myth, cohort, keyframe, hand, hand-myth, three
+  300-year Mythic trials); 19 systems load.
+
+### Lessons
+
+- The first grave-plague was an ordinary plague with a curse's name: four of them killed 0.8 to
+  1.4 million each in one world. A curse has to be laid on a city: fierce there, weak beyond,
+  and short.
+- Mana-burn broke out in human towns with mages, where nobody could catch it. Its outbreaks now
+  start where the magic-touched live.
+- A hidden cause could stay hidden for half a century, and some Wastings ran 40–55 years with
+  nothing happening. Suspicion now grows with the years, and the great of a realm depose a ruler
+  who will not go; deposition became the commonest ending.
+- Chunk 11's final calibration runs were made before its last commit (which changed a chronicle
+  line's draw), so they were not main's numbers; main was rerun for this comparison.
