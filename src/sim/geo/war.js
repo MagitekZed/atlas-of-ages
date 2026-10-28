@@ -2034,8 +2034,8 @@ function capture(world, st, army, s, opts = {}) {
     st.captures++;
     l.captures++;
     emitFx(world, { type: 'capture', x: s.x, y: s.y, civId: att.id });
+    endSiege(world, s, 'captured', 'stormed');
     s.siege = null;
-    endSiege(world, s, 'captured');
     damageSettlement(world, s, { pop: 0.04 + rng.next() * 0.06, wealth: 0.25, food: 0.3, defense: 0.5, cause: 'sack' });
     if (war.active) makePeace(world, st, war, 'defenders');
     army.state = 'returning'; army.targetId = null; army.path = null;
