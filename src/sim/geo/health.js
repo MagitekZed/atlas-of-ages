@@ -35,7 +35,7 @@
 //
 // Exports: healthState, peopleRec, peekRec, frailOf, virginOf, plagueWeights, plagueToll,
 //          noteExposed, originPeople, townInf, townCfr, teachingOf, physicKey, physicOf, feverAt,
-//          campMonth, CUSTOMS, TEACH, PHYSIC, BUILD_WORD, system
+//          campMonth, healthParts, sparedWhy, CUSTOMS, TEACH, PHYSIC, BUILD_WORD, system
 
 import { on } from '../../core/hooks.js';
 import { chronicle } from '../../core/chronicle.js';
@@ -800,6 +800,58 @@ on('plagueEnded', (world, p) => {
 
 // a conqueror's settlers and soldiers are newcomers to fever ground
 on('settlementTransferred', (world, s) => { if (s && s.sick && s.sick.fv > 0.1) s.sick.sn = Math.round(fin(s.sick.sn) * 0.85 * 1e3) / 1e3; });
+
+// ---------------------------------------------------------------------------
+// For the interface (pure reads)
+
+/** Why town s is healthy or sick: [{ k, v }], the parts of its health (as civ/settlement.js weighs them), largest first. */
+export function healthParts(world, s) {
+  const civ = world.civs[s.civId];
+  const m = modsOf(world, civ);
+  const b = s.buildings || {};
+  const aq = fin(b.aqueduct) > 0 ? 1 : 0, sew = fin(b.sewers) > 0 ? 1 : 0, hosp = fin(b.hospital);
+  const san = clamp(0.3 * aq + 0.4 * sew + 0.12 * hosp + (fin(m.sanitation, 1) - 1) * 0.6, 0, 1);
+  const pop = fin(s.population);
+  const out = [];
+  const add = (k, v) => { if (Math.abs(v) >= 0.004) out.push({ k, v }); };
+  add('Its realm\u2019s medicine', 0.8 * fin(m.health, 1) - 0.8);
+  add('Crowding', -0.07 * Math.log10(Math.max(1, pop / 600)) * (1 - san));
+  add('Aqueducts and hospitals', 0.02 * aq + 0.03 * hosp);
+  if (s.famine > 0) add('Famine', -0.04 * Math.min(6, s.famine));
+  if (s.disease) add('The plague', -0.6 * clamp(fin(s.disease.I), 0, 1));
+  add('Foul air', -0.25 * fin(world.f.pollution && world.f.pollution[s.i]));
+  add('War damage', -0.15 * fin(world.f.devastation && world.f.devastation[s.i]));
+  const n = sharesOf(world, s);
+  for (let j = 0; j < n; j++) {
+    const r = peekRec(world, WK[j]);
+    const c = CUSTOMS[r ? r.c : 'plain'] || CUSTOMS.plain;
+    if (c.hp) add(`${capFirst(peopleName(world, WK[j], false))}: ${c.label}`, WS[j] * c.hp);
+  }
+  const P = physicOf(world, civ);
+  add(`Physicians: ${P.label}`, P.ht);
+  const sk = s.sick || {};
+  add('Slums', -0.08 * fin(sk.sl));
+  if (fin(sk.fv) > 0.02) {
+    let harm = 0;
+    for (let j = 0; j < n; j++) harm += WS[j] * bearOf(world, WK[j]);
+    harm *= (0.15 + 0.85 * (1 - fin(sk.sn))) * P.fever;
+    add('Fever ground', -(0.15 * sk.fv * harm + 0.02 * sk.fv));
+  }
+  return out.sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
+}
+
+/** Why people `key` died as it did of plague p: frailty, hardiness, virgin soil, custom (the interface). */
+export function sparedWhy(world, key, p) {
+  const r = peekRec(world, key);
+  const base = hasProviders('frailty') ? mulOf('frailty', world, key) : 1;
+  const why = [];
+  if (p && p.op && p.op !== key && virginOf(world, key, p.op) > 0.3) why.push('had never met this sickness');
+  if (base <= 0.75) why.push('seldom sicken'); else if (base >= 1.25) why.push('sicken readily');
+  if (r && r.h >= 0.15) why.push('hardened by old plagues');
+  const c = CUSTOMS[r ? r.c : 'plain'];
+  if (c && c.inf < 0.95) why.push(c.label); else if (c && c.inf > 1.05) why.push(c.label);
+  return why;
+}
 
 // ---------------------------------------------------------------------------
 // Providers
