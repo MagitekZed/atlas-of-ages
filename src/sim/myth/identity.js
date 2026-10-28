@@ -517,6 +517,24 @@ registerProvider('heirRule', 'myth', (world, civ) => HEIR_RULE[royalOf(world, ci
 registerProvider('houseRule', 'myth', (world, civ) => (royalOf(world, civ) === 'lizardfolk' ? 'mother' : null));
 registerProvider('bastardRule', 'myth', (world, civ) => (royalOf(world, civ) === 'lizardfolk' ? false : null));
 registerProvider('royalBirths', 'myth', (world, civ) => (royalOf(world, civ) === 'elf' ? 0.5 : 1));
+
+// Each people's walls and siegecraft (geo/siege.js): dwarven rune-walls mend and stand hard, and
+// dwarves mine best and hold to the last; elven thorn-walls regrow and never burn, and elves
+// starve a town rather than storm it; orc stake-walls, orcs storm (over the walls if need be)
+// and never yield; lizardfolk ring their towns with causeways and marsh water no mine can cross;
+// halfling hedge-banks, and halflings yield readily and are spared.
+const WALLS = {
+  dwarf: { names: ['Stone Ring', 'Rune-walls', 'Hold-gate', 'Deep Bastion'], res: 1.3, mend: 3 },
+  elf: { names: ['Thorn-hedge', 'Thorn-wall', 'Living Keep', 'Starthorn Fort'], mend: 3, burn: false },
+  orc: { names: ['Stake-ring', 'Stake-wall', 'War-keep', 'Iron Stockade'], res: 0.9 },
+  lizardfolk: { names: ['Reed-wall', 'Causeway-wall', 'Marsh-keep', 'Water-fort'], water: true, noMine: true },
+  halfling: { names: ['Hedge-bank', 'Hedge-bank and Ditch', 'Burrow-keep', 'Burrow-fort'] },
+};
+const CRAFT = { dwarf: { mine: 2 }, elf: { storm: 0.3, escalade: 0 }, orc: { storm: 1.4, escalade: 3, mine: 0.5 } };
+const YIELD = { dwarf: { mul: 0 }, orc: { mul: 0 }, halfling: { mul: 2, spare: true } };
+registerProvider('wallKind', 'myth', (world, civ) => WALLS[royalOf(world, civ)] || null);
+registerProvider('siegeCraft', 'myth', (world, civ) => CRAFT[royalOf(world, civ)] || null);
+registerProvider('surrenderRule', 'myth', (world, civ) => YIELD[royalOf(world, civ)] || null);
 registerProvider('archStyle', 'myth', archStyle);
 
 // ---------------------------------------------------------------------------

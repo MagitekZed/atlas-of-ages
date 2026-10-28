@@ -71,6 +71,11 @@ export const EXT_POINTS = {
   houseRule: { combine: 'first', sig: "(w, civ) → 'father' | 'mother' (whose house a child belongs to) | null" },
   royalBirths: { combine: 'mul', clamp: [0.1, 3], sig: '(w, civ) → × how often a royal couple has a child' },
   bastardRule: { combine: 'first', sig: '(w, civ) → false for a people without bastards as a class | null' },
+  // sieges and walls (chunk 6, geo/siege.js)
+  wallKind: { combine: 'first', sig: '(w, civ) → { names?: [4], res?, mend?, burn?, water?, noMine? } | null (a people\'s walls)' },
+  siegeCraft: { combine: 'first', sig: '(w, civ) → { storm?, escalade?, mine? } multipliers | null (how a people besieges)' },
+  surrenderRule: { combine: 'first', sig: '(w, civ) → { mul (0 never, 2 readily), spare? } | null (when a starving town yields)' },
+  slightRule: { combine: 'mul', clamp: [0, 4], sig: '(w, civ, s) → × the chance a conqueror tears down a taken town\'s walls' },
   matchRule: { combine: 'first', sig: '(w, civ, other) → false (no match) | a number added to the match\'s appeal | null' },
   armyPay: { combine: 'mul', clamp: [0.25, 4], sig: '(w, civ) → × a soldier’s pay (geo/raising.js)' },
   armyMix: { combine: 'first', sig: '(w, civ) → 7 shares (spears, blades, bows, light horse, heavy horse, engineers, war beasts) | null (geo/army.js)' },

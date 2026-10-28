@@ -320,6 +320,8 @@ export function damageSettlement(world, s, dmg = {}) {
   if (dmg.wealth) s.wealth *= 1 - clamp01(sc(dmg.wealth));
   if (dmg.food) s.food *= 1 - clamp01(sc(dmg.food));
   if (dmg.defense) s.defense *= 1 - clamp01(sc(dmg.defense));
+  // the walls themselves (geo/siege.js): a quake, an eruption or a sack brings part of them down
+  if (dmg.defense && s.wall && s.wall.c > 0) { s.wall.c = Math.max(0, s.wall.c * (1 - 0.7 * clamp01(sc(dmg.defense)))); if (s.wall.c < 0.4) s.wall.br = 1; }
   if (dmg.buildings) {
     let lost = false;
     const pb = clamp01(sc(dmg.buildings));
