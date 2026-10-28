@@ -254,16 +254,18 @@ when its bathhouses shut), `s.sick` (per town), `civ.physic`, `plague.op`/`byP`/
   Material by land: stone in the hills, mud brick on plains and in dry lands, timber elsewhere;
   great cities of era 3+ turn to stone (2 % a year), and at once after a great fire. Fire risk ×
   1.2 timber, 0.8 mud brick, 0.55 stone.
-- **Fever ground:** 3×3 tiles: marsh 1, hot wet forest 0.5, a river +0.12, by heat; read once a
-  century. Harm = the peoples' bearing (lizardfolk 0, elves ½) × (0.15 + 0.85 × unseasoned) × the
-  theory's fever factor: health −0.15·fever·harm − 0.02·fever, and 3 %·fever·harm of the town a
-  year. Seasoning rises a twenty-fifth of the way a year; a people born on fever ground arrives
-  at 0.8; conquest sets it back 15 %. Settlers score fever ground −0.3·fever. Draining: a realm
-  with bad air, contagion or germs and engineering, with 1.5× half a year's income, 5 % a year,
-  its worst fever town (tier 2+, fever 0.3+): eight years' work, then fever × 0.25 and food × 1.1.
-- **Camp fever:** a host at war two months or more: 1.5 % a month × months/12 (0.1–3) × size
+- **Fever ground:** 3×3 tiles: marsh 1, hot wet forest 0.25, a river +0.08, × 1.2 / 9, by heat
+  ((°C − 8) / 14, 0.1 to 1); read once a century. Harm = the peoples' bearing (lizardfolk 0,
+  elves ½) × (0.1 + 0.9 × unseasoned) × the theory's fever factor: health −0.06·fever·harm −
+  0.01·fever, and 0.8 %·fever·harm of the town a year. Seasoning rises a fifteenth of the way a
+  year; a people born on fever ground arrives at 0.8; conquest sets it back 15 %. Settlers lean
+  away from it (−0.06·fever on a site's score, fever 0.1+). Draining: a realm with bad air,
+  contagion or germs and engineering, with 1.5× half a year's income, 5 % a year, its worst fever
+  town (tier 2+, fever 0.3+): eight years' work, then fever × 0.25 and food × 1.1.
+- **Camp fever:** a host at war two months or more: 3.5 % a month × months in the field / 10
+  (0.1–3; the host's own months or 0.7 of its war's, whichever is more) × size
   ((strength/2000)^0.35, 0.5–2) × 2 in siege lines × 1.5 hungry × 1.3 in summer × (1 + 2 × fever
-  ground) × its people's custom × its physicians. A fever runs about three months, costing 8 % ×
-  severity (0.6–1.4) × the physicians' deaths × medicine of the host a month, a fifth of it
-  deserters who walk home. A great host (2,500+, 1,000+ lost) may carry it home as a plague: 6 % ×
-  the world's room for a new pestilence, once in 60 years at most.
+  ground) × its people's custom × its physicians. A fever runs about three and a half months,
+  costing 9 % × severity (0.6–1.4) × the physicians' deaths × medicine of the host a month (a fifth
+  of it deserters who walk home) and 0.02 morale. A great host (2,500+, 1,000+ lost) may carry it
+  home as a plague: 6 % × the world's room for a new pestilence, once in 60 years at most.

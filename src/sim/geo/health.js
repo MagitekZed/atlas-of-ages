@@ -14,7 +14,7 @@
 //     ht  added to its health (ext townHealth): its peoples' customs, physicians, slums, fever
 //     sl  its slums (0..1), following overcrowding; b  what it is built of ('t' timber, 'm' mud
 //         brick, 's' stone); fr  × its fire risk (events/decks/town.js)
-//     fv  the fever of its ground (0..1: marsh, hot wet forest, a hot river), sn  how seasoned
+//     fv  the fever of its ground (0..1: marsh, hot wet forest), sn  how seasoned
 //         its people are to it (0..1), dr  the day its marshes are drained (then fv × 0.25)
 //   civ.physic  its physicians' theory (PHYSIC)
 //   army.flags.cf = { d, k, n }  camp fever: since, how hard, the men it has cost
@@ -328,22 +328,21 @@ function shutBaths(world, key, r, p, f) {
 // ---------------------------------------------------------------------------
 // Fever country, housing
 
-/** The fever of the ground around tile (x, y), 0..1: marsh, hot wet forest and a hot river, by the heat. */
+/** The fever of the ground around tile (x, y), 0..1: marsh and hot wet forest, by the heat. */
 export function feverAt(world, x, y) {
   const f = world.f, W = world.W, H = world.H;
   const cx = clamp(Math.round(x), 0, W - 1), cy = clamp(Math.round(y), 0, H - 1);
-  let v = 0, river = false;
+  let v = 0;
   for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
     const xx = cx + dx, yy = cy + dy;
     if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
     const j = yy * W + xx;
     if (f.water[j] !== WATER.LAND) continue;
     const b = f.biome[j];
-    if (b === BIOME.WETLAND) v += 1; else if (b === BIOME.TROPICAL_FOREST || b === BIOME.RAINFOREST) v += 0.25;
-    if (f.river && f.river[j]) river = true;
+    if (b === BIOME.WETLAND) v += 1; else if (b === BIOME.TROPICAL_FOREST || b === BIOME.RAINFOREST) v += 0.15;
   }
   const heat = clamp((fin(f.temp[cy * W + cx], 10) - 8) / 14, 0.1, 1);
-  return clamp((v / 9 * 1.2 + (river ? 0.08 : 0)) * heat, 0, 1);
+  return clamp(v / 9 * 1.2 * heat, 0, 1);
 }
 /** × how hard fever ground is on a people (ext feverRule: lizardfolk bear it, elves half). */
 const bearOf = (world, key) => (key && hasProviders('feverRule') ? mulOf('feverRule', world, key) : 1);
@@ -385,13 +384,13 @@ function groundYear(world, s, civ, sk, P, n) {
   }
   sk.sn = Math.round(Math.min(1, fin(sk.sn) + (1 - fin(sk.sn)) / 15) * 1e3) / 1e3;
   if (sk.dr != null && !sk.dd && world.time.day >= sk.dr) drained(world, s, sk);
-  let ht = -0.08 * sk.sl, im = (1 + 0.5 * sk.sl) * (sk.b === 't' ? 1.03 : 1);
+  let ht = -0.05 * sk.sl, im = (1 + 0.3 * sk.sl) * (sk.b === 't' ? 1.03 : 1);
   if (sk.fv > 0.02) {
     let harm = 0;
     for (let j = 0; j < n; j++) { const b = bearOf(world, WK[j]); WD[j] = WS[j] * b; harm += WD[j]; }
-    harm *= (0.1 + 0.9 * (1 - sk.sn)) * P.fever;
-    ht -= 0.06 * sk.fv * harm + 0.01 * sk.fv;
-    const dead = fin(s.population) * sk.fv * harm * 0.008;
+    harm *= (0.05 + 0.95 * (1 - sk.sn)) * P.fever;
+    ht -= 0.04 * sk.fv * harm + 0.005 * sk.fv;
+    const dead = fin(s.population) * sk.fv * harm * 0.005;
     if (dead >= 1) { WN = n; takeShared(world, s, dead, 'all', 'fever'); }
   }
   return { im, ht };
@@ -483,12 +482,12 @@ export function campMonth(world, army) {
 /** A great host's fever, carried home: a named plague in its home town. */
 function carryHome(world, army, civ, cf) {
   // rarely: a great host's fever, in a world with room for a new pestilence
-  if (!(world.params.plagueRate > 0) || !world.rng.chance(0.06 * Math.min(1, plagueRoom(world))) || !rateOk(world, 'campPlague', 60 * DPY)) return;
+  if (!(world.params.plagueRate > 0) || !world.rng.chance(0.04 * Math.min(1, plagueRoom(world))) || !rateOk(world, 'campPlague', 100 * DPY)) return;
   const home = world.settlements[army.homeId];
   const s = home && home.alive && home.civId === civ.id ? home : null;
   if (!s || s.disease) return;
   army.flags.cfh = 1;
-  createPlague(world, s, 'camp', { lethalityMul: 1 });
+  createPlague(world, s, 'camp', { lethalityMul: 0.75 });
 }
 
 // ---------------------------------------------------------------------------
@@ -833,12 +832,12 @@ export function healthParts(world, s) {
   const P = physicOf(world, civ);
   add(`Physicians: ${P.label}`, P.ht);
   const sk = s.sick || {};
-  add('Slums', -0.08 * fin(sk.sl));
+  add('Slums', -0.05 * fin(sk.sl));
   if (fin(sk.fv) > 0.02) {
     let harm = 0;
     for (let j = 0; j < n; j++) harm += WS[j] * bearOf(world, WK[j]);
-    harm *= (0.1 + 0.9 * (1 - fin(sk.sn))) * P.fever;
-    add('Fever ground', -(0.06 * sk.fv * harm + 0.01 * sk.fv));
+    harm *= (0.05 + 0.95 * (1 - fin(sk.sn))) * P.fever;
+    add('Fever ground', -(0.04 * sk.fv * harm + 0.005 * sk.fv));
   }
   return out.sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
 }
@@ -863,7 +862,7 @@ export function sparedWhy(world, key, p) {
 registerProvider('siteBonus', 'health', (world, civ, i) => {
   const W = world.W;
   const fv = feverAt(world, i % W, Math.floor(i / W));
-  return fv > 0.1 ? -0.06 * fv * bearOf(world, civPeople(world, civ)) : 0;
+  return fv > 0.1 ? -0.04 * fv * bearOf(world, civPeople(world, civ)) : 0;
 });
 
 // the customs of a town's peoples, its physicians (its yearly pass)
