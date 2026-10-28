@@ -234,3 +234,21 @@ D. Named treasures: regalia, blades, relics, Mythic treasures; taken, lost, foun
 E. Interface: the ruler's family and line, person records, the house tree, treasure records and
    the Legends list.
 F. Gates, the twelve worlds, speed and save size.
+
+## Decisions (2026-10-27)
+
+- **Who inherits first: by people and age.** Historical realms put sons before daughters until
+  the later ages (era 5 on: the eldest child, either sex). Mythic peoples have their own rule:
+  halflings the eldest child, orcs the strongest grown child (war skill first), lizardfolk broods
+  through the mother; elves and dwarves keep their chunk 7 laws (elective, seniority).
+- **Bastards, as pretenders.** Rulers of low honour father bastards; outside the line unless
+  legitimised (a ruler with no lawful heir may), ready pretenders in a crisis, and they may found
+  houses of their own.
+- **A foreign heir inherits.** When the next in blood is a prince of another realm, they usually
+  take the crown (a personal union if they already rule one, which may merge later); sometimes
+  the great refuse and crown one of their own, which can start a war over the cousin's throne.
+  Sister realms from a split can reunite this way.
+- **Treasures: all of them, Mythic ones with powers.** Regalia, named swords and faiths' relics
+  everywhere; each Mythic people's own treasures (dwarven runeblades, elven starglass, orc
+  war-totems, lizardfolk egg-stones, halfling heirloom books), with real powers for whoever
+  holds them.
