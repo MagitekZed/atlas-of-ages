@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Atlas of Ages Patch Notes 1.12.1</title>
+<meta name="description" content="Patch notes for Atlas of Ages, from the Copperplate release through the twelve Deep Dive updates.">
+<meta property="og:title" content="Atlas of Ages Patch Notes 1.12.1">
+<meta property="og:description" content="Patch notes for Atlas of Ages, from the Copperplate release through the twelve Deep Dive updates.">
+<meta property="og:type" content="article">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap">
+<link rel="stylesheet" href="../notes.css">
+</head>
+<body>
+<div class="wrap">
+  <nav class="crumb" aria-label="Patch notes"><a href="../">All patch notes</a></nav>
+  <section class="hero" aria-labelledby="t">
+    <p class="eyebrow">Atlas of Ages · Patch notes 1.12.1 · 23 to 28 October 2026</p>
+    <h1 id="t">The Deep Dive is <i>complete</i></h1>
+    <p class="lede">All twelve chunks of the plan are built, balanced and live. Towns know their people by age and trade, armies march as companies, crowns borrow and default, rulers scheme and fall ill, peoples remember old hatreds, and in Mythic worlds the dead can rise into a Scourge.</p>
+    <div class="tally">
+      <div><b>12</b><span>chunks shipped</span></div>
+      <div><b>55</b><span>ideas built, one more in part</span></div>
+      <div><b>19</b><span>systems at work</span></div>
+      <div><b>3</b><span>days, 26 to 28 Oct</span></div>
+    </div>
+  </section>
+
+  <div class="layout">
+    <aside class="rail">
+      <nav aria-label="Updates">
+        <h2>Editions</h2>
+        <ol class="toc">
+          <li class="hot"><a href="#v1-12-1"><span class="v">1.12.1</span>Hotfixes</a></li>
+          <li><a href="#v1-12"><span class="v">1.12</span>Magical Sicknesses</a></li>
+          <li><a href="#v1-11"><span class="v">1.11</span>Health and Sickness</a></li>
+          <li><a href="#v1-10"><span class="v">1.10</span>Peoples and Memory</a></li>
+          <li><a href="#v1-9"><span class="v">1.9</span>Sieges and Walls</a></li>
+          <li><a href="#v1-8"><span class="v">1.8</span>Dynasties</a></li>
+          <li><a href="#v1-7"><span class="v">1.7</span>Who Holds Power</a></li>
+          <li><a href="#v1-6-1"><span class="v">1.6.1</span>The Hand, Tuned</a></li>
+          <li><a href="#v1-6"><span class="v">1.6</span>Seeing and the Hand</a></li>
+          <li><a href="#v1-5"><span class="v">1.5</span>Inventions That Travel</a></li>
+          <li><a href="#v1-4"><span class="v">1.4</span>Character</a></li>
+          <li><a href="#v1-3"><span class="v">1.3</span>The War Machine</a></li>
+          <li><a href="#v1-2-1"><span class="v">1.2.1</span>Playtest Quick Wins</a></li>
+          <li><a href="#v1-2"><span class="v">1.2</span>Why Wars Start</a></li>
+          <li><a href="#v1-1"><span class="v">1.1</span>People in Numbers</a></li>
+          <li><a href="#v1-0"><span class="v">1.0</span>The Copperplate Atlas</a></li>
+          <li><a href="#later"><span class="v">···</span>Coming later</a></li>
+        </ol>
+      </nav>
+      <div class="key">
+        <h2>Show</h2>
+        <div class="filters" id="filters" role="group" aria-label="Filter changes">
+          <button type="button" id="f-all" data-f="all" aria-pressed="true">All</button>
+          <button type="button" id="f-new" data-f="new" aria-pressed="false">New</button>
+          <button type="button" id="f-chg" data-f="chg" aria-pressed="false">Changed</button>
+          <button type="button" id="f-bal" data-f="bal" aria-pressed="false">Balance</button>
+          <button type="button" id="f-fix" data-f="fix" aria-pressed="false">Fixed</button>
+          <button type="button" id="f-perf" data-f="perf" aria-pressed="false">Speed</button>
+          <button type="button" id="f-myth" data-f="myth" aria-pressed="false">Mythic</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="notes">
+
+      <article class="upd hotfix" id="v1-12-1">
+        <header>
+          <span class="num">1.12.1</span>
+          <h3>Hotfixes</h3>
+          <div class="meta"><span>28 October</span><span>three fixes after 1.12</span></div>
+        </header>
+        <ul class="items">
+          <li class="fix"><span class="tags"><span class="tag fix">Fixed</span></span><span class="tx"><b>The game would not load on the web.</b> A typo in the Records view, shipped with 1.12, stopped the whole Atlas from starting for a few minutes. Fixed the same hour.</span></li>
+          <li class="fix"><span class="tags"><span class="tag fix">Fixed</span></span><span class="tx"><b>The single-file Atlas hung on “Preparing the instruments…”</b> forever. Two of the map’s modules were waiting on each other at start-up, which only the bundled build trips over. The build now checks for this and refuses to write a page that would hang.</span></li>
+          <li class="fix"><span class="tags"><span class="tag fix">Fixed</span></span><span class="tx"><b>The title menu now fits on phones and short screens.</b> On a phone the menu scrolls inside its frame while the frame and the map behind it stay put, and laptops with short screens get the whole menu without scrolling.</span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-12">
+        <header>
+          <span class="num">1.12</span>
+          <h3>Magical Sicknesses</h3>
+          <div class="meta"><span class="chunk">Chunk 12</span><span>28 October</span><span>Mythic worlds only</span></div>
+        </header>
+        <p class="tagline">Three plagues only magic can cause, and a fourth thing that can end an age. Historical and Legendary worlds play out exactly as they did before.</p>
+        <ul class="items">
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>The grave-plague.</b> A realm that knows Necromancy, led by a merciless ruler with no healing faith, may lay one on an enemy city when its war turns desperate. It kills hard in that city and little beyond it, and the dead rise bound to the caster for three years. The world dreads it, and leagues form against whoever cast it. Very rarely, in a crowded late world, one spreads far. In testing one took 7 % of a world, and that is staying in: a very small chance of apocalypse.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Mana-burn.</b> Draw a town’s magic hard against its land and mana-burn breaks out among its mages and its elves. Men, halflings and orcs barely catch it, and no custom or quarantine keeps it out. It burns the land’s mana for a generation, and a rare art can die with its keepers.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>The Wasting.</b> A ruler wounded by a curse, a beast of legend, a broken oath or a razed holy place bears a wound that will not close, and the harvests fail around their seat. The people blame the gods, a neighbour, the mages or a minority until the truth comes out, often by confession. About ten years on the reign ends by deposition, illness, a cure, abdication or murder.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>The Scourge.</b> A host risen from land thick with the dead and with magic can grow until it is given a name. It usually breaks free of its maker, blights the land, and the realms it threatens hunt it together. Starve it and it sleeps in a barrow, to wake when fresh foes come near. Armies grind it down, or a company of heroes destroys it, often after decades.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Darkness, and the Age of the Dead.</b> A generation after a Scourge is named, darkness falls on its region. A Scourge that carries its war beyond that region brings on a new world age: the Age of the Dead.</span></li>
+          <li class="bal myth"><span class="tags"><span class="tag bal">Balance</span><span class="tag myth">Mythic</span></span><span class="tx"><b>A Scourge fights like a war, not a beast.</b> It gives battle once a month at most, each defeat costs it 5 to 25 % of its strength, and its dead carry the weapons of the foes they fell to. Each realm sends a share of a common hunt rather than its whole army, and no company of heroes dares it in its first five years. Named Scourges now last 18 to 88 years. Before this change they died within a year.</span></li>
+          <li class="bal myth"><span class="tags"><span class="tag bal">Balance</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Scourges are a little less rare:</b> about one Mythic world in twelve now raises one. Expect about two Wastings and two outbreaks of mana-burn in a Mythic world’s thousand years.</span></li>
+          <li class="chg myth"><span class="tags"><span class="tag chg">Changed</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Soldiers a Scourge kills now count toward its darkness,</b> so a Scourge at war darkens its region the way one feeding on towns does.</span></li>
+          <li class="chg myth"><span class="tags"><span class="tag chg">Changed</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Restless sleepers keep one barrow.</b> A Scourge that sleeps again soon goes back to its old barrow, and its later sleeps and wakings are told in passing. One test Scourge went from 72 Chronicle lines and 36 barrows to 5 lines and 1 barrow.</span></li>
+          <li class="bal myth"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx">Twelve test worlds at Year 1000, against 1.11:
+            <span class="tw"><table><thead><tr><th></th><th>Population</th><th>Realms</th><th>Towns</th><th>Wars</th><th>Plague dead</th></tr></thead>
+            <tbody><tr><th>Mythic</th><td>+4 %</td><td>+3 %</td><td>+3 %</td><td>0 %</td><td>−9 %</td></tr></tbody></table></span>
+            <span class="cap">Historical and Legendary worlds are identical to 1.11.</span></span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-11">
+        <header>
+          <span class="num">1.11</span>
+          <h3>Health and Sickness</h3>
+          <div class="meta"><span class="chunk">Chunk 11</span><span>28 October</span></div>
+        </header>
+        <p class="tagline">Every people falls sick in its own way, cities breed disease, and armies carry fever with them.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Peoples and sickness.</b> Each people has its own frailty, a hardiness left by old plagues and great cities, and a memory of which sicknesses it has met. A plague brought by strangers it has never met can devastate it. A plague’s account now names whom it took and why.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Customs of cleanliness.</b> A people bathes, washes by rite, keeps its wells apart, keeps a clean hearth, does none of these, or fears water. A great plague can shut the bathhouses, and reformers and faiths change customs.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Healing faiths</b> ease a plague’s deaths, and their nursing monks win converts. Penitent faiths send flagellants through the towns, and pilgrims carry a plague home from a holy city.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Physicians and their theories.</b> Realms climb from spirits to the humours, then to bad air or contagion, then to germs. Quarantines come with the newer theories. Bleeding under the humours makes plagues a little deadlier and shortens a sick ruler’s life.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Housing and sanitation.</b> Crowded great cities grow slums that breed sickness. Towns build in timber, mud brick or stone according to their ground, and that sets their risk of fire.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Fever country.</b> Marshes and hot wet forest cost a town health and kill newcomers until they are seasoned. Settlers avoid fever ground, and a realm can drain a marsh as a great work. About one Historical town in ten stands on fever ground.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Camp sickness.</b> Camp fever grows with an army’s months in the field, siege lines, hunger and summer heat. Some of the sick die and some desert. In the long wars of later ages it kills more soldiers than battle does, and very rarely a great host carries it home as a plague.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Each race has its own customs and healing lore,</b> and its own frailty: elves 0.4, lizardfolk 0.6, dwarves 0.7, halflings 0.9, humans 1, orcs 1.4. Lizardfolk bear fever country fully and elves half.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx"><b>Fever along hot rivers was dropped</b> and fever ground made lighter after testing showed it held back every world’s leading realm.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx">Twelve test worlds at Year 1000, against 1.10:
+            <span class="tw"><table><thead><tr><th></th><th>Population</th><th>Realms</th><th>Towns</th><th>Wars</th><th>Plague dead</th></tr></thead>
+            <tbody><tr><th>Historical</th><td>−2 %</td><td>−1 %</td><td>0 %</td><td>+5 %</td><td>+110 %</td></tr>
+            <tr><th>Mythic</th><td>+3 %</td><td>−1 %</td><td>+5 %</td><td>+9 %</td><td>−51 %</td></tr></tbody></table></span>
+            <span class="cap">Historical plague deaths doubled, mostly from first-contact plagues reaching peoples with no defence against them. The hardier Mythic races lost half as many.</span></span></li>
+          <li class="perf"><span class="tags"><span class="tag perf">Speed</span></span><span class="tx">The new health system costs about 2 ms per simulated year.</span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-10">
+        <header>
+          <span class="num">1.10</span>
+          <h3>Peoples and Memory</h3>
+          <div class="meta"><span class="chunk">Chunk 8</span><span>27 October</span></div>
+        </header>
+        <p class="tagline">Peoples love, hate, mix and forget, each at its own pace.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Feelings between peoples,</b> from −100 to 100. They move with wars fought against or beside each other, razings, conquests, liberations, trade, royal matches and persecution, and drift back toward where they rest. Feelings shape realms’ opinions of each other, where migrants are welcome and how minorities are treated.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Old hatreds.</b> Elves and orcs start at −60, dwarves and orcs −55, halflings and orcs −35, humans and orcs −30, elves and dwarves −15, and lizardfolk −20 with everyone. A long alliance can heal a hatred, rarely, and long wars deepen one. A hatred of −50 or worse starts wars of enmity and makes razing likelier.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>How long each remembers.</b> Grudges and kindnesses fade at each people’s pace: elves for centuries, orcs within a generation, men over a few lifetimes. Historical peoples remember as men do.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Cultural distance.</b> How alike two realms are, from their peoples, the sounds of their tongues, their faiths and their customs. Close realms drift warmer and marry more, and distance slows assimilation.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Policy toward minorities.</b> Each minority is equal, tolerated, taxed, persecuted or expelled, decided by the ruler’s mercy, piety and greed, the ruling people’s feelings, hard times and the minority’s numbers. Persecution drives the young away and breeds pogroms in hard times, and an expelled people goes to its kin abroad. Most minorities are tolerated.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Diasporas.</b> About half of Historical towns now hold a minority, carried by migrants, merchants, refugees and conquerors. A people that lives apart from its kin for about three centuries becomes a new people.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Assimilation.</b> A small, close minority takes on its town’s ways in about three generations. Large, distant or persecuted ones hold on for centuries. Peoples can vanish into others, and a people that lost every realm may rise again in a revolt.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Waves of migration.</b> Crowding, hunger, war and sieges can set part of a region moving into the towns of a calmer one nearby. Expect about five great migrations in a Historical world’s thousand years.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx">Twelve test worlds at Year 1000, against 1.9:
+            <span class="tw"><table><thead><tr><th></th><th>Realms</th><th>Wars</th></tr></thead>
+            <tbody><tr><th>Historical</th><td>+1 %</td><td>−6 %</td></tr>
+            <tr><th>Mythic</th><td>+8 %</td><td>+1 %</td></tr></tbody></table></span></span></li>
+          <li class="perf"><span class="tags"><span class="tag perf">Speed</span></span><span class="tx">Historical worlds run 2.7 % slower and Mythic worlds 2.0 % slower.</span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-9">
+        <header>
+          <span class="num">1.9</span>
+          <h3>Sieges and Walls</h3>
+          <div class="meta"><span class="chunk">Chunk 6</span><span>27 October</span></div>
+        </header>
+        <p class="tagline">Every wall has a story now, and every siege has an ending.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Walls in detail.</b> A walled town keeps a palisade, stone walls, a castle or a star fort, with its condition, towers, moat and citadel, and the ground it stands on: hill, crag, river, marsh or sea. Sieges, quakes and sacks wear walls down, and they are mended while someone pays. Walled towns lay in stores in wartime, and a conqueror sometimes tears down the walls of a town it fears.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Each people builds its own walls:</b> dwarven rune-walls that mend themselves, elven thorn-walls that never burn, orc stake-walls, lizardfolk water-forts and halfling hedge-banks.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Siegecraft.</b> A siege eats the town’s food and then its stores, though a harbour is fed from the sea while the besieger has no fleet. Engines wear the walls to a breach, palisades burn, and guns break anything short of a star fort. Mines are dug where the ground allows. Each month the besieger may storm, the garrison may sally, and a gate may be betrayed or bought.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Surrender on terms.</b> A starving town that surrenders is spared the sack.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Great sieges.</b> A siege of a year and a half or more is named (“the Great Siege of…”) and remembered on its ground.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx"><b>Siege lengths spread out.</b> Rich, well-fortified, well-stocked towns hold far longer, and poorly stocked ones fall fast. Towns now fall stormed 54 % of the time, surrendered 20 %, mined 12 % and betrayed 11 %. Towns captured rose 37 %.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx">Twelve test worlds at Year 1000, against 1.8:
+            <span class="tw"><table><thead><tr><th></th><th>Realms</th><th>Wars</th></tr></thead>
+            <tbody><tr><th>Historical</th><td>+12 %</td><td>+11 %</td></tr>
+            <tr><th>Mythic</th><td>+1 %</td><td>+8 %</td></tr></tbody></table></span></span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-8">
+        <header>
+          <span class="num">1.8</span>
+          <h3>Dynasties</h3>
+          <div class="meta"><span class="chunk">Chunk 9</span><span>27 October</span></div>
+        </header>
+        <p class="tagline">Royal houses get family trees, heirs and pretenders, and crowns worth stealing.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Family trees.</b> Ruling houses keep their families: parents, brothers and sisters, spouses from abroad, children born and lost, nephews, uncles, cousins and bastards. Every kept person has a record and every house a family tree, about 760 people in a world.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>The line of succession,</b> several heirs deep and set by the realm’s law: sons before daughters until the later ages, then the eldest child. A child ruler’s regent is their mother or an uncle.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Each race inherits its own way.</b> Halflings crown the eldest child, orcs the strongest, and lizardfolk inherit through the mother.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Pretenders.</b> A succession crisis raises a named pretender from the tree: an uncle over a child king, a brother, a bastard. Rulers of low honour father bastards, and a ruler with no lawful child may make one lawful. A realm under divided inheritance splits only when there is a real second heir.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>The royal kinship web.</b> Houses arrange matches abroad, about one every four years in a world. When a house dies out at home the next in blood abroad inherits, joining two crowns, unless the great refuse a foreigner and crown one of their own. A war over the cousin’s throne may follow. A restored realm crowns its exiled house.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Named treasures.</b> Crowns, swords of state, seals and sceptres, named blades for great captains, and the holy relics of each faith, each with a maker and a story. They are carried off from fallen capitals, lost in sacks, buried with heroes, found in ruins and given back at peace.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Treasures of power.</b> Runeblades, starglass, war-totems, egg-stones and heirloom books lend their holder a gift.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx">Twelve test worlds at Year 1000, against 1.7:
+            <span class="tw"><table><thead><tr><th></th><th>Realms</th><th>Wars</th></tr></thead>
+            <tbody><tr><th>Historical</th><td>−2 %</td><td>−20 %</td></tr>
+            <tr><th>Mythic</th><td>−18 %</td><td>−27 %</td></tr></tbody></table></span></span></li>
+          <li class="perf"><span class="tags"><span class="tag perf">Speed</span></span><span class="tx">Faster: Historical worlds run 0.9 % quicker and Mythic worlds 10 % quicker.</span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-7">
+        <header>
+          <span class="num">1.7</span>
+          <h3>Who Holds Power</h3>
+          <div class="meta"><span class="chunk">Chunk 7</span><span>27 October</span></div>
+        </header>
+        <p class="tagline">Nobles, priests, guilds and courts all want something, and treasuries stop hoarding.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Social estates.</b> The great, the clergy, townsfolk, commoners and the unfree each hold a share of the people and the wealth, with a loyalty moved by taxes, hunger, war, the coin, faith, bondage and the court. Push one too far and it rises: peasant risings, noble revolts, townsmen’s charters, interdicts, the bound in revolt.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Each people has its own estates:</b> dwarven thanes and thralls, elven great houses with no unfree, lizardfolk brood-lords and egg-priests.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Laws.</b> Every realm has four: inheritance (eldest, divided, elective or seniority), faith (one, tolerated or free), bondage (none, serfdom or slavery) and land (crown, nobles or freeholds). Rulers, estates and new ages reform them.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Divided inheritance.</b> A realm of eight or more towns may split between two heirs, about once a century in a world. The sister realms start allied and keep their claims on each other.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Court factions.</b> Up to five per court (the army, the church, the old blood, the guilds, the reformers), each with a named leader, sway and a demand. A refused faction may stage a coup, an interdict or a revolution, or a ruthless ruler may purge it.</span></li>
+          <li class="chg"><span class="tags"><span class="tag chg">Changed</span></span><span class="tx"><b>Money drains in peacetime.</b> The court takes 3 to 10 % of income and spends down savings above a reserve of three to five years. Misers, merchant states and dwarven holds keep more. Treasuries now hold months to a few years of income instead of decades.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Ruin after revolt.</b> A revolt, a civil war or a sacked capital leaves years of lost income behind it.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Corruption.</b> Officials keep 5 to 25 % of the taxes, more in large, old and overstretched realms. A stern steward, reformers and purges cut it back.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Debased coin.</b> A crown deep in arrears may clip its coin for a few months’ pay. The coin’s bad name costs income and the estates’ loyalty until it is restored.</span></li>
+          <li class="chg"><span class="tags"><span class="tag chg">Changed</span></span><span class="tx"><b>Trades shape the estates.</b> A town’s occupations from 1.1 now set its realm’s estates, and risings go by estate.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx"><b>Splits made rarer</b> after the first tests showed a split every 25 to 30 years in each world.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx">Twelve test worlds at Year 1000, against 1.6.1:
+            <span class="tw"><table><thead><tr><th></th><th>Realms</th><th>Wars per realm</th></tr></thead>
+            <tbody><tr><th>Historical</th><td>+31 %</td><td>about the same</td></tr>
+            <tr><th>Mythic</th><td>+51 %</td><td>about the same</td></tr></tbody></table></span>
+            <span class="cap">The extra realms come from collapses, rebellions and civil wars where there used to be one great empire.</span></span></li>
+          <li class="perf"><span class="tags"><span class="tag perf">Speed</span></span><span class="tx">Historical worlds run 4.5 % slower and Mythic worlds 8.5 % slower.</span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-6-1">
+        <header>
+          <span class="num">1.6.1</span>
+          <h3>The Hand’s Powers, Tuned</h3>
+          <div class="meta"><span>27 October</span><span>after an audit of every power</span></div>
+        </header>
+        <p class="tagline">The new reports showed some powers hitting softer than they look. Ten fixes, and two more for the brush and the letters.</p>
+        <ul class="items">
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx"><b>Earthquakes</b> kill twice the share of a struck town. An M9.5 takes about 40 % of the town at its heart. Any undersea quake of 7.5 or more now raises a wave.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx"><b>Waves</b> drown twice as many, still capped at 60 % of a town. This covers the Tsunami power, undersea quakes, falling stars at sea and natural waves.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx"><b>Storms raised by the hand</b> strike up to three times harder at full fury. Over land that is neither desert nor frozen, Storm now raises a tempest that hits towns the way a cyclone does at landfall.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx"><b>Floods</b> are three times deadlier, the hand’s and natural ones alike.</span></li>
+          <li class="chg"><span class="tags"><span class="tag chg">Changed</span></span><span class="tx"><b>Forged alliances hold.</b> An alliance the hand forges cannot lapse for twenty years. War between the two still ends it.</span></li>
+          <li class="fix"><span class="tags"><span class="tag fix">Fixed</span></span><span class="tx"><b>Raise Island no longer drowns towns.</b> Beside a settled shore a new island leaves a strait of sea, so it never dams a bay into a lake that fills over the town. A stretch of sea closed off during play stays sea, as a lagoon.</span></li>
+          <li class="chg"><span class="tags"><span class="tag chg">Changed</span></span><span class="tx"><b>Lower</b>’s forecast now gives the people at risk and the severity, as Sink’s does.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx"><b>A great quake’s fault</b> lifts the land about 30 m at M9.5, down from about 170 m.</span></li>
+          <li class="fix"><span class="tags"><span class="tag fix">Fixed</span></span><span class="tx"><b>“What came of it” measures a power’s whole reach.</b> Earthquakes, eruptions, falling stars, tsunamis, storms, lightning and locusts are now judged over the ring their forecast draws, not just the clicked tile.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>The hand’s fires reach towns.</b> A Wildfire or a lightning blaze burning next to a town burns into it once: buildings, stores and a few percent of its people, more when the land is dry.</span></li>
+          <li class="chg"><span class="tags"><span class="tag chg">Changed</span></span><span class="tx"><b>Reports in plain words.</b> Each moment of a report is a small table, set beside the whole world.</span></li>
+          <li class="fix"><span class="tags"><span class="tag fix">Fixed</span></span><span class="tx"><b>A brush held while time runs</b> counts as one act of the hand, not dozens.</span></li>
+          <li class="fix"><span class="tags"><span class="tag fix">Fixed</span></span><span class="tx"><b>A war’s letter opens the war</b> it tells of.</span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-6">
+        <header>
+          <span class="num">1.6</span>
+          <h3>Seeing and the Hand</h3>
+          <div class="meta"><span class="chunk">Chunk 10</span><span>27 October</span><span>from playtest feedback</span></div>
+        </header>
+        <p class="tagline">Watch your wars properly, and find out what your meddling actually did.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>A war watch.</b> A watched war’s chip shows each side’s leader and allies, towns taken and razed, the fallen, each side’s aim and the latest battle, and its dossier tells the same above the score. While a war is watched or selected the map outlines both sides, draws the front between them and rings every siege.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>What came of it.</b> Every act of the hand is measured before, right after, when its work is done and a generation later, beside the whole world. Each act reports back with a Chronicle line and a toast, leading with what the power is for.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>The hand on the map.</b> A map mode rings every act still at work, with its power and the time it has left. Each ring opens the act’s own record.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Lessons of the hand.</b> A new Hand tab in every world lists your acts and gives each power a card: how often and how strongly you used it, what usually came of it by kind of land and strength, and what it was refused for.</span></li>
+          <li class="chg"><span class="tags"><span class="tag chg">Changed</span></span><span class="tx"><b>Watching changes nothing.</b> The reports are an observer: a world runs the same history with them or without them.</span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-5">
+        <header>
+          <span class="num">1.5</span>
+          <h3>Inventions That Travel</h3>
+          <div class="meta"><span class="chunk">Chunk 5</span><span>27 October</span></div>
+        </header>
+        <p class="tagline">Knowledge spreads across the map by trade, war and theft, and some of it is never meant to leave home.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Knowledge fronts.</b> Every realm knows how it came by each invention: research, trade, a neighbour, conquered towns, an arms race, a scholar, refugees, a ruin or the gods. The Chronicle tells an invention’s first arrival in a land or among a people, and a new Knowledge map shades realms by when they learned it.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Tiers of knowledge.</b> Uncommon inventions (bronze, riding, irrigation, sailing, ships, banking, gunpowder, steam, railways, combustion and more) cost three times as much to invent without the land for them, so a realm often waits to learn them from others.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Rare arts.</b> Ten Historical secrets, kept in a workshop town, carried off by conquest, defection, theft or alliance, lost and dug up again.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>A rare art for every people but humans,</b> plus two open to all. Humans alone can learn other peoples’ arts.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>25 new turning-point inventions,</b> each working through its own system: knights, cannon and star forts, galleys, banking houses, colonies, telegraph reach. The printing press splits faiths and spreads revolutions. Every invention’s requirements were reviewed to make sense (paper now comes from writing and weaving).</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Libraries and archives.</b> A library keeps its realm’s newest inventions, and a Great Library keeps all of them. They burn when their towns are razed or sacked, carry a realm’s knowledge through a collapse, and leave archives in ruins for later digs.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx"><b>The next age’s pull starts one invention sooner,</b> so worlds still reach the Classical Age at about the old pace.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx">Twelve test worlds at Year 1000, against 1.4:
+            <span class="tw"><table><thead><tr><th></th><th>Population</th><th>Realms</th><th>Towns</th><th>Wars</th></tr></thead>
+            <tbody><tr><th>Historical</th><td>+13 %</td><td>−2 %</td><td>−2 %</td><td>−18 %</td></tr>
+            <tr><th>Mythic</th><td>+13 %</td><td>−4 %</td><td>−7 %</td><td>−17 %</td></tr></tbody></table></span></span></li>
+          <li class="perf"><span class="tags"><span class="tag perf">Speed</span></span><span class="tx">The new code costs about 2 %. The richer, more populous worlds it makes cost more: about 6.7 % slower for Historical worlds and 20 % for Mythic.</span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-4">
+        <header>
+          <span class="num">1.4</span>
+          <h3>Character</h3>
+          <div class="meta"><span class="chunk">Chunk 4</span><span>26 October</span></div>
+        </header>
+        <p class="tagline">Rulers get a nature, skills, scars and ambitions, and history bends around them.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Temperament.</b> Rulers, heirs and great people have ambition, mercy, piety, greed, honour and boldness, and their named traits are read from these. Temperament weighs on war, envoys, razing and taxes, and the Chronicle says when a ruler’s nature started a war.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Skills.</b> War, diplomacy, stewardship, intrigue and learning grow with age and use and fade in old age. A good steward fills the treasury, a diplomat is better liked, a master of intrigue survives plots and a learned ruler speeds research.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Warrior kings.</b> A ruler skilled at war leads the army in person, more often in early ages and with small hosts. Well guarded, they fall an eighth as often as a captain does.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Body and health.</b> Rulers and generals take wounds in battle (a lost eye or hand, a limp, a scar, sometimes a by-name to match), can be captured and ransomed, fall ill with a lasting sickness that is named when they die, and may go mad late in life.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Each race falls ill at its own rate,</b> counted in its own years, so long-lived peoples no longer sicken more often.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Ambitions.</b> A ruler may want a claimed town, vengeance, to unite their people, to convert a neighbour, a great work or a golden age. Ambitions bend their wars until met or given up, and heirs may swear to finish them. Great generals want glory or power and may lead a coup. Plots stay rare.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx">Twelve test worlds at Year 1000, against 1.3:
+            <span class="tw"><table><thead><tr><th></th><th>Population</th><th>Realms</th><th>Towns</th><th>Wars</th></tr></thead>
+            <tbody><tr><th>Historical</th><td>−6 %</td><td>+55 %</td><td>+5 %</td><td>+32 %</td></tr>
+            <tr><th>Mythic</th><td>+6 %</td><td>−12 %</td><td>+4 %</td><td>+5 %</td></tr></tbody></table></span>
+            <span class="cap">Historical worlds break up more and fight more: rulers read from temperament are a little hungrier for war, and it compounds.</span></span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-3">
+        <header>
+          <span class="num">1.3</span>
+          <h3>The War Machine</h3>
+          <div class="meta"><span class="chunk">Chunk 2</span><span>26 October</span></div>
+        </header>
+        <p class="tagline">Armies march as companies, soldiers want paying, and battles are fought with a plan.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Army companies.</b> Spears, blades, bows (then crossbows, then shot), light and heavy horse, and engineers (later guns). Each realm fields them by its era, land and temper. Battles weigh each company against the enemy’s, and losses fall where the enemy was strong.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Arms and armour.</b> Seven tiers of gear, from stone to modern arms, with quality set by the realm’s mines and workshops. Each tier above the enemy’s is worth a sixth more.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Four ways to raise an army:</b> a levy, a feudal host, a paid standing army or hired swords, chosen by era, government, wealth and how often the realm fights, and changed by reform.</span></li>
+          <li class="chg"><span class="tags"><span class="tag chg">Changed</span></span><span class="tx"><b>Soldiers are paid every month,</b> so war drains treasuries. Unpaid armies lose heart and start deserting after two months, and an unpaid standing army may, rarely, overthrow its ruler.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Veterans and regiments.</b> Standing regiments have names (the First Legion, the Queen’s Lancers), battle honours named for the field, and last stands. Levies come home as veterans who stiffen the next levy.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Battles in full.</b> Ground and weather bend each arm, and each side fights by a plan: shield wall, pike square, feigned retreat, hammer and anvil, volley fire, night attack. There is a pursuit, prisoners are ransomed at the peace, and the Chronicle tells the decisive moment. A realm copies the plans that beat it.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Each people fights its own way,</b> with war beasts in the line and its own mounts (wolves, ponies) whether or not it knows Horseback Riding.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx"><b>Treasuries feel war.</b> The typical realm now holds about 20 years of income instead of 100. A realm at full mobilisation with two years saved runs dry in about four. Battles rose 41 % and towns taken 30 %.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx">Twelve test worlds at Year 1000, against 1.2.1:
+            <span class="tw"><table><thead><tr><th></th><th>Population</th><th>Realms</th><th>Towns</th><th>Wars</th></tr></thead>
+            <tbody><tr><th>Historical</th><td>+3 %</td><td>−23 %</td><td>−4 %</td><td>+4 %</td></tr>
+            <tr><th>Mythic</th><td>−1 %</td><td>+77 %</td><td>+13 %</td><td>+92 %</td></tr></tbody></table></span>
+            <span class="cap">Mythic worlds are now far more broken up and war-torn. That is intended: fantasy worlds should be.</span></span></li>
+          <li class="perf"><span class="tags"><span class="tag perf">Speed</span></span><span class="tx">Historical worlds run 5.3 % slower, mostly from more armies in the field. Mythic worlds are unchanged.</span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-2-1">
+        <header>
+          <span class="num">1.2.1</span>
+          <h3>Playtest Quick Wins</h3>
+          <div class="meta"><span>26 October</span><span>from playtest feedback</span></div>
+        </header>
+        <ul class="items">
+          <li class="fix"><span class="tags"><span class="tag fix">Fixed</span></span><span class="tx"><b>Watched chips no longer cover the story letters.</b> The watch strip now sits in the left column between the cartouche and the letters, two chips to a row.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>A pause chime.</b> When time stops by itself, a soft two-note chime sounds even with the soundscape off or the tab in the background (it has its own switch in Notices), and the tab’s title says why until time runs again.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Desktop notifications,</b> if you want them, asked afresh every visit and never remembered.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>War score on the chip.</b> A watched war’s chip shows who is ahead, or who won.</span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-2">
+        <header>
+          <span class="num">1.2</span>
+          <h3>Why Wars Start and How They End</h3>
+          <div class="meta"><span class="chunk">Chunk 3</span><span>26 October</span></div>
+        </header>
+        <p class="tagline">Every war is fought for something, every peace has terms, and towns never quite forget.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Claims on land.</b> A town a realm founded, held for ten years or kept as its seat is claimed when it is lost. Claims fade over generations, pass to an heir realm, drive wars of reconquest and keep relations with the holder cool. Realm and town dossiers list them.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Each people holds its claims for its own span,</b> and dwarves hold theirs longest.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>War aims.</b> Each side fights for something named: towns to take or win back, a crown, a faith, tribute, to humble or subjugate the foe, or its own freedom.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Peace terms</b> written from the winner’s aim: border changes, reparations, an heir held hostage, a crown joined in personal union, a faith imposed, claims renounced. A won holy war converts the loser’s crown. A harsh peace is not forgiven: grievance rises and lost towns stay claimed longer.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Town memory.</b> A town remembers who sacked it, razed its neighbours, besieged it, saved it, freed it or gave it away, and forgets slowly. It holds out against a realm it hates, may open its gates to one it remembers kindly, and a rising goes over to the realm it remembers best.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Debt between crowns.</b> Realms at war or short of money borrow from friendly realms and, from the Medieval Age, from banking houses in rich trade towns. Interest follows the borrower’s record. A default costs legitimacy and credit, can ruin a house, and gives a lending realm a cause for war. Reparations can be defaulted on too.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx"><b>More wars of reconquest, fewer holy wars.</b> Across the test worlds, wars of reconquest rose from 174 to 254 and holy wars fell from 318 to 211.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx">Twelve test worlds at Year 1000, against 1.1:
+            <span class="tw"><table><thead><tr><th></th><th>Population</th><th>Realms</th><th>Towns</th><th>Wars</th></tr></thead>
+            <tbody><tr><th>Historical</th><td>−4 %</td><td>+3 %</td><td>+6 %</td><td>+17 %</td></tr>
+            <tr><th>Mythic</th><td>−3 %</td><td>+7 %</td><td>−3 %</td><td>−14 %</td></tr></tbody></table></span></span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-1">
+        <header>
+          <span class="num">1.1</span>
+          <h3>People in Numbers</h3>
+          <div class="meta"><span class="chunk">Chunk 1</span><span>26 October</span></div>
+        </header>
+        <p class="tagline">Towns stop being a single number. Every one now knows its people by age, sex, people and trade.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Age cohorts.</b> Every town keeps age bands by sex. Births come from its women and their partners, deaths come by age, every loss takes the right people, and manpower comes from the young men.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Every people ages by its own life,</b> with its own set of bands. An elf’s first band is its first 25 years.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Birth and death by people.</b> Each people is born, dies and ages at its own rates, so a town’s mix shifts through real births and deaths. War widows lower births for a while, and widows remarry sooner after great losses.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Crowded peoples feud.</b> As a crowded town fills with one people’s own kind, it feuds at its own strength, so no people swamps the rest. Elves breed with the magic around them and fade as the weave thins.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Occupations.</b> Eleven trades in every town, from farmers to scholars and labourers, following its fields, garrison, mine and buildings. The skilled trades take time to grow, and in early eras children of 10 to 14 work at half. Food, production, commerce and research all read the trades.</span></li>
+          <li class="new myth"><span class="tags"><span class="tag new">New</span><span class="tag myth">Mythic</span></span><span class="tx"><b>Four rare magical trades:</b> mages, healers, artificers and beast-keepers.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>See the people.</b> The town dossier has an age pyramid stacked by people and a trades bar, and the realm dossier sums them. Three new Statistics charts cover ages, births and deaths, life expectancy and trades. The Chronicle tells the town’s people: widows, baby booms, fields short of hands, and hollow generations as they age.</span></li>
+          <li class="bal"><span class="tags"><span class="tag bal">Balance</span></span><span class="tx">Twelve test worlds at Year 1000, against 1.0:
+            <span class="tw"><table><thead><tr><th></th><th>Population</th><th>Realms</th><th>Towns</th><th>Wars</th></tr></thead>
+            <tbody><tr><th>Historical</th><td>+5 %</td><td>−7 %</td><td>−7 %</td><td>−7 %</td></tr>
+            <tr><th>Mythic</th><td>−16 %</td><td>−34 %</td><td>−13 %</td><td>−24 %</td></tr></tbody></table></span></span></li>
+          <li class="perf"><span class="tags"><span class="tag perf">Speed</span></span><span class="tx">Historical worlds run 2.6 % slower. Mythic worlds run 18 % slower because each town keeps a table for every people in it.</span></li>
+        </ul>
+      </article>
+
+      <article class="upd" id="v1-0">
+        <header>
+          <span class="num">1.0</span>
+          <h3>The Copperplate Atlas</h3>
+          <div class="meta"><span>23 to 24 October</span><span>before the Deep Dive</span></div>
+        </header>
+        <p class="tagline">The baseline every number above is measured from.</p>
+        <ul class="items">
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>The Copperplate look.</b> An engraved table and neatline, the folio with its gauges and siege dial, the time bridge with its volvelle, letters and engraved icons.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Title screen and forging.</b> You watch the world form before it melts into the game. New World is a rite of eight steps over the whole map.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>The Contents, Options, Every key and the Archive.</b></span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>The table in the hand:</b> a phone layout of its own, with aiming for the god tools.</span></li>
+          <li class="new"><span class="tags"><span class="tag new">New</span></span><span class="tx"><b>Past borders over today’s map,</b> and the watchlist’s news since you last looked.</span></li>
+          <li class="perf"><span class="tags"><span class="tag perf">Speed</span></span><span class="tx">At Max speed a still map is drawn every other frame, and records share one shape for faster access, with history unchanged.</span></li>
+        </ul>
+      </article>
+
+      <section class="later" id="later" aria-labelledby="later-h">
+        <h3 id="later-h">Coming later</h3>
+        <ul>
+          <li><b>Natural fires reaching towns.</b> Only the hand’s fires burn into towns for now. Natural fires should too, more gently; the first try drained Mythic worlds.</li>
+          <li><b>Desperate hands.</b> Children and the old forced back to work in hard times, at a cost in happiness.</li>
+          <li><b>Riots by trade.</b> Risings go by estate today. Riots by a single trade, and who leaves a town by trade, are still to come; this is why Occupations counts as built in part.</li>
+          <li><b>Mythic speed.</b> Keeping each people’s numbers in a flatter form could win back much of 1.1’s cost.</li>
+          <li><b>Goods, workshops and prices</b> were left out of the plan on purpose: they carry the biggest balance risk and are mostly invisible at world scale.</li>
+        </ul>
+      </section>
+
+      <footer>
+        <span>Balance figures are totals over twelve test worlds (Historical and Mythic seeds) at Year 1000, each against the update before it. A single world can swing much more.</span>
+        <span><a href="../../">Play Atlas of Ages</a> in your browser.</span>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+  const bar = document.getElementById('filters');
+  const apply = (f) => {
+    bar.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.f === f)));
+    document.querySelectorAll('.upd').forEach((a) => {
+      let any = false;
+      a.querySelectorAll('.items > li').forEach((li) => {
+        const show = f === 'all' || li.classList.contains(f);
+        li.hidden = !show;
+        if (show) any = true;
+      });
+      const tag = a.querySelector('.tagline');
+      if (tag) tag.hidden = f !== 'all';
+      a.hidden = !any;
+    });
+    document.getElementById('later').hidden = f !== 'all';
+  };
+  bar.addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) apply(b.dataset.f);
+  });
+})();
+</script>
+</body>
+</html>
