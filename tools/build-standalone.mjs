@@ -10,7 +10,7 @@
 // Bundling uses esbuild through npx (downloaded into the npm cache, nothing added to the project).
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -22,6 +22,56 @@ const bundlePath = join(outDir, 'bundle.js');
 
 execFileSync('npx', ['--yes', ESBUILD, 'src/main.js', '--bundle', '--format=esm', '--target=es2022',
   '--minify', '--charset=utf8', '--legal-comments=none', `--outfile=${bundlePath}`], { cwd: root, stdio: 'inherit' });
+
+// A loop of imports among modules with a top-level await (or that import one) loads in a browser,
+// which skips a module still in the loop, but in the bundle each such module starts up as an
+// async function awaiting the ones it imports in order. A loop that comes back to a module before
+// its first await finds nothing to wait on and goes on; one that comes back after it has paused
+// waits on it forever: the page stays on "Preparing the instruments…" with no error. Read the
+// start-up order from an unminified build and refuse to write a page that would hang.
+const checkPath = join(outDir, 'bundle-check.js');
+execFileSync('npx', ['--yes', ESBUILD, 'src/main.js', '--bundle', '--format=esm', '--target=es2022',
+  '--charset=utf8', '--log-level=warning', `--outfile=${checkPath}`], { cwd: root, stdio: 'inherit' });
+const loops = startupLoops(readFileSync(checkPath, 'utf8'));
+rmSync(checkPath);
+if (loops.length) {
+  console.error('The bundle would hang at start-up: these modules await each other in a loop (break one import in each):');
+  for (const l of loops) console.error('  ' + l.join(' → '));
+  process.exit(1);
+}
+
+/**
+ * Loops among the bundle's async module start-ups (esbuild's `init_x = __esm({ async "path"() {
+ * await init_y(); … } })`) that would hang: one that goes through some module's second or later
+ * await, after it has paused. Each as a list of paths, the late step first.
+ */
+function startupLoops(code) {
+  const path = new Map(), waits = new Map();   // init → its awaited start-ups, in order
+  const re = /var (init_[\w$]+) = __esm\(\{\n\s*(async )?"([^"]+)"\(\) \{([\s\S]*?)\n {2}\}\n\}\);/g;
+  for (let m; (m = re.exec(code));) {
+    path.set(m[1], m[3]);
+    if (m[2]) waits.set(m[1], [...new Set([...m[4].matchAll(/await (init_[\w$]+)\(\)/g)].map((x) => x[1]))]);
+  }
+  /** A chain of awaits from a back to b, or null. */
+  const chain = (a, b) => {
+    const prev = new Map([[a, null]]), queue = [a];
+    while (queue.length) {
+      const n = queue.shift();
+      if (n === b) { const out = []; for (let x = n; x != null; x = prev.get(x)) out.unshift(x); return out; }
+      for (const d of waits.get(n) || []) if (waits.has(d) && !prev.has(d)) { prev.set(d, n); queue.push(d); }
+    }
+    return null;
+  };
+  const out = [];
+  for (const [x, ds] of waits) {
+    ds.forEach((y, i) => {
+      if (i === 0 || !waits.has(y)) return;
+      const back = chain(y, x);
+      if (back) out.push([x, ...back].map((n) => path.get(n)));
+    });
+  }
+  return out;
+}
 
 // "</script" inside the bundle would end the inline element early.
 const js = readFileSync(bundlePath, 'utf8').replace(/<\/(script)/gi, '<\\/$1');
