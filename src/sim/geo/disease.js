@@ -111,12 +111,36 @@ const CAUSE_FORMS = {
   contact: [[2.5, 'the {civB} {Sym}'], [1.6, 'the {Stranger} {Sym}'], [1.2, 'the {Sym} from {far}']],
   camp: [[3, "the Soldier's {Sym}"], [2, 'the Camp {Sym}'], [1.5, "the Army {Sym}"], [1, 'the {Sym} of the Lines']],
   divine: [[2.5, '{deityPos} {Wrath}'], [1.5, 'the {Wrath} of {deity}'], [1, 'the Heaven-Sent {Sym}'], [1, "the Gods' {Sym}"]],
+  // the magical sicknesses take only their own forms
+  // (never the town's name: the chronicle line names the town)
+  grave: [[3, 'the {Color} {Sym}'], [2, 'the {civB} {Sym}'], [1, 'the Deathless {Sym}'], [1, 'the {Part} {Sym}']],
+  mana: [[3, 'the {Color} {Sym}'], [2, "the Mage's {Sym}"], [1, 'the {Part} {Sym}'], [1, 'the {Season} {Sym}']],
 };
 const stems = (n) => n.toLowerCase().split(/[\s'-]+/).filter((w) => w.length > 3 && w !== 'the').map((w) => w.slice(0, 4));
 const stemClash = (n) => { const a = stems(n); return a.some((x, k) => a.indexOf(x) !== k); };
 
 // names that promise death ("the Red Death") are kept for strains that can deliver it
 const MILD_SYMPTOMS = SYMPTOMS.filter((x) => !x.deadly);
+// the magical sicknesses' own (Mythic worlds, myth/sickness.js), never drawn for an ordinary plague
+const MAGIC_SYMPTOMS = {
+  grave: [
+    { noun: 'Grave-Rot', alt: ['Rot', 'Corpse-Rot', 'Mould'], desc: 'a rot that will not let the dead lie', verb: 'rot where they lay, and stir again', deadly: true },
+    { noun: 'Gravecall', alt: ['Call', 'Summons'], desc: 'a grey sickness that calls its dead back', verb: 'grow grey and cold and die with their eyes open', deadly: true },
+  ],
+  mana: [
+    { noun: 'Witchfire', alt: ['Glimmer', 'Glow', 'Burning'], desc: 'a fever that lights the veins', verb: 'burn with a light that showed through the skin' },
+    { noun: 'Fraying', alt: ['Unweaving', 'Unravelling'], desc: 'a sickness that unravels the gift', verb: 'lose their gift, and then their breath' },
+  ],
+};
+const MAGIC_CAUSES = new Set(Object.keys(MAGIC_SYMPTOMS));
+/** A plague's symptom by its saved noun. */
+const symptomOf = (noun) => SYMPTOMS.find((x) => x.noun === noun) || MAGIC_SYMPTOMS.grave.find((x) => x.noun === noun) || MAGIC_SYMPTOMS.mana.find((x) => x.noun === noun) || null;
+/** The symptoms a new plague may draw: a magical sickness its own; a Mythic world never names one "Wasting" (that is a ruler's curse). */
+function symptomPool(world, cause, deadly) {
+  if (MAGIC_CAUSES.has(cause)) return MAGIC_SYMPTOMS[cause];
+  const pool = deadly ? SYMPTOMS : MILD_SYMPTOMS;
+  return (world.params.mythLevel ?? 0) >= 2 ? pool.filter((x) => x.noun !== 'Wasting') : pool;
+}
 
 /** The god a town's people would blame: the deity of its dominant faith, else its realm's state faith. */
 function blamedGod(world, s) {
@@ -130,13 +154,13 @@ function blamedGod(world, s) {
 function plagueName(world, s, cause, civB, deadly = true) {
   const rng = world.rng;
   const st = state(world);
-  const pool = deadly ? SYMPTOMS : MILD_SYMPTOMS;
+  const pool = symptomPool(world, cause, deadly);
   const civ = s ? civById(world, s.civId) : null;
   const land = s ? terrainAt(world, s.i) : null;
   const region = s ? nearestFeature(world, s.x, s.y, ['forest', 'range', 'lake', 'river', 'desert'], 8) : null;
   const deity = cause === 'divine' && s ? blamedGod(world, s) : null;
   const farTown = civB && civB.capitalId != null ? world.settlements[civB.capitalId] : null;
-  const forms = CAUSE_FORMS[cause] ? PLAGUE_FORMS.concat(CAUSE_FORMS[cause].map(([w, f]) => [w * 2, f])) : PLAGUE_FORMS;
+  const forms = MAGIC_CAUSES.has(cause) ? CAUSE_FORMS[cause] : CAUSE_FORMS[cause] ? PLAGUE_FORMS.concat(CAUSE_FORMS[cause].map(([w, f]) => [w * 2, f])) : PLAGUE_FORMS;
   const adjOk = (a) => (a && !isEnglishWord(a) ? a : null);
   for (let attempt = 0; attempt < 8; attempt++) {
     const sym = rng.pick(pool);
@@ -205,7 +229,7 @@ export function plagueRoom(world) {
 // ---------------------------------------------------------------------------
 // Creation and exposure
 
-const KNOWN_CAUSES = new Set(['crowd', 'livestock', 'contact', 'divine', 'return', 'camp']);
+const KNOWN_CAUSES = new Set(['crowd', 'livestock', 'contact', 'divine', 'return', 'camp', 'grave', 'mana']);
 
 /**
  * Published: start a new plague in settlement s (or its id). Either createPlague(world, s, cause,
@@ -230,6 +254,11 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
   if (cause === 'contact') { infectivity = Math.min(2.9, infectivity + 0.2); lethality = Math.max(lethality, 0.1); }
   if (cause === 'livestock') lethality *= 0.8;
   if (cause === 'divine') { infectivity = Math.max(infectivity, 1.6) * Math.min(1.6, 0.6 + 0.4 * str); lethality = Math.min(0.6, Math.max(lethality, 0.15) * str); }
+  // the magical sicknesses (myth/sickness.js): a dark art's curse, and the burn of overdrawn magic
+  // (a grave-plague is a curse laid on one city: it strikes there hard and spreads weakly; mana-burn
+  // spreads among the magic-touched, its weights by people in geo/health.js)
+  if (cause === 'grave') { infectivity = 1.3 * Math.min(1.4, 0.8 + 0.2 * str); lethality = Math.min(0.6, (0.3 + 0.15 * rng.next()) * str); }
+  if (cause === 'mana') { infectivity = Math.max(infectivity, 1.9); lethality = Math.min(0.5, Math.max(lethality, 0.15 + 0.15 * rng.next()) * Math.min(1.5, str)); }
   // a returning strain meets bodies that half remember it
   if (parent) { infectivity = parent.infectivity * rng.float(0.8, 1.0); lethality = parent.lethality * rng.float(0.35, 0.75); }
   if (finite(opts.lethalityMul) && opts.lethalityMul > 0) lethality = Math.min(0.9, lethality * opts.lethalityMul);
@@ -239,11 +268,11 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
     const name = st.names[opts.name] ? `${opts.name} of ${s.name}` : opts.name;
     st.names[name] = (st.names[name] || 0) + 1;
     const col = rng.pick(COLORS);
-    nm = { name, color: col[1], symptom: rng.pick(deadly ? SYMPTOMS : MILD_SYMPTOMS) };
+    nm = { name, color: col[1], symptom: rng.pick(symptomPool(world, cause, deadly)) };
   } else if (parent) {
     const name = /^the /i.test(parent.name) ? `the Return of the ${bare(parent.name)}` : `the Return of ${parent.name}`;
     st.names[name] = (st.names[name] || 0) + 1;
-    nm = { name, color: parent.rgb || [150, 150, 150], symptom: SYMPTOMS.find((x) => x.noun === parent.symptom) || SYMPTOMS[0] };
+    nm = { name, color: parent.rgb || [150, 150, 150], symptom: symptomOf(parent.symptom) || SYMPTOMS[0] };
   } else nm = plagueName(world, s, KNOWN_CAUSES.has(cause) ? cause : 'crowd', opts.civB, deadly);
   const p = {
     id: -1,
@@ -251,7 +280,7 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
     originSid: s.id,
     startDay: world.time.day, endDay: null, active: true,
     infectivity, lethality,
-    duration: Math.round((2 + rng.next() * 8) * DAYS_PER_YEAR),
+    duration: Math.round((2 + rng.next() * 8) * DAYS_PER_YEAR * (cause === 'grave' ? 0.2 : cause === 'mana' ? 0.4 : 1)),
     deaths: 0,
     color: rgbToHex(nm.color),
     rgb: nm.color.slice(),
@@ -266,13 +295,14 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
     notable: false,
     worldPopAtStart: Math.max(1, worldPop(world)),
     lastNote: world.time.day,
-    op: originPeople(world, s, opts.civB || null),   // whose sickness it is (geo/health.js)
+    op: MAGIC_CAUSES.has(cause) ? null : originPeople(world, s, opts.civB || null),   // whose sickness it is (geo/health.js)
     byP: {},                                          // { people: [dead, exposed] }
+    ...(cause === 'grave' && opts.civB ? { by: opts.civB.id } : {}),   // who laid a grave-plague
   };
   addIndexed(world, 'plagues', p);
   st.outbreaks++;
-  infect(world, s, p, cause === 'divine' ? 0.02 : 0.004);
-  emitFx(world, { type: 'plague', x: s.x, y: s.y, color: p.color, ...(cause === 'divine' ? { src: 'tool' } : {}) });
+  infect(world, s, p, cause === 'grave' ? 0.08 : cause === 'divine' ? 0.02 : 0.004);
+  emitFx(world, { type: 'plague', x: s.x, y: s.y, color: p.color, ...(cause === 'divine' || opts.hand ? { src: 'tool' } : {}) });
   if (!opts.quiet) {
     const sym = nm.symptom;
     const civ = civById(world, s.civId);
@@ -298,6 +328,21 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
         `Soldiers home from the war brought the fever of their camps back to ${s.name}; it became known as ${p.name}.`,
         `${capName(p.name)} came home to ${s.name} with the army, and spread from the barracks to the town.`,
       ]);
+    } else if (opts.hand && cause === 'grave') {
+      text = `By a word from beyond the world ${p.name} fell on ${s.name}, and its dead would not lie still.`;
+    } else if (opts.hand && cause === 'mana') {
+      text = `A burning from beyond the world kindled ${p.name} among the gifted of ${s.name}.`;
+    } else if (cause === 'grave') {
+      const ob = opts.civB;
+      text = pickOne(world, [
+        `In ${s.name} the dead began to sicken the living: the necromancers of ${ob ? civName(ob) : 'its enemies'} had laid ${p.name} on the city.`,
+        `${ob ? capName(peopleOf(ob)) + ', losing their war, turned' : 'Its enemies turned'} to the grave's art, and ${p.name} fell on ${s.name}; its people began to ${sym.verb}.`,
+      ]);
+    } else if (cause === 'mana') {
+      text = pickOne(world, [
+        `${s.name} drew more magic than its land could give, and ${p.name} broke out among those who worked it.`,
+        `The mages of ${s.name} were the first to ${sym.verb}; the sickness was called ${p.name}, and it went after the gifted.`,
+      ]);
     } else if (cause === 'divine') {
       text = pickOne(world, [
         `By the wrath of heaven ${p.name} fell upon ${s.name}.`,
@@ -319,7 +364,7 @@ export function createPlague(world, sIn, causeIn = 'crowd', optsIn = {}) {
       ]);
     }
     const e = chronicle(world, {
-      cat: cause === 'divine' ? 'divine' : 'disease', imp: cause === 'divine' ? 3 : 2, text, x: s.x, y: s.y, civId: s.civId, sid: s.id, icon: 'plague',
+      cat: cause === 'divine' || opts.hand ? 'divine' : 'disease', imp: cause === 'divine' || cause === 'grave' || opts.hand ? 3 : 2, text, x: s.x, y: s.y, civId: s.civId, sid: s.id, icon: 'plague',
       key: cause === 'divine' ? 'divine.plague' : 'plague.start', ref: { k: 'plague', id: p.id }, ...(Number.isFinite(opts.seq) ? { cause: opts.seq } : {}), tags: [String(cause)],
     });
     p.seq = e.seq;
@@ -464,7 +509,9 @@ function sirTick(world, st) {
     const healthF = 1.35 - 0.7 * clamp01(finite(s.health) ? s.health : 0.7);
     // its peoples: their frailty, customs, and whether they have met this sickness (health.js)
     const W = plagueWeights(world, s, p);
-    const beta = p.infectivity * BETA0 * crowdFactor(N) * healthF / Math.max(0.3, m.sanitation) * p.att * (s.siege ? 1.3 : 1) * W.inf * townInf(s);
+    // a grave-plague is a curse laid on its city: fierce there, weak beyond (myth/sickness.js)
+    const focus = p.cause === 'grave' && s.id === p.originSid ? 2.2 : 1;
+    const beta = p.infectivity * BETA0 * crowdFactor(N) * healthF / Math.max(0.3, m.sanitation) * p.att * (s.siege ? 1.3 : 1) * W.inf * townInf(s) * focus;
     const newInf = Math.min(S, beta * S * I);
     const leaving = GAMMA * I;
     const cfr = Math.min(0.9, cfrFor(world, s, p, civ) * W.die);
@@ -672,7 +719,7 @@ function yearly(world, st) {
   const activeN = world.plagues.reduce((n, p) => n + (p.active ? 1 : 0), 0);
   if (activeN >= MAX_ACTIVE - 1) return;
   for (const p of world.plagues) {
-    if (p.active || !p.notable || p.strainOf != null || p.returned) continue;
+    if (p.active || !p.notable || p.strainOf != null || p.returned || MAGIC_CAUSES.has(p.cause)) continue;
     if (world.time.day - p.endDay < 40 * DAYS_PER_YEAR) continue;
     if (!world.rng.chance(0.0015 * rate * quiet(world, st))) continue;   // (integration: 0.0025 → 0.0015, fewer returns)
     const towns = liveSettlements(world).filter((s) => s.tier >= 3 && !s.disease && !(s.immunity && s.immunity[p.id] > 0.2));
@@ -735,12 +782,13 @@ export function cureTown(world, s) {
 
 registerTool({
   id: 'plague', label: 'Plague', group: 'catastrophe', icon: 'plague', order: 70, polarity: 'bane',
-  desc: 'Loose a new plague upon the nearest town. Virulence sets how deadly it is.',
+  desc: 'Loose a new plague upon the nearest town. Virulence sets how deadly it is. In a Mythic world it may be a grave-plague, whose dead rise, or mana-burn, which falls on the magic-touched.',
   target: 'settlement', radius: 0,
   strength: { label: 'Virulence', min: 0.2, max: 2, default: 1 },
+  kinds: (world) => ((world.params.mythLevel ?? 0) >= 2 ? [['divine', 'A plague'], ['grave', 'Grave-plague'], ['mana', 'Mana-burn']] : null),
   danger: (opts) => (opts?.strength ?? 1) > 1.6,
   preview: plaguePreview,
-  apply(world, x, y, { strength }) {
+  apply(world, x, y, { strength, kind }) {
     const s = plagueTarget(world, x, y);
     if (!s) return { ok: false, message: 'No town lies close enough to sicken.' };
     if (s.disease) {
@@ -752,7 +800,8 @@ registerTool({
         return { ok: true, message: `${capName(p.name)} rages anew in ${s.name}.` };
       }
     }
-    const p = createPlague(world, s, 'divine', { strength });
+    const magic = (world.params.mythLevel ?? 0) >= 2 && (kind === 'grave' || kind === 'mana');
+    const p = createPlague(world, s, magic ? kind : 'divine', { strength, hand: magic });
     if (!p) return { ok: false, message: 'The sickness found no purchase.' };
     emitFx(world, { type: 'curse', x: s.x, y: s.y, r: 3, color: p.color, src: 'tool' });
     toolLabel(world, s.x, s.y, capName(p.name), 'bane');

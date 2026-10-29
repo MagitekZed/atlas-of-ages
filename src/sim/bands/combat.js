@@ -475,6 +475,11 @@ function bandTerrain(world, band, i) {
  * An army fights a band. opts: { hunt, quiet, name }. Returns { armyWon, d, deadA, deadB,
  * bandGone, slain, entry }. The band's family decides the kernel loss source.
  */
+// a host with the makings of a Scourge (myth/sickness.js: data.sc), named or not
+const scourge = (band) => band.kind === 'undead' && Boolean(band.data && band.data.sc);
+/** A named Scourge falls back after each battle and cannot be brought to battle again for a month (myth/sickness.js). */
+export const scourgeRests = (world, band) => scourge(band) && Boolean(band.data.sc.named) && world.time.day - (band.data.sc.lb ?? -1e9) < 30;
+
 export function clash(world, army, band, opts = {}) {
   const rng = world.rng;
   const civ = world.civs[army.civId];
@@ -484,7 +489,9 @@ export function clash(world, army, band, opts = {}) {
   let eA = Math.max(1, army.strength) * (m.military || 1) * (0.4 + 0.6 * clamp01(army.morale ?? 1)) * (army.flags?.skill || 1) * holy;
   eA *= mulOf('battle', world, { army, enemy: band, i, side: 'a' });
   eA *= rng.float(0.75, 1.3);
-  const eB = Math.max(1, bandPower(band)) * bandTerrain(world, band, i) * (band.kind === 'horde' ? 1.15 : 1) * rng.float(0.75, 1.3);
+  // (a named Scourge's dead carry the arms they fell with: the living's weapons give them no edge against it)
+  const arms = scourge(band) && band.data.sc.named ? Math.max(1, m.military || 1) : 1;
+  const eB = Math.max(1, bandPower(band)) * bandTerrain(world, band, i) * (band.kind === 'horde' ? 1.15 : 1) * arms * rng.float(0.75, 1.3);
   const p = eA / (eA + eB);
   const armyWon = p >= 0.5;
   const d = Math.abs(p - 0.5) * 2;
@@ -497,6 +504,11 @@ export function clash(world, army, band, opts = {}) {
       band.strength -= deadB;
       band.morale = clamp((band.morale ?? 1) - 0.35, 0.05, 1.2);
       if (d > 0.35 || band.strength < 12) bandGone = true;
+    } else if (scourge(band)) {
+      // a Scourge, or a host that could become one, is ground down, not felled: each defeat costs it a share of its dead
+      // (a named Scourge less of it: a battle lost is not the war)
+      band.power *= 1 - (band.data.sc.named ? clamp(0.05 + 0.15 * d + rng.next() * 0.05, 0.05, 0.25) : clamp(0.12 + 0.3 * d + rng.next() * 0.05, 0.1, 0.5));
+      if (band.power < 20) { bandGone = true; slain = true; }
     } else {
       band.hp = clamp01((band.hp ?? 1) - (0.3 + 0.7 * d) * (band.kind === 'dragon' ? 0.6 : 1));
       if (band.hp <= 0.08) { bandGone = true; slain = true; }
@@ -504,10 +516,13 @@ export function clash(world, army, band, opts = {}) {
   } else {
     deadA = s0 * clamp(0.15 + 0.45 * d + rng.next() * 0.1, 0.1, 0.85);
     if (isPeople(band)) { deadB = band.strength * rng.float(0.04, 0.14); band.strength -= deadB; band.morale = clamp((band.morale ?? 1) + 0.1, 0.05, 1.2); }
+    else if (scourge(band)) band.power *= 1 - rng.float(0.02, 0.08);
     else band.hp = clamp01((band.hp ?? 1) - rng.float(0.04, 0.18));
     army.morale = clamp((army.morale ?? 1) - (0.25 + 0.35 * d), 0.05, 1.2);
   }
   deadA = damageArmy(world, army, deadA, isBeast(band) ? 'beast' : 'band');
+  // the fallen rise into it (and a named Scourge counts them among its dead, for its darkness)
+  if (scourge(band) && !slain) { band.power += 0.6 * deadA; if (band.data.sc.named) { band.data.sc.lb = world.time.day; band.data.sc.dead = (band.data.sc.dead || 0) + deadA; } }
   band.kills = (band.kills || 0) + deadA;
   state(world).stats.kills += deadA;
   if (civ) noteRaid(world, band, civ.id);
@@ -604,6 +619,7 @@ export function clashScan(world) {
     if (band.state === 'hired' || band.state === 'tamed' || band.state === 'sleep' || band.kind === 'kraken') continue;
     if (world.versions.bands !== v) { live = new Set(); for (const b of world.bands) live.add(b.id); v = world.versions.bands; }
     if (live && !live.has(band.id)) continue;
+    if (scourgeRests(world, band)) continue;
     const bx = band.x, by = band.y;
     const wet = world.f.water[tileOf(world, bx, by)] !== WATER.LAND;
     for (const a of armies) {

@@ -120,6 +120,8 @@ function lead(w, b, live) {
     case 'sleep': {
       const lair = siteOf(w, b.data?.lair);
       const since = b.data?.slept || b.createdDay;
+      // a sleeping Scourge (bands/kinds/undead.js) keeps no hoard
+      if (b.kind === 'undead') return `Dormant in ${lair?.name || 'its barrow'} these ${years(w.time.day - since)}, weakening slowly, until fresh foes wake it.`;
       return `Asleep in ${lair?.name || 'its lair'} these ${years(w.time.day - since)}, coiled about a hoard of ${fmtInt(b.loot)} crowns.`;
     }
     case 'hired': {
@@ -333,8 +335,10 @@ function mountRecord(app, sel, el) {
     const origin = civLabel(wld, b.originCivId);
     if (origin) parts.push(row('origin', 'Out of', origin, sel2({ kind: 'civ', id: b.originCivId })));
     if (live && b.civId >= 0) {
-      const role = b.state === 'hired' ? 'Paymaster' : b.state === 'tamed' ? 'Master' : b.data?.pact ? 'Pact with' : 'Allied with';
+      const role = b.state === 'hired' ? 'Paymaster' : b.state === 'tamed' ? 'Master' : b.data?.bound ? 'Bound to' : b.data?.pact ? 'Pact with' : 'Allied with';
       parts.push(row('civ', role, civLabel(wld, b.civId), sel2({ kind: 'civ', id: b.civId })));
+      // a grave-plague's dead (myth/sickness.js, bands/kinds/undead.js)
+      if (b.data?.bound) parts.push(row('bound', 'Its binding', `until ${year(b.data.bound.u)}, while its master's ruler lives and is at war`));
     }
     if (live && b.state === 'hired') {
       const a = armyOf(wld, b.data?.armyId);

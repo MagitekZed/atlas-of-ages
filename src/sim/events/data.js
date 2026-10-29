@@ -377,6 +377,14 @@ export const AGES = {
     rates: { wildfire: 0.8, storm: 0.85, figureBirth: 1.15 }, ev: { fortune: 1.5, civic: 1.3, unrest: 0.8 }, era: [0, 7],
     weight: (w, f) => (f.cold ? 0.1 : 0.55),
   },
+  // never rolled (weight 0): a Scourge that carries its war beyond its region brings it (myth/sickness.js)
+  dead: {
+    name: 'the Age of the Dead', short: 'Age of the Dead', tone: 'dark',
+    desc: 'A scourge of the dead walks the world; every realm looks to its walls.',
+    civ: { stability: -0.03, happiness: -0.03 },
+    rates: {}, war: 0.75, ev: { unrest: 1.3 }, era: [0, 9],
+    weight: () => 0,
+  },
 };
 /**
  * Age names (ages.js ageName): per key, weighted forms over themed words, with {adj} the people
@@ -414,6 +422,8 @@ export const AGE_FORMS = {
     words: { Noun: ['Omens', 'Comets', 'Signs', 'Portents', 'Falling Stars', 'Wonders'], Thing: ['Falling Stars', 'Comets', 'Red Moons', 'Dark Signs'], Adj: ['Uneasy', 'Burning', 'Weeping', 'Restless'] } },
   plenty: { forms: [[1, 'the Age of Plenty'], [2, 'the {Adj} {Noun}'], [1.4, 'the Years of {Thing}'], [1, 'the Age of {Gift}']],
     words: { Adj: ['Golden', 'Fat', 'Green', 'Full', 'Sweet', 'Kindly'], Noun: ['Harvests', 'Years', 'Summers', 'Centuries', 'Seasons'], Thing: ['Full Barns', 'Honey', 'Plenty', 'Fat Cattle'], Gift: ['Plenty', 'Honey', 'Bread', 'Abundance'] } },
+  dead: { forms: [[1, 'the Age of the Dead'], [2, 'the {Adj} Years'], [1.5, 'the Years of the {Adj2} Dead'], [1, 'the Time of {Noun}']],
+    words: { Adj: ['Grey', 'Silent', 'Burying', 'Hollow', 'Ashen'], Adj2: ['Walking', 'Restless', 'Hungry', 'Risen'], Noun: ['Graves', 'Ashes', 'Bones', 'Barrows'] } },
 };
 export const AGE_KEYS = Object.keys(AGES);
 /** Ages that cannot run together. */

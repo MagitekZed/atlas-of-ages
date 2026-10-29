@@ -605,6 +605,10 @@ textarea.field { border: 1px solid var(--rule); padding: 8px 10px; }
 .mini-slider { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; }
 .mini-slider label { font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .07em; color: var(--ink-3); }
 .mini-slider output { font-family: var(--font-mono); font-size: var(--t-micro); color: var(--ink); min-width: 38px; text-align: right; }
+/* a tool's kinds (the Plague power in a Mythic world): one choice of a few */
+.tool-kinds { display: flex; flex-wrap: wrap; gap: 4px; }
+.tool-kinds button { font-family: var(--font-sc); font-size: var(--t-micro); letter-spacing: .05em; color: var(--ink-3); background: transparent; border: 1px solid var(--rule-2); border-radius: var(--radius); padding: 3px 8px; cursor: pointer; }
+.tool-kinds button.is-on { color: var(--ink); border-color: var(--brass); background: var(--brass-hatch); }
 
 .readout {
   position: absolute; z-index: 4; left: 50%; top: var(--hud-pad); transform: translateX(-50%);

@@ -167,6 +167,9 @@ export function whyWords(person, civ = null) {
 export const WOUND_WORDS = { eye: 'lost an eye', hand: 'lost a hand', lame: 'was lamed', scar: 'took a wound to the face' };
 export const WOUND_EPITHETS = { eye: 'the One-Eyed', hand: 'the One-Handed', lame: 'the Lame', scar: 'the Scarred' };
 export const ILLNESSES = { wasting: 'the wasting sickness', falling: 'the falling sickness', shaking: 'the shaking palsy', lungs: 'a sickness of the lungs' };
+/** A lasting illness's words; in a Mythic world the wasting sickness is a consumption (the Wasting is a ruler's curse there: myth/sickness.js). */
+export const illWord = (world, k) => (k === 'wasting' && fin0(world && world.params && world.params.mythLevel) >= 2 ? 'a consumption' : ILLNESSES[k]);
+const fin0 = (v) => (Number.isFinite(v) ? v : 0);
 
 /** A person's body record, made when first needed. */
 export function bodyOf(person) {

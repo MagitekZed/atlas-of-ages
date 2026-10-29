@@ -26,7 +26,7 @@
 
 import { civPeople, feel, cultDist } from './folk.js';
 import { chronicle } from '../../core/chronicle.js';
-import { on } from '../../core/hooks.js';
+import { on, emit as emitHook } from '../../core/hooks.js';
 import { registerTool } from '../../core/tools.js';
 import {
   liveCivs, rel, hasContact, areAtWar,
@@ -711,6 +711,7 @@ export function betrayal(world, betrayerId, victimId, kind = 'nap') {
   if (!a || !b) return;
   const st = state(world);
   st.betrayals++;
+  emitHook(world, 'betrayal', a, b, kind);   // an oath broken (myth/sickness.js: the Wasting)
   const r = rel(world, victimId, betrayerId);
   r.opinion = clamp((r.opinion || 0) - 40, -100, 100);
   r.trust = 0.05;

@@ -25,7 +25,7 @@ import { makePerson, makeWord, isEnglishWord } from '../../core/names.js';
 import { civSettlements, enemiesOf, startWar, rel, areAtWar, addOpinion } from '../../core/entities.js';
 import { DAYS_PER_YEAR } from '../../core/constants.js';
 import { emit, on } from '../../core/hooks.js';
-import { skillsOf, growSkills, useSkill, bodyOf, wound, madTemper, settleAmbition, SK, WOUND_WORDS, WOUND_EPITHETS, ILLNESSES } from '../../core/character.js';
+import { skillsOf, growSkills, useSkill, bodyOf, wound, madTemper, settleAmbition, SK, WOUND_WORDS, WOUND_EPITHETS, ILLNESSES, illWord } from '../../core/character.js';
 import { mulOf, hasProviders, registerProvider } from '../../core/ext.js';
 import { RULER_TRAITS, GOVERNMENTS, isDynastic } from './data.js';
 import { rulerTitle, govDef, adoptGovernment, revolutionTarget } from './government.js';
@@ -294,6 +294,7 @@ export function rulersMonthly(world, civ, agg) {
   let haz = 0.011 + 0.0006 * Math.exp((a - 30) / 8) + 0.014 * Math.max(0, 1 - era / 6) * (1.2 - Math.min(1, mods.health * 0.8));
   if (r.flags?.blessed) haz *= 0.6;
   if (r.flags?.cursed) haz *= 2.5;
+  if (r.flags?.wound && r.flags.wound.h == null) haz *= 0.8;   // the wound of the Wasting is slow to kill (myth/sickness.js)
   if (r.bd && r.bd.ill) haz *= 1.7 * (hasProviders('illCure') ? mulOf('illCure', world, civ, r) : 1);   // a lasting illness (core/character.js), and its physicians (ext illCure)
   let cause = null;
   if (world.rng.chance(haz / 12)) cause = a > 62 && !(r.bd && r.bd.ill) ? 'old age' : 'illness';
@@ -399,6 +400,7 @@ export function updateLegitimacy(world, civ) {
   if (r?.elected) t += 0.15;
   if (r?.flags?.blessed) t += 0.08;
   if (r?.flags?.cursed) t -= 0.1;
+  if (r?.flags?.guilt != null) t -= 0.12;   // came to the throne by a wounded ruler's murder (myth/sickness.js)
   if (civ.flags?.regent) t -= 0.08;
   if (civ.goldenAge > 0) t += 0.08;
   if (civ.darkAge > 0) t -= 0.1;
@@ -414,13 +416,15 @@ function illPhrase(world, r, cause) {
   const bd = r && r.bd;
   if (cause !== 'illness' || !bd || !bd.ill || !ILLNESSES[bd.ill]) return null;
   const yrs = Math.round((world.time.day - fin(bd.illDay, world.time.day)) / DAYS_PER_YEAR);
-  return yrs >= 2 ? `of ${ILLNESSES[bd.ill]} that had plagued ${r.gender === 'f' ? 'her' : 'him'} for ${yrs} years` : `of ${ILLNESSES[bd.ill]}`;
+  const ill = illWord(world, bd.ill);
+  return yrs >= 2 ? `of ${ill} that had plagued ${r.gender === 'f' ? 'her' : 'him'} for ${yrs} years` : `of ${ill}`;
 }
 
 function causePhrase(world, cause, a) {
   switch (cause) {
     case 'old age': return pick(world, [`in old age at ${Math.round(a)}`, `full of years at ${Math.round(a)}`, `peacefully at the age of ${Math.round(a)}`]);
-    case 'illness': return pick(world, ['of a fever', 'of a wasting sickness', `of an illness at ${Math.round(a)}`, 'of a lingering illness']);
+    case 'illness': return pick(world, ['of a fever', fin(world.params.mythLevel) >= 2 ? 'of a consumption' : 'of a wasting sickness', `of an illness at ${Math.round(a)}`, 'of a lingering illness']);
+    case 'abdicated': return 'from the throne, that the land might heal,';
     case 'battle': return pick(world, ['in battle', 'at the head of the army', 'of wounds taken in battle']);
     case 'assassinated': return pick(world, ['at the hands of assassins', 'by poison', 'in a palace conspiracy', "by an assassin's blade"]);
     case 'murdered': return pick(world, ['in the night, smothered in the royal bedchamber', 'by poison in the cup of a regent', 'in a locked tower, and no one was ever punished']);
@@ -458,7 +462,7 @@ export function succession(world, civ, cause, agg = {}, opts = {}) {
   const n = civ.settlementIds.length;
   const bigImp = fin(civ.population) >= 20000 || prev.epithet ? 2 : 1;
   const assassinImp = fin(civ.population) >= 30000 ? 3 : 2;
-  const verb = cause === 'assassinated' || cause === 'murdered' ? 'was killed' : cause === 'smitten' ? 'was struck down' : cause === 'usurped' ? 'was overthrown' : 'died';
+  const verb = cause === 'assassinated' || cause === 'murdered' ? 'was killed' : cause === 'smitten' ? 'was struck down' : cause === 'usurped' ? 'was overthrown' : cause === 'abdicated' ? 'stepped down' : 'died';
   const reignWords = reign >= 2 ? (cause === 'smitten' ? ` in the ${ordinal(Math.ceil(reign))} year of ${pron(prev)} reign` : ` after a reign of ${Math.round(reign)} years`) : '';
   const died = cause === 'smitten'
     ? `${rulerName(prev)} of ${theName(civ)} ${verb}${reignWords} ${illPhrase(world, prev, cause) || causePhrase(world, cause, a)}`

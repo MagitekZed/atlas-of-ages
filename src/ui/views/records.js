@@ -16,7 +16,7 @@
 // records and trade roads, and the developer-records toggle.
 
 import { DAYS_PER_YEAR } from '../../core/constants.js';
-import { natureWords, WOUND_WORDS, ILLNESSES, AMBITION_WORDS } from '../../core/character.js';
+import { natureWords, WOUND_WORDS, ILLNESSES, illWord, AMBITION_WORDS } from '../../core/character.js';
 import { SITE_KINDS, getSite } from '../../core/sites.js';
 import { h, Binder } from '../dom.js';
 import * as F from '../format.js';
@@ -207,16 +207,20 @@ export function findRuler(w, id) {
 
 const TP_ROWS = [[0, 'Ambition', 'How much they want: land, glory, a name.'], [1, 'Mercy', 'Low is cruelty: who is spared, who is razed.'], [2, 'Piety', ''], [3, 'Greed', 'High taxes, a hunger for land and gold.'], [4, 'Honour', 'Pacts kept, envoys respected.'], [5, 'Boldness', 'Low is caution.']];
 const SK_ROWS = [[0, 'War'], [1, 'Diplomacy'], [2, 'Stewardship'], [3, 'Intrigue'], [4, 'Learning']];
+// the wound of the Wasting (myth/sickness.js), by what dealt it
+const WASTE_WOUND = { curse: 'a necromancer’s curse', beast: 'a wound from a beast of legend', oath: 'an oath broken', desecration: 'a holy place razed', hand: 'the curse of the hand', kinslaying: 'the blood of kin' };
 /** "Lost an eye; the wasting sickness; mad from Y812" (core/character.js), or ''. */
-function bodyLine(r) {
+function bodyLine(r, w) {
   const bd = r && r.bd;
-  if (!bd) return '';
+  const wd = r && r.flags && r.flags.wound;
+  const tail = wd ? `${bd ? '; ' : ''}Bore a wound that would not close, from ${WASTE_WOUND[wd.c] || 'a curse'} (${F.year(wd.d)})` : '';
+  if (!bd) return tail ? tail.replace(/^; /, '') : '';
   const w = bd.w || [], scars = w.filter((c) => c === 'scar').length;
   const out = w.filter((c) => c !== 'scar').map((c) => (WOUND_WORDS[c] || c).replace(/^./, (x) => x.toUpperCase()));
   if (scars) out.push(scars > 1 ? `Took ${['', '', 'two', 'three', 'four'][scars] || scars} wounds to the face` : 'Took a wound to the face');
-  if (bd.ill && ILLNESSES[bd.ill]) out.push(`Suffered ${ILLNESSES[bd.ill]}`);
+  if (bd.ill && ILLNESSES[bd.ill]) out.push(`Suffered ${illWord(w, bd.ill)}`);
   if (bd.mad) out.push(`Mad from ${F.year(bd.mad)}`);
-  return out.join('; ');
+  return out.join('; ') + (out.length ? tail : tail.replace(/^; /, ''));
 }
 /** An ambition in words, from its kind and target (core/character.js AMBITION_WORDS). */
 function ambWords(w, am, civ) {
@@ -265,7 +269,7 @@ const rulerView = {
         { k: 'By-name', v: () => (r.gloss ? `${r.epithet} · “${r.gloss}” in ${civ.adjective ? `the ${civ.adjective}` : 'their own'} tongue` : r.epithet || '—'), txt: true, hide: () => !r.epithet },
         { k: 'Temperament', v: () => (r.traits?.length ? r.traits.map(F.humanize).join(', ') : '—'), txt: true },
         { k: 'Nature', v: () => natureWords(r, civ, 3).join(', ') || 'Even-tempered', txt: true, hide: () => !Array.isArray(r.tp) },
-        { k: 'Body', v: () => bodyLine(r), txt: true, hide: () => !bodyLine(r) },
+        { k: 'Body', v: () => bodyLine(r, w), txt: true, hide: () => !bodyLine(r, w) },
         { k: reigning ? 'Wants' : 'Died wanting', v: () => ambWords(w, r.am, civ), txt: true, hide: () => !r.am },
         { k: 'Ambitions', v: () => ambDone(w, r.done, civ), txt: true, hide: () => !(r.done && r.done.length) },
         { k: 'The heir', v: () => `${r.heir.name}, who covets the throne`, txt: true, hide: () => !(reigning && r.heir && r.heir.am && r.heir.am.k === 'throne') },

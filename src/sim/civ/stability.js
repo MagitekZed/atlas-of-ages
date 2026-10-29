@@ -474,6 +474,9 @@ export function unionCheck(world, civ) {
 // ---------------------------------------------------------------------------
 // Golden and dark ages (civ.goldenAge / civ.darkAge = years remaining)
 
+/** Published: civ sinks into a dark age (why 'dead': an age of darkness of the dead, myth/sickness.js). */
+export function beginDarkAge(world, civ, why) { if (civ && civ.alive && !(civ.darkAge > 0)) startDark(world, civ, why); }
+
 function startDark(world, civ, why, silent = false) {
   civ.darkAge = world.rng.int(12, 30);
   civ.goldenAge = 0;
@@ -486,7 +489,7 @@ function startDark(world, civ, why, silent = false) {
     defeat: pick(world, [', its provinces lost to its enemies', ' after a string of defeats']),
     strife: pick(world, [', torn by strife and misrule', ' amid feuds and broken oaths']),
     collapse: '',
-  }[why] || '';
+  }[why] || (why === 'dead' ? ', as the dead walked its land' : '');
   record(world, { cat: 'civ', imp: fin(civ.population) >= 20000 ? 3 : 2, key: 'age.dark', civ, tags: [why], text: `${TheName(civ)} sank into a dark age${reason}.` });
 }
 

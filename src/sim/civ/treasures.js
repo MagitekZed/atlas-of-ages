@@ -45,6 +45,21 @@ const POWER = {
   lizardfolk: { k: 'eggstone', w: 1, m: 'birth', v: 0.05, name: (W) => `the Egg-Stone of ${W}`, by: 'the egg-priests' },
   halfling: { k: 'book', w: 0.7, m: 'happiness', v: 0.03, name: (W) => `the Book of ${W}`, by: 'an old family' },
 };
+// a cup that heals (chunk 12): about a third of the elves' treasures, and now and then a realm of a
+// healing faith; a ruler whose wound wastes the land may be healed by it (myth/sickness.js)
+const HEAL = { k: 'chalice', w: 1, m: 'health', v: 0.03, name: (W, P) => `the Healing Cup of ${P}`, by: 'the healers' };
+const healingFaith = (world, civ) => {
+  const r = civ.stateReligion != null ? world.religions[civ.stateReligion] : null;
+  return Boolean(r && r.alive !== false && Array.isArray(r.tenets) && (r.tenets.includes('healing') || r.tenets.includes('monastic')));
+};
+/** Published: the healing cups held by realms now: [{ t, civId }]. */
+export function healingCups(world) {
+  const a = artState(world);
+  if (!a) return [];
+  const out = [];
+  for (const t of a.t) if (t.k === 'chalice' && t.at && t.at.k === 'civ') out.push({ t, civId: t.at.id });
+  return out;
+}
 
 export function artState(world) {
   const st = world.sys.civ;
@@ -155,7 +170,9 @@ export function treasuresYearly(world, civ) {
     && !own.some((t) => t.k === 'crown' && t.f === civ.id) && !(artState(world).t.some((t) => t.k === 'crown' && t.f === civ.id))
     && world.rng.chance(0.12)) forgeRegalia(world, civ);
   const P = civ.race && POWER[civ.race];
-  if (P && fin(world.params?.mythLevel) >= 2 && era >= 1 && own.filter((t) => t.pw).length < 3 && world.rng.chance(0.008 * P.w)) forgePower(world, civ, P);
+  if (!(fin(world.params?.mythLevel) >= 2) || era < 1) return;
+  if (P && own.filter((t) => t.pw).length < 3 && world.rng.chance(0.008 * P.w)) forgePower(world, civ, civ.race === 'elf' && world.rng.chance(0.35) ? HEAL : P);
+  else if (healingFaith(world, civ) && !own.some((t) => t.k === 'chalice') && world.rng.chance(0.002)) forgePower(world, civ, HEAL);
 }
 
 // the gifts of treasures of power, to whoever holds them

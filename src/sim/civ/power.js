@@ -299,7 +299,7 @@ export function estatesYearly(world, civ, agg) {
     const want = 0.1 + 0.9 * pw[i];
     const terms = { rights: 0.4 * clamp(r - want, -0.5, 0.3) };
     if (i === 0) Object.assign(terms, { court: 0.8 * (court - 0.06), land: law.land === 'nobles' ? 0.08 : law.land === 'crown' ? -0.1 : 0, ruler: 0.1 * (tp[TP.HON] - 0.5), purge: -purged });
-    else if (i === 1) Object.assign(terms, { faith: (law.faith === 'one' ? 0.08 : law.faith === 'free' ? -0.15 : 0) - 0.2 * fin(civ.flags.faithDis), ruler: 0.3 * (tp[TP.PIE] - 0.5) });
+    else if (i === 1) Object.assign(terms, { faith: (law.faith === 'one' ? 0.08 : law.faith === 'free' ? -0.15 : 0) - 0.2 * fin(civ.flags.faithDis), ruler: 0.3 * (tp[TP.PIE] - 0.5), dark: -0.3 * darkFear(world, civ) });
     else if (i === 2) Object.assign(terms, { tax: -1.5 * Math.max(0, tax - 0.1), coin: -0.6 * coin, rights2: civ.government === 'merchant' || civ.government === 'republic' ? 0.05 : 0, war: -0.1 * weary });
     else if (i === 3) Object.assign(terms, { tax: -2.0 * Math.max(0, tax - 0.08), hunger: -0.8 * hunger, court: tax > 0.12 ? -0.6 * Math.max(0, court - 0.08) : 0,
       land: law.land === 'freeholds' ? 0.08 : 0, bond: law.bond === 'serf' ? -0.12 : 0, ruler: 0.1 * (tp[TP.MER] - 0.5), war: -0.2 * weary });
@@ -314,6 +314,12 @@ export function estatesYearly(world, civ, agg) {
   for (const row of est) for (let k = 0; k < 4; k++) row[k] = r3(row[k]);
 }
 const div0 = (a, b) => (b > 0 ? a / b : 0);
+/** 0..1: the clergy's horror at a crown that laid a grave-plague (myth/sickness.js: civ.flags.grave, its day), fading over thirty years. */
+function darkFear(world, civ) {
+  const d = civ.flags ? civ.flags.grave : null;
+  if (d == null) return 0;
+  return clamp(1 - (world.time.day - d) / (30 * DPY), 0, 1);
+}
 
 /** The estates' part of stability: each estate's loyalty against content, weighed by its power. */
 export function estatesStability(civ) {

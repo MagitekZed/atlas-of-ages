@@ -368,7 +368,7 @@ export function mountInput(app, canvas) {
     const o = app.toolOptions(t.id);
     // the act begins (and the Chronoscope snaps the world) just before its first touch
     if (!stroke.act && app.chrono?.beginAct) { stroke.act = true; app.chrono.beginAct({ kind: 'tool', id: t.id, label: t.label, icon: t.icon || t.id, x: tile.x, y: tile.y }); }
-    const res = applyTool(w, t.id, tile.x, tile.y, { radius: o.radius, strength: o.strength });
+    const res = applyTool(w, t.id, tile.x, tile.y, { radius: o.radius, strength: o.strength, ...(o.kind != null ? { kind: o.kind } : {}) });
     stroke.applied++;
     report(t, res, first);
     if (first) app.emit('worldEdited');
@@ -615,7 +615,7 @@ export function mountInput(app, canvas) {
     const o = app.toolOptions(tool.id);
     let res = null;
     if (hasPreview) {
-      const opts = { radius: o.radius, strength: o.strength };
+      const opts = { radius: o.radius, strength: o.strength, ...(o.kind != null ? { kind: o.kind } : {}) };
       if (band) { opts.a = { kind: band.kind, id: band.id, x: band.x, y: band.y }; const b = pickFor(pairKinds(tool)[1], hoverPos); if (b) opts.b = { kind: b.kind, id: b.id, x: b.x, y: b.y }; }
       try { res = kernelTools.previewTool(app.world, tool.id, t.x, t.y, opts); } catch (e) { res = null; }
     }

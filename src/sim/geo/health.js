@@ -196,14 +196,17 @@ export function plagueWeights(world, s, p) {
   OUT.inf = 1; OUT.die = 1;
   if (!sharesOf(world, s)) return OUT;
   let si = 0, sd = 0, tot = 0;
+  // mana-burn (myth/sickness.js) goes after the magic-touched, and no custom keeps it off
+  const magic = p.cause === 'mana';
   for (let j = 0; j < WN; j++) {
     const key = WK[j], sh = WS[j];
     const fr = Math.sqrt(frailOf(world, key));
     const v = p.op ? virginOf(world, key, p.op) : 0;
     const r = peekRec(world, key);
-    const c = CUSTOMS[r ? r.c : 'plain'] || CUSTOMS.plain;
-    const i = fr * c.inf * (1 + 0.4 * v);
-    const d = fr * (1 + 3.5 * v);
+    const c = magic ? CUSTOMS.plain : CUSTOMS[r ? r.c : 'plain'] || CUSTOMS.plain;
+    const mk = magic ? mulOf('magicFrailty', world, key) : 1;
+    const i = fr * c.inf * (1 + 0.4 * v) * mk;
+    const d = fr * (1 + 3.5 * v) * Math.sqrt(mk);
     si += sh * i; sd += sh * i * d; tot += sh;
     WD[j] = sh * i * d;
   }
@@ -708,8 +711,9 @@ function monthly(world) {
     const p = world.plagues[d.pid];
     if (!p || !p.active) continue;
     const near = settlementsNear(world, s.x, s.y, 10);
-    // gates shut against it, by the theory of each neighbour's physicians
+    // gates shut against it, by the theory of each neighbour's physicians (none knows mana-burn)
     for (const n of near) {
+      if (p.cause === 'mana') break;
       if (n === s || n.disease || (n.tier || 0) < 2) continue;
       const civ = world.civs[n.civId];
       if (!civ || Math.hypot(n.x - s.x, n.y - s.y) > 8) continue;

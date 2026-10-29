@@ -227,7 +227,7 @@ function soldierShare(ss) {
 const CAUSE = {
   tax: 'against the crushing taxes', hunger: 'in a year of hunger', court: 'against the spending of the court', coin: 'over the debased coin',
   war: 'weary of war', faith: 'over the crown’s faith', land: 'over the land', bond: 'against their bondage', rights: 'for rights long denied',
-  ruler: 'against their ruler', purge: 'after the purge of their own',
+  ruler: 'against their ruler', purge: 'after the purge of their own', dark: 'in horror at the crown’s dark arts',
 };
 const MIN_POW = [0.15, 0.06, 0.12, 0.15, 0];
 const RISE_AT = [0.3, 0.3, 0.3, 0.3, 0.15];   // the bound rise only in desperation

@@ -164,6 +164,22 @@ export function mountPalette(app) {
       });
       sliders.appendChild(h('div.mini-slider', null, h('label', { for: 'tool-strength', text: s.label || 'Strength' }), inp, out));
     }
+    // a tool's kinds (the Plague power in a Mythic world)
+    const kinds = typeof t.kinds === 'function' && app.world ? t.kinds(app.world) : null;
+    if (Array.isArray(kinds) && kinds.length > 1) {
+      const row = h('div.tool-kinds', { role: 'radiogroup', 'aria-label': `${t.label}: kind` });
+      for (const [v, label] of kinds) {
+        const on = opts.kind === v;
+        const b = h('button', { type: 'button', role: 'radio', 'aria-checked': on ? 'true' : 'false', class: on ? 'is-on' : '', text: label });
+        b.addEventListener('click', () => {
+          app.setToolOption(t.id, 'kind', v);
+          for (const x of row.children) { const me = x === b; x.classList.toggle('is-on', me); x.setAttribute('aria-checked', me ? 'true' : 'false'); }
+          app.emit('brush');
+        });
+        row.appendChild(b);
+      }
+      sliders.appendChild(row);
+    }
     const ico = h('span.ico', null, iconEl(t.icon || t.id, { size: 20, label: t.label }));
     card.append(
       ico,
