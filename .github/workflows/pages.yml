@@ -30,6 +30,8 @@ jobs:
           mkdir -p _site
           cp "Atlas of Ages.html" _site/index.html
           cp "Atlas of Ages.html" _site/atlas-of-ages.html
+          # the patch notes, a page of their own (patch-notes/index.html)
+          cp -r patch-notes _site/patch-notes
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
