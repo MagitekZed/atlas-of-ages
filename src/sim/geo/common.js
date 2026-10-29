@@ -8,6 +8,9 @@ import { rel } from '../../core/entities.js';
 import { seasonAt } from '../../core/world.js';
 import { SEASONS } from '../../core/constants.js';
 import { emit } from '../../core/hooks.js';
+// (a static import: a top-level await here made every geo module start up async, and the bundle
+// hangs on their import loops; tools/build-standalone.mjs)
+import * as tech from '../civ/tech.js';
 
 // ---------------------------------------------------------------------------
 // Hooks (contracts §5): every WP4 emit goes through emitHook, which also counts it in
@@ -22,8 +25,6 @@ export function emitHook(world, name, ...args) {
 /** Counts of the WP4 hooks emitted in this session: { name: n }. */
 export const hookCounts = (world) => world.cache.wp4Hooks || {};
 
-let tech = null;
-try { tech = await import('../civ/tech.js'); } catch (e) { /* civ module not available yet: defaults apply */ }
 
 // ---------------------------------------------------------------------------
 // Civ modifiers (SPEC §6.3 defaults)
