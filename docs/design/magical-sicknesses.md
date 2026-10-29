@@ -339,32 +339,38 @@ Wasting, counts), `civ.flags.grave`, `ruler.flags.wound` / `guilt`, `plague.by` 
   leaves the new ruler's legitimacy 0.12 lower for the reign; a kinslayer, one time in three, is
   wounded too, the land's loss carried over at 60 %. Healing cups: a third of the elves'
   treasures of power, and 0.2 % a year for a realm of a healing faith without one (health +0.03).
-- **The Scourge** (phase 5; also in `bands/kinds/undead.js`, `bands/combat.js`,
-  `bands/hunts.js`, `events/data.js` and `events/ages.js` (the Age of the Dead, never rolled at
-  random), `civ/stability.js` (a dark age begun by others)). Every risen host gets a potential
-  (an `undeadRisen` hook): its maker's art (a caster's Necromancy + ½ arcana; the hand's
-  virulence above 0.8; 0.135 for a natural rising) × (½ + the mana where it rose) ×
-  log10(the dead to hand / 500), ≤ 2 (its own grave and the unrisen graves within 20 tiles). From
-  0.25 it has the makings: a ceiling × (1 + 4 × potential, ≤ 5), 1.44 power a death instead of
-  0.9, graves within 4 tiles swallowed, and in battle it is worn down (each defeat 10–50 % of its
-  power, each win feeding it 0.6 of the soldiers it kills) instead of felled. It is named the
-  Scourge at 0.74 % of the world's people (1.85 × an ordinary host's ceiling) with six towns
-  overrun; a master holds it at (art − 0.5) (≤ 60 %) and only while its power stays below
-  3 % × art of the world's people, otherwise it breaks free. Named, it reaches 30 tiles, never
-  fades, blights the towns within 8 tiles (harvests × 0.7, newcomers × 0.4, happiness −0.1, for
-  three years), wastes the land within 2, and the realms with towns within 25 hunt it together
-  (their summed strength against 1.5 × its own; each realm's part at least a quarter of it) and
-  want war with each other × 0.6; their old quarrels set aside is told once. A lone champion has
-  1 % against it (5 % while it sleeps); a company of three to six heroes of the nearest realm
-  goes at most every five years (30 %), at 0.3 × √(an ordinary ceiling / its power) (+0.15
-  asleep, +0.1 × arcana). A year without new dead and it sleeps where it stands (a barrow on the
-  map), losing 0.4 % a month; a grown town within 12 tiles wakes it (6 % a month), or an army
-  within 4; a realm near it strong enough sends an expedition. After 25 years named, with 8
-  towns or a realm destroyed or 6 % of the world's people dead by it, the darkness falls on 35
-  tiles: realms seated there sink into dark ages, its towns' harvests × 0.8, newcomers × 0.6,
-  for as long as it lives and fifteen years after. If it then carries its war 10 tiles beyond
-  that region, or grows past 1.8 % of the world's people five years on, the Age of the Dead (a
-  world age of 40 years: stability and happiness −0.03 on every realm, wars × 0.75).
+- **The Scourge** (phase 5; also in `bands/kinds/undead.js`, `bands/combat.js`, `bands/hunts.js`,
+  `events/data.js` and `events/ages.js` (the Age of the Dead, never rolled at random),
+  `civ/stability.js` (a dark age begun by others)). Every risen host gets a potential (an
+  `undeadRisen` hook): its maker's art (a caster's Necromancy + ½ arcana; the hand's virulence
+  above 0.8; 0.1425 for a natural rising) × (½ + the mana where it rose) × log10(the dead to hand
+  / 500), ≤ 2 (its own grave and the unrisen graves within 20 tiles). From 0.25 it has the
+  makings: a ceiling × (1 + 4 × potential, ≤ 5), 1.44 power a death instead of 0.9, graves within
+  4 tiles swallowed, and in battle it is worn down (each defeat 10–50 % of its power, each win
+  feeding it 0.6 of the soldiers it kills) instead of felled. It is named the Scourge at 0.74 %
+  of the world's people (1.85 × an ordinary host's ceiling) with six towns overrun; a master
+  holds it at (art − 0.5) (≤ 60 %) and only while its power stays below 3 % × art of the world's
+  people, otherwise it breaks free. Named, it is a war, not a beast: after each battle it falls
+  back and no army can bring it to battle again for a month; a defeat costs it 5–25 % of its
+  power; its dead carry the arms they fell with (it fights × the military of the realm it faces,
+  so only a state faith's ×1.3 and numbers tell); and the soldiers it kills count among its dead,
+  for its darkness. It reaches 30 tiles, never fades, blights the towns within 8 tiles (harvests
+  × 0.7, newcomers × 0.4, happiness −0.1, for three years), wastes the land within 2, and the
+  realms with towns within 25 hunt it together (their summed strength against 1.5 × its own; each
+  realm's part 0.8 × its power, raised only if at least a quarter of it) and want war with each
+  other × 0.6; their old quarrels set aside is told once. A lone champion has 1 % against it (5 %
+  while it sleeps); a company of three to six heroes of the nearest realm goes at most every five
+  years (30 %), never in its first five years named, at 0.25 × √(an ordinary ceiling / its power)
+  (+0.15 asleep, +0.05 × arcana up to 2; at most 50 %). A year without new dead and it sleeps
+  where it stands (a barrow on the map, its old one if within 4 tiles; a sleep within ten years
+  of the last, and a waking after less than three years, are told only in passing), losing 0.4 %
+  a month; a grown town within 12 tiles wakes it (6 % a month), or an army within 4; a realm near
+  it strong enough sends an expedition. After 25 years named, with 8 towns or a realm destroyed
+  or 6 % of the world's people dead by it, the darkness falls on 35 tiles: realms seated there
+  sink into dark ages, its towns' harvests × 0.8, newcomers × 0.6, for as long as it lives and
+  fifteen years after. If it then carries its war 10 tiles beyond that region, or grows past 1.8
+  % of the world's people five years on, the Age of the Dead (a world age of 40 years: stability
+  and happiness −0.03 on every realm, wars × 0.75).
 - **The hand.** The Plague power has a kind in Mythic worlds (a plague, a grave-plague whose dead
   rise masterless, mana-burn), chosen on its card; Curse Ruler asks which curse (madness and
   cruelty, or the Wasting).
@@ -381,42 +387,50 @@ in plague deaths, so that is the noise floor for a Mythic comparison.
 
 | Mythic, 12 worlds | Year 500 | Year 1000 |
 |---|---|---|
-| Population | +4 % | +5 % |
-| Realms | +10 % | −1 % |
-| Towns | +3 % | +2 % |
-| Wars | +6 % | −1 % |
-| Plague dead | +252 % (one world's grave-plagues) | −3 % |
+| Population | +4 % | +4 % |
+| Realms | +10 % | +3 % |
+| Towns | +3 % | +3 % |
+| Wars | +6 % | 0 % |
+| Plague dead | +252 % (one world's grave-plagues) | −9 % |
 
 - **Historical and Legendary worlds are identical to main** at Years 500 and 1000 (every sampled
   field but the timing), and the determinism check passes.
 - **The ages:** the leading realm reaches the Classical Age by Year 1000 in 9 of 12 Mythic worlds
   (main 7).
-- **The Wasting:** 22 wounds in 12 worlds (0–4 a world): a broken oath 10, a beast's wound 9, a
-  desecration 2, a necromancer's curse 1. Of the 20 that ended: 9 by the great of the realm
+- **The Wasting:** 22 wounds in 12 worlds (0–4 a world): a broken oath 11, a beast's wound 9, a
+  desecration 1, a necromancer's curse 1. Of the 20 that ended: 9 by the great of the realm
   deposing the ruler, 3 by illness, 3 by a cure, 2 by stepping down, 2 of old age, 1 by murder;
   about ten years each on average. In the forced cases the arc runs wound, failing harvests,
   blame (the gods, a neighbour, the mages, a minority), revelation (often a confession), a
   reckoning and the healing.
-- **Mana-burn:** 30 outbreaks in 12 worlds (0–10 a world, 2.5 on average), all in the later
+- **Mana-burn:** 27 outbreaks in 12 worlds (about 2 a world), all in the later
   centuries as mages multiply; from a handful of dead to 4,500 in an elven city, and burnt land
   around each first town.
 - **The grave-plague:** necromancy stays rare. One world of twelve had a dark realm desperate
   enough, and it laid three, 80 years apart, each raising a host; two leagues formed against it.
   Two stayed near their cities (48,000 and 3,600 dead); the third, in a crowded late world,
   spread far and killed 362,000 (about 7 % of that world). Forced on a town at Year 300 it kills
-  4–14 % of its city, reaches four to six towns and is over within the year.
-- **The Scourge:** 18 hosts had the makings (almost all natural risings), and none grew enough
-  to be named in these twelve worlds; with natural risings a little stronger (art 0.15) three
-  worlds in twelve had one, with 0.12 none, so the final 0.135 sits near the edge, rarer than one
-  world in ten in this sample. Forced (the hand's grave-plague at full virulence near old graves,
-  Year 500), two worlds of six raised one. In one (before the last tuning) the Scourge of Thaa
-  was named the year it rose, four realms swore an alliance, it killed some 74,000 over 25 years
-  while companies of heroes died against it, the darkness fell on four realms, and two years
-  later a company of five heroes destroyed it; the land began to heal the next year. In the
-  other the alliance's hunts ground it down within a year.
+  4–14 % of its city, reaches four to six towns and is over within the year. The user's call: a
+  very small chance that a grave-plague becomes an apocalypse is welcome, so the far spread stays.
+- **The Scourge:** natural risings at art 0.1425 (between 0.135, which named none in twelve
+  worlds, and 0.15, which named three), on the twelve worlds and twelve more seeds: two worlds in
+  24 named one, about one in twelve. Named, it is now a war of decades.
+  - **Vane:** the Scourge of Aruthak was named in Year 721, and two realms made common cause
+    against it. It won most of its battles and five companies of heroes died against it; 25 years
+    on, its darkness fell. In Year 764 a company of three destroyed it, and the dawn came the next
+    year.
+  - **Flint:** the Scourge of Raareinthiein (Year 967) slept, woke, won a hundred battles, and a
+    company of six destroyed it after 18 years, before its darkness.
+  - Each killed 340,000–460,000 soldiers over its life, and both worlds' people held steady or
+    grew.
+  - **Forced** (the hand's grave-plague at full virulence near old graves, Year 500), two worlds
+    of six raised one. The Scourge of Thaa held its region for 88 years, its darkness falling
+    after 25. The Scourge of Chax'ka (potential 1.43, the highest ceiling) lasted 73 years and
+    brought the Age of the Dead; heroes ended both.
 - **Speed:** the new system costs 0.42 ms per sim-year in a Mythic world (budget 0.5); timeab on
   Year-900 saves of main: Historical 0.0 % (the same simulation), Mythic −2.8 % (the histories
-  diverge).
+  diverge). The last tuning (a named Scourge's battles and heroes) adds a few comparisons
+  per band every ten days and was not timed again.
 - **Save size:** the new state is a few hundred bytes (about 130 at Year 900 without a Scourge).
 - **Gates:** all nine pass (npm test, trial-myth, cohort, keyframe, hand, hand-myth, three
   300-year Mythic trials); 19 systems load.
@@ -435,7 +449,12 @@ in plague deaths, so that is the noise floor for a Mythic comparison.
   Worn down by power, it can survive long enough to grow, and the threatened realms must keep
   sending armies.
 - The Scourge's frequency turns on how much potential natural risings get: between art 0.12 and
-  0.15 it goes from none in twelve worlds to three. The necromancer's art, not the setting,
-  should be what makes one likely.
+  0.15 it goes from none in twelve worlds to three, so it was measured on 24.
+- A named Scourge died within a year of its naming: hunts and armies at war fought it nearly
+  every day, with the arms of their age (twice their numbers) against its bare count of dead.
+  One battle a month, lighter defeats, each realm's hunt smaller than it, and the arms of its foes
+  made it a war of decades; heroes now wait five years.
+- A long-lived Scourge with nothing near it sleeps and wakes almost every year; it now reuses its
+  barrow and only its first or long sleeps and wakings are told.
 - Chunk 11's final calibration runs were made before its last commit (which changed a chronicle
   line's draw), so they were not main's numbers; main was rerun for this comparison.

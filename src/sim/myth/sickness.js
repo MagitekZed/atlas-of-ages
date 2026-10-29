@@ -44,19 +44,21 @@
 //                     second, lighter Wasting.
 //
 //   The Scourge       Every risen host gets a potential (undeadRisen hook): its maker's art (a
-//                     caster's Necromancy + ½ arcana; the hand's virulence; 0.135 for a natural
+//                     caster's Necromancy + ½ arcana; the hand's virulence; 0.1425 for a natural
 //                     rising) × (½ + the mana where it rose) × log10(the dead to hand
 //                     / 500) (its own and the unrisen graves within 20 tiles). From 0.25 it has the
 //                     makings of a scourge: a ceiling × (1 + 4 × potential, ≤ 5) and more power from
 //                     each death (bands/kinds/undead.js). At 0.74 % of the world's people, six towns
 //                     overrun, it is named the Scourge: a master holds it only by great art (most
 //                     break free), it blights the towns within 8 tiles, the realms within 25 hunt
-//                     it together (bands/hunts.js) and want war less with each other; a year
+//                     it together (bands/hunts.js) and want war less with each other; it is a war,
+//                     not a beast (bands/combat.js: a battle a month, the arms of its foes); a year
 //                     without new dead and it sleeps, weakening, until fresh foes wake it. A
-//                     company of heroes may end it (better while it sleeps; a lone champion has no
-//                     chance, bands/hunts.js); realms strong enough near a sleeping one send
-//                     expeditions. After 25 years named, with 8 towns or a realm destroyed or 6 %
-//                     of the world's people dead by it, an age of darkness falls on its region (35
+//                     company of heroes may end it (not in its first five years named; better
+//                     while it sleeps; a lone champion has no chance, bands/hunts.js); realms
+//                     strong enough near a sleeping one send expeditions. After 25 years named,
+//                     with 8 towns or a realm destroyed or 6 % of the world's people dead by it
+//                     (its soldiers slain counted), an age of darkness falls on its region (35
 //                     tiles: dark ages, blight); carried far beyond, it brings the Age of the Dead.
 //
 //   world.sys.myth.sick = {
@@ -720,7 +722,7 @@ const pickT = (world, arr) => arr[Math.floor(world.rng.next() * arr.length)];
 // ---------------------------------------------------------------------------
 // The Scourge
 
-const NATURAL_ART = 0.135;   // the art of a natural rising (no maker): only a land thick with the dead and magic makes one
+const NATURAL_ART = 0.1425;  // the art of a natural rising (no maker): only a land thick with the dead and magic makes one
 const SCOURGE_AT = 0.0074;   // its power as a share of the world's people, to be named (1.85 × an ordinary host's ceiling)
 const DARK_YEARS = 25;       // years named before its darkness can fall
 const DARK_R = 35;           // the reach of its region
@@ -870,7 +872,8 @@ function darkLand(world, D, until) {
 function heroesYear(world, st, band, wp) {
   if (!hunts || !engine) return;
   const sc = band.data.sc;
-  if (sc.hy != null && world.time.day - sc.hy < 5 * Y) return;
+  // no company dares it in its first five years named, and none sooner than five years after the last
+  if (world.time.day - (sc.hy ?? fin(sc.named)) < 5 * Y) return;
   const near = settlementsNear(world, band.x, band.y, 25).filter((s) => s.civId >= 0 && s.civId !== band.civId);
   if (!near.length || !world.rng.chance(0.3)) return;
   sc.hy = world.time.day;
@@ -878,7 +881,7 @@ function heroesYear(world, st, band, wp) {
   const civ = world.civs[near[0].civId];
   const base = Math.max(60, 0.004 * wp);
   const asleep = band.state === 'sleep';
-  const p = clamp(0.3 * Math.sqrt(base / Math.max(1, band.power)) + (asleep ? 0.15 : 0) + 0.1 * fin(civ.mods && civ.mods.arcana), 0.02, 0.6);
+  const p = clamp(0.25 * Math.sqrt(base / Math.max(1, band.power)) + (asleep ? 0.15 : 0) + 0.05 * Math.min(2, fin(civ.mods && civ.mods.arcana)), 0.02, 0.5);
   const n = 3 + Math.floor(world.rng.next() * 4);
   if (world.rng.chance(p)) {
     st.n.heroes = (st.n.heroes || 0) + 1;

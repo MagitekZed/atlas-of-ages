@@ -175,14 +175,18 @@ function absorbGraves(world, band) {
 }
 
 function goSleep(world, band) {
+  const day = world.time.day;
+  // a restless sleeper (it slept within ten years) lies down in its old barrow if near, and is told only in passing
+  const again = band.data.slept != null && day - band.data.slept < 10 * Y;
   band.state = 'sleep';
   band.path = null;
   band.targetSid = -1;
-  band.data.slept = world.time.day;
-  const lair = addSite(world, { kind: 'grave', x: band.x, y: band.y, dead: 0, name: `the Barrow of ${bandName(band).replace(/^the /, '')}`, civIds: [], data: { risen: world.time.day, barrow: band.id } });
+  band.data.slept = day;
+  const old = band.data.lair != null ? world.sites.find((x) => x && x.id === band.data.lair) : null;
+  const lair = old && Math.abs(old.x - band.x) <= 4 && Math.abs(old.y - band.y) <= 4 ? old : addSite(world, { kind: 'grave', x: band.x, y: band.y, dead: 0, name: `the Barrow of ${bandName(band).replace(/^the /, '')}`, civIds: [], data: { risen: day, barrow: band.id } });
   if (lair) band.data.lair = lair.id;
   say(world, band, {
-    cat: 'myth', imp: 3, key: 'undead.sleep',
+    cat: 'myth', imp: again ? 1 : 3, fold: again, key: 'undead.sleep',
     text: pick(world, [
       `No new dead came to ${bandName(band)}, and it lay down ${placePhrase(world, band.x, band.y) || 'where it stood'} to sleep; the barrow it made there was shunned for a generation.`,
       `${BandName(band)} went to ground ${placePhrase(world, band.x, band.y) || 'in the wastes'}: it slept, and the living who remembered it did not.`,
@@ -200,9 +204,11 @@ function sleepMonth(world, band) {
   if (!army && !(near && world.rng.chance(0.06))) return;
   band.state = 'lair';
   band.data.lastKill = world.time.day;
+  // its first waking, or one after three years and more, is news; a restless stirring is not
+  const told = !band.data.woke || world.time.day - band.data.slept >= 3 * Y;
   band.data.woke = (band.data.woke || 0) + 1;
   say(world, band, {
-    cat: 'myth', imp: 3, key: 'undead.wake',
+    cat: 'myth', imp: told ? 3 : 1, fold: !told, key: 'undead.wake',
     text: `${BandName(band)} woke in its barrow ${placePhrase(world, band.x, band.y) || ''} after ${Math.max(1, Math.round((world.time.day - band.data.slept) / Y))} years, and turned toward the living again.`.replace(/ {2,}/g, ' '),
   });
 }

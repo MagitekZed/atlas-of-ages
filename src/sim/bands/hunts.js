@@ -21,7 +21,7 @@ import { mythOn } from '../../core/params.js';
 import { state, bandPower, civPowerOf, manpowerOf, isBeast, isPeople, kindDef, endBand, engineHooks, ready, isReady } from './engine.js';
 import { links, tileOf, modeOf, walkGrid, planHome } from './move.js';
 import { findCamp } from './kinds/outlaws.js';
-import { clash } from './combat.js';
+import { clash, scourgeRests } from './combat.js';
 import { heroName, slayerTitle } from './names.js';
 import { say, pick, cap, civName, CivName, count, when, placePhrase, bandName, BandName, ordinal, isTold } from './prose.js';
 
@@ -63,8 +63,9 @@ export function raiseHunt(world, civ, band, opts = {}) {
   const st = state(world);
   const bp = bandPower(band);
   const mp = manpowerOf(civ);
-  const str = Math.round(clamp(1.6 * bp, 20, 0.6 * mp));
-  // (opts.share: one realm's part of a common hunt against a Scourge, myth/sickness.js)
+  // (opts.share: one realm's part of a common hunt against a Scourge, myth/sickness.js: no realm alone
+  // fields a host to match it)
+  const str = Math.round(clamp((opts.share ? 0.8 : 1.6) * bp, 20, 0.6 * mp));
   if (str < (opts.share ? 0.25 : 1.15) * bp || str < 20) return null;
   const home = nearestSettlement(world, band.x, band.y, { civId: civ.id });
   if (!home) return null;
@@ -295,6 +296,7 @@ export function huntsDaily(world) {
       }
     }
     if (!flyerAway && armyNear(army, band, 1.6)) {
+      if (scourgeRests(world, band)) continue;
       const r = clash(world, army, band, { hunt: true });
       if (r.bandGone || !getBand(world, band.id)) { goHome(); continue; }
       // a posse fights once; hunts of beasts and hosts keep after a beaten quarry
