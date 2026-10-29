@@ -215,8 +215,8 @@ function bodyLine(r, w) {
   const wd = r && r.flags && r.flags.wound;
   const tail = wd ? `${bd ? '; ' : ''}Bore a wound that would not close, from ${WASTE_WOUND[wd.c] || 'a curse'} (${F.year(wd.d)})` : '';
   if (!bd) return tail ? tail.replace(/^; /, '') : '';
-  const w = bd.w || [], scars = w.filter((c) => c === 'scar').length;
-  const out = w.filter((c) => c !== 'scar').map((c) => (WOUND_WORDS[c] || c).replace(/^./, (x) => x.toUpperCase()));
+  const ws = bd.w || [], scars = ws.filter((c) => c === 'scar').length;
+  const out = ws.filter((c) => c !== 'scar').map((c) => (WOUND_WORDS[c] || c).replace(/^./, (x) => x.toUpperCase()));
   if (scars) out.push(scars > 1 ? `Took ${['', '', 'two', 'three', 'four'][scars] || scars} wounds to the face` : 'Took a wound to the face');
   if (bd.ill && ILLNESSES[bd.ill]) out.push(`Suffered ${illWord(w, bd.ill)}`);
   if (bd.mad) out.push(`Mad from ${F.year(bd.mad)}`);
